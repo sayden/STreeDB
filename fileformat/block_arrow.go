@@ -1,4 +1,4 @@
-package main
+package fileformat
 
 // func NewArrow[T Entry](dataWriter io.Writer, data Entries[T]) error {
 // 	// create a schema for the data

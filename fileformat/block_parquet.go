@@ -1,4 +1,4 @@
-package main
+package fileformat
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
@@ -17,16 +18,37 @@ const (
 	NUMBER_OF_THREADS = 8
 )
 
-type parquetBlock[T Entry] struct {
-	Block[T]
+type parquetBlock[T streedb.Entry] struct {
+	streedb.Block[T]
+	path string
 }
 
-func NewParquetBlock[T Entry](data Entries[T], level int) (Metadata[T], error) {
+func NewEmptyParquetBlock[T streedb.Entry](min, max *T, filepath string) (*parquetBlock[T], error) {
+	meta := &parquetBlock[T]{
+		Block: streedb.Block[T]{
+			BlockWriters: &streedb.BlockWriters{
+				MetaFilepath: filepath,
+			},
+			MinVal: *min,
+			MaxVal: *max,
+		},
+	}
+
+	metafile, err := os.Open(meta.MetaFilepath)
+	if err != nil {
+		return nil, err
+	}
+	meta.SetMeta(metafile)
+
+	return meta, nil
+}
+
+func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], path string, level int) (*parquetBlock[T], error) {
 	if data.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
 
-	var min, max Entry
+	var min, max streedb.Entry
 	if data.Len() > 1 {
 		min = data[0]
 		max = data[data.Len()-1]
@@ -35,12 +57,12 @@ func NewParquetBlock[T Entry](data Entries[T], level int) (Metadata[T], error) {
 		max = data[0]
 	}
 
-	blockWriters, err := NewBlockWriter(DEFAULT_DB_PATH, level)
+	blockWriters, err := streedb.NewBlockWriter(path, level)
 	if err != nil {
 		return nil, err
 	}
 
-	block := Block[T]{
+	block := streedb.Block[T]{
 		CreatedAt:    time.Now(),
 		ItemCount:    len(data),
 		Level:        level,
@@ -50,7 +72,7 @@ func NewParquetBlock[T Entry](data Entries[T], level int) (Metadata[T], error) {
 	}
 
 	// write data to file, create a new Parquet file
-	parquetWriter, err := writer.NewParquetWriterFromWriter(blockWriters.dataFile, new(T), NUMBER_OF_THREADS)
+	parquetWriter, err := writer.NewParquetWriterFromWriter(blockWriters.GetData(), new(T), NUMBER_OF_THREADS)
 	if err != nil {
 		panic(err)
 	}
@@ -63,24 +85,25 @@ func NewParquetBlock[T Entry](data Entries[T], level int) (Metadata[T], error) {
 		panic(err)
 	}
 
-	stat, err := blockWriters.dataFile.(*os.File).Stat()
+	stat, err := blockWriters.GetData().(*os.File).Stat()
 	if err != nil {
 		return nil, err
 	}
 	block.Size = stat.Size()
 
 	// write metadata to file
-	if err = json.NewEncoder(blockWriters.metaFile).Encode(block); err != nil {
+	if err = json.NewEncoder(blockWriters.GetMeta()).Encode(block); err != nil {
 		panic(err)
 	}
 
 	return &parquetBlock[T]{
 		Block: block,
+		path:  path,
 	}, nil
 }
 
-func (b *parquetBlock[T]) Find(v Entry) (Entry, bool, error) {
-	if !entryFallsInside[T](b, v) {
+func (b *parquetBlock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
+	if !streedb.EntryFallsInside[T](b, v) {
 		return nil, false, nil
 	}
 
@@ -93,7 +116,7 @@ func (b *parquetBlock[T]) Find(v Entry) (Entry, bool, error) {
 	return entry, found, nil
 }
 
-func (b *parquetBlock[T]) Merge(m Metadata[T]) (Metadata[T], error) {
+func (b *parquetBlock[T]) Merge(m streedb.Metadata[T]) (streedb.Metadata[T], error) {
 	entries, err := b.GetEntries()
 	if err != nil {
 		return nil, err
@@ -104,17 +127,17 @@ func (b *parquetBlock[T]) Merge(m Metadata[T]) (Metadata[T], error) {
 		return nil, err
 	}
 
-	dest := make(Entries[T], 0, entries.Len()+entries2.Len())
+	dest := make(streedb.Entries[T], 0, entries.Len()+entries2.Len())
 	dest = append(dest, entries...)
 	dest = append(dest, entries2...)
 
 	sort.Sort(dest)
 
 	// TODO: optimistic creation of new block
-	return NewParquetBlock(dest, b.Level+1)
+	return NewParquetBlock(dest, b.path, b.Level+1)
 }
 
-func (b *parquetBlock[T]) GetEntries() (Entries[T], error) {
+func (b *parquetBlock[T]) GetEntries() (streedb.Entries[T], error) {
 	pf, err := local.NewLocalFileReader(b.DataFilepath)
 	if err != nil {
 		return nil, err
@@ -126,7 +149,7 @@ func (b *parquetBlock[T]) GetEntries() (Entries[T], error) {
 	}
 
 	numRows := int(pr.GetNumRows())
-	entries := make(Entries[T], numRows)
+	entries := make(streedb.Entries[T], numRows)
 	err = pr.Read(&entries)
 	if err != nil {
 		return nil, err

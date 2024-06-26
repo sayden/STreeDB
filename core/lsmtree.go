@@ -1,13 +1,14 @@
-package main
+package core
 
 import (
 	"time"
 
+	"github.com/sayden/streedb"
+	"github.com/sayden/streedb/destfs"
 	"github.com/thehivecorporation/log"
 )
 
 var (
-	DEFAULT_DB_PATH         = "/tmp/test"
 	MAX_LEVELS_TOTAL_BLOCKS = [6]int{
 		1,
 		1024 * 4,
@@ -41,23 +42,23 @@ const (
 	MAX_LEVEL_4_BLOCK_AGE    = 24 * 30 * time.Hour
 )
 
-type LsmTree[T Entry] struct {
-	wal *Wal[T]
-
-	fs *Fs[T]
-
-	levels Levels[T]
+type LsmTree[T streedb.Entry] struct {
+	wal    Wal[T]
+	fs     streedb.DestinationFs[T]
+	path   string
+	levels streedb.Levels[T]
 }
 
-func NewLsmTree[T Entry](p string, s int) (*LsmTree[T], error) {
-	fs, levels, err := InitStartup[T](p)
+func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[T], error) {
+	fs, levels, err := destfs.InitStartup[T](initialPath)
 	if err != nil {
 		panic(err)
 	}
 
 	l := &LsmTree[T]{
-		wal:    NewWal[T](s),
+		wal:    newInMemoryWal[T](maxWalItems, initialPath),
 		fs:     fs,
+		path:   initialPath,
 		levels: levels,
 	}
 
@@ -69,24 +70,24 @@ func (l *LsmTree[T]) Append(d T) {
 		// WAL is full, write a new block
 		newBlock, err := l.wal.WriteBlock()
 		if err != nil {
-			log.Error("Error writing block: %v", err)
+			log.Errorf("Error writing block: %v", err)
 			return
 		}
 		l.levels.AppendBlock(newBlock)
 
-		l.wal = NewWal[T](cap(l.wal.data))
+		l.wal = newInMemoryWal[T](cap(l.wal.GetData()), l.path)
 	}
 }
 
-func (l *LsmTree[T]) Find(d T) (Entry, bool, error) {
+func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
 	// Look in the WAL
 	if v, found := l.wal.Find(d); found {
 		return v, true, nil
 	}
 
 	// Look in the meta, to open the files
-	for i := 0; i <= 5; i++ {
-		for _, level := range l.levels[i] {
+	for i := 0; i <= streedb.MAX_LEVELS; i++ {
+		for _, level := range l.levels.GetLevel(i) {
 			if v, found, err := level.Find(d); found {
 				return v, true, nil
 			} else if err != nil {
@@ -110,7 +111,7 @@ func (l *LsmTree[T]) Close() error {
 	}
 
 	for i := 0; i <= 5; i++ {
-		for _, level := range l.levels[i] {
+		for _, level := range l.levels.GetLevel(i) {
 			if err := level.Close(); err != nil {
 				return err
 			}
@@ -121,19 +122,19 @@ func (l *LsmTree[T]) Close() error {
 }
 
 func (l *LsmTree[T]) Compact() error {
-	overlapped := make([][2]Metadata[T], 0)
-	toAdd := make([]Metadata[T], 0)
-	toRemove := make(map[string]Metadata[T])
+	overlapped := make([][2]streedb.Metadata[T], 0)
+	toAdd := make([]streedb.Metadata[T], 0)
+	toRemove := make(map[string]streedb.Metadata[T])
 	alreadyMerged := make(map[string]struct{})
 
 	// read blocks from higher levels to lower levels
 	for levelIdx := 5; levelIdx >= 1; levelIdx-- {
-		higherLevel := l.levels[levelIdx]
+		higherLevel := l.levels.GetLevel(levelIdx)
 		if len(higherLevel) == 0 {
 			continue
 		}
 
-		lowerLevel := l.levels[levelIdx-1]
+		lowerLevel := l.levels.GetLevel(levelIdx - 1)
 
 	higherBlock:
 		// find overlapping blocks from different levels
@@ -147,7 +148,7 @@ func (l *LsmTree[T]) Compact() error {
 					continue
 				}
 				if hasOverlap(higherBlock, lowerBlock) {
-					overlapped = append(overlapped, [2]Metadata[T]{higherBlock, lowerBlock})
+					overlapped = append(overlapped, [2]streedb.Metadata[T]{higherBlock, lowerBlock})
 					break higherBlock
 				}
 			}
@@ -161,7 +162,8 @@ func (l *LsmTree[T]) Compact() error {
 	}
 
 	// merge blocks from the same level
-	for level, blocks := range l.levels {
+	for level := 0; level < streedb.MAX_LEVELS; level++ {
+		blocks := l.levels.GetLevel(level)
 		for i := 0; i < len(blocks)-1; i++ {
 			if _, ok := alreadyMerged[blocks[i].GetID()]; ok {
 				continue
@@ -185,10 +187,19 @@ func (l *LsmTree[T]) Compact() error {
 	}
 
 	// merge blocks if level contains too many blocks
-	for level, blocks := range l.levels {
-		// TODO: Finish this
+	for level := 0; level < streedb.MAX_LEVELS-1; level++ {
+		blocks := l.levels.GetLevel(level)
 		if len(blocks) >= MAX_LEVELS_TOTAL_BLOCKS[level] {
-			mergeAndUptadeCandidates(blocks[0], blocks[1], level+1, &toAdd, &toRemove, &alreadyMerged)
+			for i, j := 0, 1; j < len(blocks); i, j = i+1, j+1 {
+				if _, ok := alreadyMerged[blocks[i].GetID()]; ok {
+					continue
+				}
+				if _, ok := alreadyMerged[blocks[j].GetID()]; ok {
+					continue
+				}
+
+				mergeAndUptadeCandidates(blocks[0], blocks[1], level+1, &toAdd, &toRemove, &alreadyMerged)
+			}
 		}
 	}
 
@@ -205,7 +216,7 @@ func (l *LsmTree[T]) Compact() error {
 	return nil
 }
 
-func mergeAndUptadeCandidates[T Entry](a, b Metadata[T], level int, toAdd *[]Metadata[T], toRemove *map[string]Metadata[T], alreadyMerged *map[string]struct{}) error {
+func mergeAndUptadeCandidates[T streedb.Entry](a, b streedb.Metadata[T], level int, toAdd *[]streedb.Metadata[T], toRemove *map[string]streedb.Metadata[T], alreadyMerged *map[string]struct{}) error {
 	newBlock, err := a.Merge(b)
 	if err != nil {
 		return err

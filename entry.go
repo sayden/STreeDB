@@ -1,4 +1,4 @@
-package main
+package streedb
 
 type Entry interface {
 	LessThan(Entry) bool

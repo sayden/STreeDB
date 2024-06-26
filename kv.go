@@ -1,4 +1,4 @@
-package main
+package streedb
 
 type LexicographicKv struct {
 	Key string `parquet:"name=key, type=BYTE_ARRAY, encoding=DELTA_LENGTH_BYTE_ARRAY, repetitiontype=REQUIRED"`

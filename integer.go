@@ -1,4 +1,4 @@
-package main
+package streedb
 
 type Integer struct {
 	N int32 `parquet:"name=n, type=INT32"`

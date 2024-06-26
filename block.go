@@ -1,9 +1,6 @@
-package main
+package streedb
 
 import (
-	"fmt"
-	"os"
-	"path"
 	"time"
 )
 
@@ -20,27 +17,6 @@ type Block[T Entry] struct {
 	MinVal    T
 	MaxVal    T
 	*BlockWriters
-}
-
-func NewBlockWriter(defaultFolder string, l int) (bfs *BlockWriters, err error) {
-	bfs = &BlockWriters{}
-
-	bfs.Uuid = newUUID()
-
-	bfs.DataFilepath = path.Join(defaultFolder, fmt.Sprintf("%02d", l), bfs.Uuid)
-	dataFile, err := os.Create(bfs.DataFilepath)
-	if err != nil {
-		return nil, err
-	}
-	bfs.dataFile = dataFile
-
-	bfs.MetaFilepath = path.Join(defaultFolder, fmt.Sprintf("%02d", l), "meta_"+bfs.Uuid+".json")
-	bfs.metaFile, err = os.Create(bfs.MetaFilepath)
-	if err != nil {
-		return nil, err
-	}
-
-	return
 }
 
 func (b *Block[T]) GetLevel() int {
@@ -80,6 +56,6 @@ func fallsInside[T Entry](b Metadata[T], d T) bool {
 	return b.GetMin().LessThan(d) && d.LessThan(b.GetMax())
 }
 
-func entryFallsInside[T Entry](b Metadata[T], d Entry) bool {
+func EntryFallsInside[T Entry](b Metadata[T], d Entry) bool {
 	return b.GetMin().LessThan(d) && d.LessThan(b.GetMax())
 }
