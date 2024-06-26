@@ -21,7 +21,7 @@ var (
 
 const (
 	// MAX_LEVEL_0_TOTAL_BLOCKS = 1024 * 8
-	MAX_LEVEL_0_TOTAL_BLOCKS = 1
+	MAX_LEVEL_0_TOTAL_BLOCKS = 1024 * 8
 	MAX_LEVEL_0_BLOCK_SIZE   = 1024 * 32
 	MAX_LEVEL_0_BLOCK_AGE    = 1 * time.Hour
 
@@ -56,7 +56,7 @@ func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[
 	}
 
 	l := &LsmTree[T]{
-		wal:    newInMemoryWal[T](maxWalItems, initialPath),
+		wal:    newInMemoryWal[T](maxWalItems),
 		fs:     fs,
 		path:   initialPath,
 		levels: levels,
@@ -75,7 +75,7 @@ func (l *LsmTree[T]) Append(d T) {
 		}
 		l.levels.AppendBlock(newBlock)
 
-		l.wal = newInMemoryWal[T](cap(l.wal.GetData()), l.path)
+		l.wal = newInMemoryWal[T](cap(l.wal.GetData()))
 	}
 }
 

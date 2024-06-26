@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/btree"
 	"github.com/sayden/streedb"
+	"github.com/sayden/streedb/fileformat"
 	"github.com/stretchr/testify/assert"
 	"github.com/thehivecorporation/log"
 )
@@ -35,31 +37,59 @@ func TestLsmTreestreedb(t *testing.T) {
 func TestLsmTreeKv(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 
-	walSize := 50 //items
+	walSize := 5 //items
 
-	lsmtree2, err := NewLsmTree[streedb.LexicographicKv]("/tmp/kv", walSize)
+	lsmtree, err := NewLsmTree[streedb.Kv]("/tmp/kv", walSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lsmtree2.Close()
+	defer lsmtree.Close()
 	compact := false
 
-	compact = true
-	var i int32
-	for i < 100 {
-		lsmtree2.Append(streedb.LexicographicKv{Key: fmt.Sprintf("hello %02d", i), Val: i})
-		i++
+	// compact = true
+	// r := rand.New(rand.NewSource(42))
+	// n := r.Int31()
+
+	// var i int32
+	// for i < 25 {
+	// lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", n), Val: n})
+	// 	lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", i), Val: i})
+	// 	i++
+	// }
+
+	tree := btree.NewG(2,
+		func(a, b streedb.Block[streedb.Kv]) bool {
+			return a.GetMin().LessThan(b.GetMin())
+		})
+
+	for _, block := range lsmtree.levels.GetLevel(0) {
+		b := block.(*fileformat.LocalBlockJSON[streedb.Kv])
+		tree.ReplaceOrInsert(b.Block)
+	}
+
+	min := streedb.Block[streedb.Kv]{
+		MinVal: streedb.Kv{Key: "hello 06", Val: 0},
+	}
+	max := streedb.Block[streedb.Kv]{
+		MinVal: streedb.Kv{Key: "hello 19", Val: 0},
+	}
+
+	tree.AscendRange(min, max, func(item streedb.Block[streedb.Kv]) bool {
+		fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
+		return true
+	},
+	)
+
+	if compact {
+		err = lsmtree.Compact()
+		assert.NoError(t, err)
 	}
 
 	entry := streedb.NewLexicographicKv("hello 06", 0)
-	val, found, err := lsmtree2.Find(*entry)
+	val, found, err := lsmtree.Find(*entry)
 	assert.NoError(t, err)
 	if !found {
 		t.Fatal("value not found")
 	}
-	assert.Equal(t, int32(6), val.(streedb.LexicographicKv).Val)
-	if compact {
-		err = lsmtree2.Compact()
-		assert.NoError(t, err)
-	}
+	assert.Equal(t, int32(6), val.(streedb.Kv).Val)
 }

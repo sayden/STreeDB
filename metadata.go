@@ -20,8 +20,9 @@ type Metadata[T Entry] interface {
 	GetSize() int64
 	GetLevel() int
 	GetEntries() (Entries[T], error)
+	GetBlock() *Block[T]
 }
 
-func newUUID() string {
+func NewUUID() string {
 	return uuid.New().String()
 }

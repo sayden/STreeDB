@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/thehivecorporation/log"
 )
@@ -19,21 +20,20 @@ type BlockWriters struct {
 	metaFile io.ReadWriteCloser
 }
 
-func NewBlockWriter(defaultFolder string, l int) (bfs *BlockWriters, err error) {
-	bfs = &BlockWriters{}
+func NewBlockWriter(filename string, l int) (bfs *BlockWriters, err error) {
+	ext := path.Ext(filename)
+	fNoExtension := strings.ReplaceAll(filename, ext, "")
 
-	bfs.Uuid = newUUID()
+	bfs = &BlockWriters{
+		MetaFilepath: path.Join(DEFAULT_DB_PATH, fmt.Sprintf("%02d", l), "meta_"+fNoExtension+".json"),
+		DataFilepath: path.Join(DEFAULT_DB_PATH, fmt.Sprintf("%02d", l), filename),
+	}
 
-	bfs.DataFilepath = path.Join(defaultFolder, fmt.Sprintf("%02d", l), bfs.Uuid)
-	dataFile, err := os.Create(bfs.DataFilepath)
-	if err != nil {
+	if bfs.dataFile, err = os.Create(bfs.DataFilepath); err != nil {
 		return nil, err
 	}
-	bfs.dataFile = dataFile
 
-	bfs.MetaFilepath = path.Join(defaultFolder, fmt.Sprintf("%02d", l), "meta_"+bfs.Uuid+".json")
-	bfs.metaFile, err = os.Create(bfs.MetaFilepath)
-	if err != nil {
+	if bfs.metaFile, err = os.Create(bfs.MetaFilepath); err != nil {
 		return nil, err
 	}
 

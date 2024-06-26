@@ -20,7 +20,6 @@ const (
 
 type parquetBlock[T streedb.Entry] struct {
 	streedb.Block[T]
-	path string
 }
 
 func NewEmptyParquetBlock[T streedb.Entry](min, max *T, filepath string) (*parquetBlock[T], error) {
@@ -43,7 +42,7 @@ func NewEmptyParquetBlock[T streedb.Entry](min, max *T, filepath string) (*parqu
 	return meta, nil
 }
 
-func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], path string, level int) (*parquetBlock[T], error) {
+func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parquetBlock[T], error) {
 	if data.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -57,7 +56,8 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], path string, leve
 		max = data[0]
 	}
 
-	blockWriters, err := streedb.NewBlockWriter(path, level)
+	uuid := streedb.NewUUID() + ".parquet"
+	blockWriters, err := streedb.NewBlockWriter(uuid, level)
 	if err != nil {
 		return nil, err
 	}
@@ -98,47 +98,11 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], path string, leve
 
 	return &parquetBlock[T]{
 		Block: block,
-		path:  path,
 	}, nil
 }
 
-func (b *parquetBlock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	if !streedb.EntryFallsInside[T](b, v) {
-		return nil, false, nil
-	}
-
-	entries, err := b.GetEntries()
-	if err != nil {
-		return nil, false, err
-	}
-
-	entry, found := entries.Find(v)
-	return entry, found, nil
-}
-
-func (b *parquetBlock[T]) Merge(m streedb.Metadata[T]) (streedb.Metadata[T], error) {
-	entries, err := b.GetEntries()
-	if err != nil {
-		return nil, err
-	}
-
-	entries2, err := m.GetEntries()
-	if err != nil {
-		return nil, err
-	}
-
-	dest := make(streedb.Entries[T], 0, entries.Len()+entries2.Len())
-	dest = append(dest, entries...)
-	dest = append(dest, entries2...)
-
-	sort.Sort(dest)
-
-	// TODO: optimistic creation of new block
-	return NewParquetBlock(dest, b.path, b.Level+1)
-}
-
-func (b *parquetBlock[T]) GetEntries() (streedb.Entries[T], error) {
-	pf, err := local.NewLocalFileReader(b.DataFilepath)
+func (l *parquetBlock[T]) GetEntries() (streedb.Entries[T], error) {
+	pf, err := local.NewLocalFileReader(l.DataFilepath)
 	if err != nil {
 		return nil, err
 	}
@@ -155,23 +119,62 @@ func (b *parquetBlock[T]) GetEntries() (streedb.Entries[T], error) {
 		return nil, err
 	}
 
-	log.Debugf("Reading parquet file %s with %d rows", b.DataFilepath, numRows)
+	log.Debugf("Reading parquet file %s with %d rows", l.DataFilepath, numRows)
 
 	return entries, nil
 }
 
-func (b *parquetBlock[T]) Remove() error {
-	b.BlockWriters.Close()
+func (l *parquetBlock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
+	if !streedb.EntryFallsInside(l, v) {
+		return nil, false, nil
+	}
 
-	log.Debugf("Removing parquet block %s", b.DataFilepath)
-	if err := os.Remove(b.DataFilepath); err != nil {
+	entries, err := l.GetEntries()
+	if err != nil {
+		return nil, false, err
+	}
+
+	entry, found := entries.Find(v)
+	return entry, found, nil
+}
+
+func (l *parquetBlock[T]) Merge(a streedb.Metadata[T]) (streedb.Metadata[T], error) {
+	entries, err := l.GetEntries()
+	if err != nil {
+		return nil, err
+	}
+
+	entries2, err := a.GetEntries()
+	if err != nil {
+		return nil, err
+	}
+
+	dest := make(streedb.Entries[T], 0, entries.Len()+entries2.Len())
+	dest = append(dest, entries...)
+	dest = append(dest, entries2...)
+
+	sort.Sort(dest)
+
+	// TODO: optimistic creation of new block
+	return NewFileFormat(dest, l.Level+1)
+}
+
+func (l *parquetBlock[T]) Remove() error {
+	l.BlockWriters.Close()
+
+	log.Debugf("Removing parquet block %s", l.DataFilepath)
+	if err := os.Remove(l.DataFilepath); err != nil {
 		return err
 	}
 
-	log.Debugf("Removing parquet block's meta %s", b.MetaFilepath)
-	if err := os.Remove(b.MetaFilepath); err != nil {
+	log.Debugf("Removing parquet block's meta %s", l.MetaFilepath)
+	if err := os.Remove(l.MetaFilepath); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (l *parquetBlock[T]) GetBlock() *streedb.Block[T] {
+	return &l.Block
 }

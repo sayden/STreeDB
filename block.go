@@ -45,15 +45,11 @@ func (b *Block[T]) Close() error {
 }
 
 func (b *Block[T]) GetID() string {
-	return b.BlockWriters.Uuid
+	return b.Uuid
 }
 
 func (b *Block[T]) GetSize() int64 {
 	return b.Size
-}
-
-func fallsInside[T Entry](b Metadata[T], d T) bool {
-	return b.GetMin().LessThan(d) && d.LessThan(b.GetMax())
 }
 
 func EntryFallsInside[T Entry](b Metadata[T], d Entry) bool {

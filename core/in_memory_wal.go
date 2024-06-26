@@ -1,7 +1,6 @@
 package core
 
 import (
-	"path"
 	"sort"
 
 	"github.com/sayden/streedb"
@@ -11,12 +10,10 @@ import (
 type inMemoryWal[T streedb.Entry] struct {
 	data     streedb.Entries[T]
 	capacity int
-	path     string
 }
 
-func newInMemoryWal[T streedb.Entry](c int, rootPath string) Wal[T] {
-	realPath := path.Join(rootPath, "wal")
-	return &inMemoryWal[T]{data: make(streedb.Entries[T], 0, c), capacity: c, path: realPath}
+func newInMemoryWal[T streedb.Entry](c int) Wal[T] {
+	return &inMemoryWal[T]{data: make(streedb.Entries[T], 0, c), capacity: c}
 }
 
 func (w *inMemoryWal[T]) Append(d T) (isFull bool) {
@@ -38,8 +35,7 @@ func (w *inMemoryWal[T]) Find(d streedb.Entry) (streedb.Entry, bool) {
 func (w *inMemoryWal[T]) WriteBlock() (streedb.Metadata[T], error) {
 	sort.Sort(w.data)
 
-	destinationPath := path.Dir(w.path)
-	block, err := fileformat.NewFileFormat(w.data, destinationPath, 0)
+	block, err := fileformat.NewFileFormat(w.data, 0)
 	if err != nil {
 		return nil, err
 	}

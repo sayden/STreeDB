@@ -11,40 +11,36 @@ import (
 	"github.com/sayden/streedb/fileformat"
 )
 
-var (
-	default_DB_PATH = "/tmp/test"
-)
-
 type fs[T streedb.Entry] struct {
 	path string
 }
 
-func InitStartup[T streedb.Entry](initialPath string) (*fs[T], streedb.Levels[T], error) {
-	default_DB_PATH = initialPath
+func InitStartup[T streedb.Entry](initialPath string) (streedb.DestinationFs[T], streedb.Levels[T], error) {
+	streedb.DEFAULT_DB_PATH = initialPath
 
-	if !path.IsAbs(initialPath) {
+	if !path.IsAbs(streedb.DEFAULT_DB_PATH) {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return nil, nil, err
 		}
-		initialPath = path.Join(cwd, initialPath)
+		streedb.DEFAULT_DB_PATH = path.Join(cwd, streedb.DEFAULT_DB_PATH)
 	}
 
-	os.MkdirAll(initialPath, 0755)
+	os.MkdirAll(streedb.DEFAULT_DB_PATH, 0755)
 
 	folders := make([]string, 0, streedb.MAX_LEVELS+1)
 
 	for i := 0; i < streedb.MAX_LEVELS; i++ {
-		level := path.Join(initialPath, fmt.Sprintf("%02d", i))
+		level := path.Join(streedb.DEFAULT_DB_PATH, fmt.Sprintf("%02d", i))
 		folders = append(folders, level)
 	}
-	folders = append(folders, path.Join(initialPath, "wal"))
+	folders = append(folders, path.Join(streedb.DEFAULT_DB_PATH, "wal"))
 
 	for _, folder := range folders {
 		os.MkdirAll(folder, 0755)
 	}
 
-	fs := &fs[T]{path: initialPath}
+	fs := &fs[T]{path: streedb.DEFAULT_DB_PATH}
 	meta, err := fs.MetaFiles()
 	if err != nil {
 		return nil, nil, err
@@ -78,13 +74,13 @@ func metaFilesInDir[T streedb.Entry](f *fs[T], folder string, levels *streedb.Le
 
 		min := new(T)
 		max := new(T)
-		meta, err := fileformat.NewEmptyParquetBlock(min, max, path.Join(folder, file.Name()))
+		meta, err := fileformat.NewEmptyFormat(min, max, path.Join(folder, file.Name()))
 		if err != nil {
 			return err
 		}
 
 		// read metadata
-		if err = json.NewDecoder(meta.GetMeta()).Decode(&meta.Block); err != nil {
+		if err = json.NewDecoder(meta.GetBlock().GetMeta()).Decode(meta.GetBlock()); err != nil {
 			return errors.Join(errors.New("error decoding metadata file: "), err)
 		}
 
