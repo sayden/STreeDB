@@ -11,11 +11,15 @@ const (
 
 type Metadata[T Entry] interface {
 	GetID() string
+
 	GetMin() Entry
 	GetMax() Entry
+
 	GetSize() int64
+
 	GetLevel() int
 	SetLevel(int)
+
 	GetBlock() *MetaFile[T]
 }
 
@@ -58,6 +62,10 @@ func (b *MetaFile[T]) GetSize() int64 {
 	return b.Size
 }
 
-func EntryFallsInside[T Entry](b Fileblock[T], d Entry) bool {
-	return b.GetMin().LessThan(d) && d.LessThan(b.GetMax())
+// func EntryFallsInside[T Entry](b Metadata[T], d Entry) bool {
+// 	return b.GetMin().LessThan(d) && d.LessThan(b.GetMax())
+// }
+
+func EntryFallsInsideMinMax(min, max, t Entry) bool {
+	return min.LessThan(t) && t.LessThan(max)
 }

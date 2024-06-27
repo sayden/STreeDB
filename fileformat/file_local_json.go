@@ -115,7 +115,7 @@ func (l *localBlockJSON[T]) GetEntries() (streedb.Entries[T], error) {
 }
 
 func (l *localBlockJSON[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	if !streedb.EntryFallsInside(l, v) {
+	if !streedb.EntryFallsInsideMinMax(l.MinVal, l.MaxVal, v) {
 		return nil, false, nil
 	}
 

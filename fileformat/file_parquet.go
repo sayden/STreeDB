@@ -134,7 +134,7 @@ func (l *parquetBlock[T]) GetEntries() (streedb.Entries[T], error) {
 }
 
 func (l *parquetBlock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	if !streedb.EntryFallsInside(l, v) {
+	if !streedb.EntryFallsInsideMinMax(l.MinVal, l.MaxVal, v) {
 		return nil, false, nil
 	}
 

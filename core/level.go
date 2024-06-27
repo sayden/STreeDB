@@ -11,12 +11,13 @@ import (
 type Blocks[T streedb.Entry] []*streedb.MetaFile[T]
 
 type Level[T streedb.Entry] struct {
-	min        streedb.Entry
-	max        streedb.Entry
-	fileblocks []streedb.Fileblock[T]
+	min streedb.Entry
+	max streedb.Entry
+
+	fileblocks []streedb.Metadata[T]
 }
 
-func NewLevel[T streedb.Entry](data []streedb.Fileblock[T]) streedb.Level[T] {
+func NewLevel[T streedb.Entry](data []streedb.Metadata[T]) streedb.Level[T] {
 	// find min and max
 	min := data[0].GetMin()
 	max := data[0].GetMax()
@@ -49,7 +50,7 @@ func (l *Level[T]) RemoveFiles(r map[int]struct{}) {
 		return
 	}
 
-	temp := make([]streedb.Fileblock[T], 0, len(l.fileblocks)-len(r))
+	temp := make([]streedb.Metadata[T], 0, len(l.fileblocks)-len(r))
 
 	for i := 0; i < len(l.fileblocks); i++ {
 		if _, ok := r[i]; ok {
@@ -62,12 +63,14 @@ func (l *Level[T]) RemoveFiles(r map[int]struct{}) {
 }
 
 func (l *Level[T]) Find(d T) (streedb.Entry, bool, error) {
-	if !l.fallsInside(d) {
+	if !streedb.EntryFallsInsideMinMax(l.min, l.max, d) {
 		return nil, false, nil
 	}
 
 	// iterate through each block
-	for _, block := range l.fileblocks {
+	for _, blockTmp := range l.fileblocks {
+		// TODO: This type assertion is indicating some coupling
+		block := blockTmp.(streedb.Fileblock[T])
 		if v, found, err := block.Find(d); found {
 			return v, true, nil
 		} else if err != nil {
@@ -79,20 +82,17 @@ func (l *Level[T]) Find(d T) (streedb.Entry, bool, error) {
 }
 
 func (l *Level[T]) Close() {
-	for _, block := range l.fileblocks {
+	for _, blockTmp := range l.fileblocks {
+		block := blockTmp.(streedb.Fileblock[T])
 		block.Close()
 	}
 }
 
-func (b *Level[T]) fallsInside(d streedb.Entry) bool {
-	return b.min.LessThan(d) && d.LessThan(b.max)
-}
-
-func hasOverlap[T streedb.Entry](a, b streedb.Fileblock[T]) bool {
+func hasOverlap[T streedb.Entry](a, b streedb.Metadata[T]) bool {
 	return b.GetMin().LessThan(a.GetMax()) && a.GetMin().LessThan(b.GetMax())
 }
 
-func isSizeExceeded[T streedb.Entry](b streedb.Fileblock[T], level int) bool {
+func isSizeExceeded[T streedb.Entry](b streedb.Metadata[T], level int) bool {
 	return b.GetSize() > MAX_LEVEL_0_BLOCK_SIZE*int64(level+1)
 }
 
