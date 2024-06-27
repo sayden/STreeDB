@@ -74,7 +74,7 @@ func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[
 func (l *LsmTree[T]) Append(d T) {
 	if l.wal.Append(d) {
 		// WAL is full, write a new block
-		newBlock, err := l.wal.WriteBlock()
+		newBlock, err := l.WriteBlock()
 		if err != nil {
 			log.Errorf("Error writing block: %v", err)
 			return
@@ -89,7 +89,7 @@ func (l *LsmTree[T]) WriteBlock() (streedb.Fileblock[T], error) {
 	entries := l.wal.GetData()
 	sort.Sort(entries)
 
-	block, err := fileformat.NewFile(entries, 0)
+	block, err := fileformat.NewFile(entries, 0, l.fs)
 	if err != nil {
 		return nil, err
 	}
@@ -121,14 +121,19 @@ func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
 }
 
 func (l *LsmTree[T]) Close() error {
-	// Close the wal
-	walBlock, err := l.wal.Close()
+	// Close the wal and write whatever is left in it
+	errs := make([]error, 0)
+
+	_, err := l.wal.Close()
 	if err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
-	if walBlock == nil {
-		return nil
+	fileblock, err := l.WriteBlock()
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		l.levels.AppendFile(fileblock)
 	}
 
 	for i := 0; i <= 5; i++ {
@@ -142,6 +147,7 @@ func (l *LsmTree[T]) Close() error {
 	return nil
 }
 
+// FIXME: This still has failures
 func (l *LsmTree[T]) Compact() error {
 	overlapped := make([][2]streedb.Fileblock[T], 0)
 	toAdd := make([]streedb.Fileblock[T], 0)

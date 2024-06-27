@@ -31,6 +31,7 @@ func TestLsmTreestreedb(t *testing.T) {
 	assert.Equal(t, streedb.Integer{N: int32(6)}, val)
 
 }
+
 func TestLsmTreeKv(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 
@@ -46,10 +47,10 @@ func TestLsmTreeKv(t *testing.T) {
 	// compact = true
 	// r := rand.New(rand.NewSource(42))
 	// n := r.Int31()
+	// 	// lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", n), Val: n})
 
 	// var i int32
 	// for i < 25 {
-	// lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", n), Val: n})
 	// 	lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", i), Val: i})
 	// 	i++
 	// }

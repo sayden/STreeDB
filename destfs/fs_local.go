@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 
@@ -49,6 +50,26 @@ func InitStartup[T streedb.Entry](initialPath string) (streedb.DestinationFs[T],
 	return fs, meta, nil
 }
 
+func (f *fs[T]) Open(p string) (io.ReadWriteCloser, error) {
+	return os.Open(p)
+}
+
+func (f *fs[T]) Remove(p string) error {
+	return os.Remove(p)
+}
+
+func (f *fs[T]) Create(p string) (io.ReadWriteCloser, error) {
+	return os.Create(p)
+}
+
+func (f *fs[T]) Size(a io.ReadWriteCloser) (int64, error) {
+	fi, err := a.(*os.File).Stat()
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
+}
+
 func (f *fs[T]) MetaFiles() (streedb.Levels[T], error) {
 	levels := streedb.NewLevels[T](streedb.MAX_LEVELS)
 	return levels, metaFilesInDir(f, f.path, &levels)
@@ -72,7 +93,7 @@ func metaFilesInDir[T streedb.Entry](f *fs[T], folder string, levels *streedb.Le
 			continue
 		}
 
-		meta, err := fileformat.NewReadOnlyFile[T](path.Join(folder, file.Name()))
+		meta, err := fileformat.NewReadOnlyFile[T](path.Join(folder, file.Name()), f)
 		if err != nil {
 			return err
 		}

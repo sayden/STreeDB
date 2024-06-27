@@ -3,7 +3,6 @@ package fileformat
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"sort"
 	"time"
 
@@ -23,11 +22,12 @@ const (
 // external JSON files to make it easier to generalize RW operations on metadata.
 type parquetBlock[T streedb.Entry] struct {
 	streedb.MetaFile[T]
+	fs streedb.DestinationFs[T]
 }
 
 // NewReadOnlyParquetFile is used to read already written Parquet files. `metaFilepath` must contain the
 // path to an already existing metadata file.
-func NewReadOnlyParquetFile[T streedb.Entry](metaFilepath string) (*parquetBlock[T], error) {
+func NewReadOnlyParquetFile[T streedb.Entry](metaFilepath string, fs streedb.DestinationFs[T]) (*parquetBlock[T], error) {
 	min := new(T)
 	max := new(T)
 
@@ -39,9 +39,10 @@ func NewReadOnlyParquetFile[T streedb.Entry](metaFilepath string) (*parquetBlock
 			MinVal: *min,
 			MaxVal: *max,
 		},
+		fs: fs,
 	}
 
-	metafile, err := os.Open(meta.MetaFilepath)
+	metafile, err := fs.Open(meta.MetaFilepath)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func NewReadOnlyParquetFile[T streedb.Entry](metaFilepath string) (*parquetBlock
 	return meta, nil
 }
 
-func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parquetBlock[T], error) {
+func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int, fs streedb.DestinationFs[T]) (*parquetBlock[T], error) {
 	if data.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -65,7 +66,7 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parq
 	}
 
 	uuid := streedb.NewUUID() + ".parquet"
-	blockWriters, err := streedb.NewBlockWriter(uuid, level)
+	blockWriters, err := streedb.NewBlockWriter(uuid, level, fs)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,8 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parq
 	}
 
 	// write data to file, create a new Parquet file
-	parquetWriter, err := writer.NewParquetWriterFromWriter(blockWriters.GetData(), new(T), NUMBER_OF_THREADS)
+	dataFile := blockWriters.GetData()
+	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, new(T), NUMBER_OF_THREADS)
 	if err != nil {
 		panic(err)
 	}
@@ -93,11 +95,7 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parq
 		panic(err)
 	}
 
-	stat, err := blockWriters.GetData().(*os.File).Stat()
-	if err != nil {
-		return nil, err
-	}
-	block.Size = stat.Size()
+	block.Size, err = fs.Size(dataFile)
 
 	// write metadata to file
 	if err = json.NewEncoder(blockWriters.GetMeta()).Encode(block); err != nil {
@@ -165,19 +163,19 @@ func (l *parquetBlock[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], e
 	sort.Sort(dest)
 
 	// TODO: optimistic creation of new block
-	return NewFile(dest, l.Level+1)
+	return NewFile(dest, l.Level+1, l.fs)
 }
 
 func (l *parquetBlock[T]) Remove() error {
 	l.FileBlockRW.Close()
 
 	log.Debugf("Removing parquet block %s", l.DataFilepath)
-	if err := os.Remove(l.DataFilepath); err != nil {
+	if err := l.fs.Remove(l.DataFilepath); err != nil {
 		return err
 	}
 
 	log.Debugf("Removing parquet block's meta %s", l.MetaFilepath)
-	if err := os.Remove(l.MetaFilepath); err != nil {
+	if err := l.fs.Remove(l.MetaFilepath); err != nil {
 		return err
 	}
 

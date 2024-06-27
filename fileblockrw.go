@@ -3,7 +3,6 @@ package streedb
 import (
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"strings"
 
@@ -20,7 +19,7 @@ type FileBlockRW struct {
 	metaFile io.ReadWriteCloser
 }
 
-func NewBlockWriter(filename string, l int) (bfs *FileBlockRW, err error) {
+func NewBlockWriter[T Entry](filename string, l int, fs DestinationFs[T]) (bfs *FileBlockRW, err error) {
 	ext := path.Ext(filename)
 	fNoExtension := strings.ReplaceAll(filename, ext, "")
 
@@ -29,11 +28,11 @@ func NewBlockWriter(filename string, l int) (bfs *FileBlockRW, err error) {
 		DataFilepath: path.Join(DEFAULT_DB_PATH, fmt.Sprintf("%02d", l), filename),
 	}
 
-	if bfs.dataFile, err = os.Create(bfs.DataFilepath); err != nil {
+	if bfs.dataFile, err = fs.Create(bfs.DataFilepath); err != nil {
 		return nil, err
 	}
 
-	if bfs.metaFile, err = os.Create(bfs.MetaFilepath); err != nil {
+	if bfs.metaFile, err = fs.Create(bfs.MetaFilepath); err != nil {
 		return nil, err
 	}
 
@@ -47,7 +46,7 @@ func (b *FileBlockRW) Close() {
 	}
 
 	if b.metaFile != nil {
-		log.Debugf("Closing meta file %s", b.DataFilepath)
+		log.Debugf("Closing meta file %s", b.MetaFilepath)
 		b.metaFile.Close()
 	}
 }
