@@ -45,7 +45,6 @@ const (
 type LsmTree[T streedb.Entry] struct {
 	wal    Wal[T]
 	fs     streedb.DestinationFs[T]
-	path   string
 	levels streedb.Levels[T]
 }
 
@@ -58,7 +57,6 @@ func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[
 	l := &LsmTree[T]{
 		wal:    newInMemoryWal[T](maxWalItems),
 		fs:     fs,
-		path:   initialPath,
 		levels: levels,
 	}
 
@@ -73,7 +71,7 @@ func (l *LsmTree[T]) Append(d T) {
 			log.Errorf("Error writing block: %v", err)
 			return
 		}
-		l.levels.AppendBlock(newBlock)
+		l.levels.AppendFile(newBlock)
 
 		l.wal = newInMemoryWal[T](cap(l.wal.GetData()))
 	}
@@ -122,9 +120,9 @@ func (l *LsmTree[T]) Close() error {
 }
 
 func (l *LsmTree[T]) Compact() error {
-	overlapped := make([][2]streedb.Metadata[T], 0)
-	toAdd := make([]streedb.Metadata[T], 0)
-	toRemove := make(map[string]streedb.Metadata[T])
+	overlapped := make([][2]streedb.Fileblock[T], 0)
+	toAdd := make([]streedb.Fileblock[T], 0)
+	toRemove := make(map[string]streedb.Fileblock[T])
 	alreadyMerged := make(map[string]struct{})
 
 	// read blocks from higher levels to lower levels
@@ -148,7 +146,7 @@ func (l *LsmTree[T]) Compact() error {
 					continue
 				}
 				if hasOverlap(higherBlock, lowerBlock) {
-					overlapped = append(overlapped, [2]streedb.Metadata[T]{higherBlock, lowerBlock})
+					overlapped = append(overlapped, [2]streedb.Fileblock[T]{higherBlock, lowerBlock})
 					break higherBlock
 				}
 			}
@@ -205,18 +203,18 @@ func (l *LsmTree[T]) Compact() error {
 
 	// remove blocks
 	for _, block := range toRemove {
-		l.levels.RemoveBlock(block)
+		l.levels.RemoveFile(block)
 	}
 
 	// add new blocks
 	for _, block := range toAdd {
-		l.levels.AppendBlock(block)
+		l.levels.AppendFile(block)
 	}
 
 	return nil
 }
 
-func mergeAndUptadeCandidates[T streedb.Entry](a, b streedb.Metadata[T], level int, toAdd *[]streedb.Metadata[T], toRemove *map[string]streedb.Metadata[T], alreadyMerged *map[string]struct{}) error {
+func mergeAndUptadeCandidates[T streedb.Entry](a, b streedb.Fileblock[T], level int, toAdd *[]streedb.Fileblock[T], toRemove *map[string]streedb.Fileblock[T], alreadyMerged *map[string]struct{}) error {
 	newBlock, err := a.Merge(b)
 	if err != nil {
 		return err

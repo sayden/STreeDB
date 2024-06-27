@@ -12,14 +12,14 @@ import (
 )
 
 type LocalBlockJSON[T streedb.Entry] struct {
-	streedb.Block[T]
+	streedb.MetaFile[T]
 	path string
 }
 
 func NewEmptyJSONBlock[T streedb.Entry](min, max *T, filepath string) (*LocalBlockJSON[T], error) {
 	meta := &LocalBlockJSON[T]{
-		Block: streedb.Block[T]{
-			BlockWriters: &streedb.BlockWriters{
+		MetaFile: streedb.MetaFile[T]{
+			FileBlockRW: &streedb.FileBlockRW{
 				MetaFilepath: filepath,
 			},
 			MinVal: *min,
@@ -56,13 +56,13 @@ func NewJSONBlock[T streedb.Entry](data streedb.Entries[T], level int) (*LocalBl
 		return nil, err
 	}
 
-	block := streedb.Block[T]{
-		CreatedAt:    time.Now(),
-		ItemCount:    len(data),
-		Level:        level,
-		MinVal:       min.(T),
-		MaxVal:       max.(T),
-		BlockWriters: blockWriters,
+	block := streedb.MetaFile[T]{
+		CreatedAt:   time.Now(),
+		ItemCount:   len(data),
+		Level:       level,
+		MinVal:      min.(T),
+		MaxVal:      max.(T),
+		FileBlockRW: blockWriters,
 	}
 
 	// write data to file, create a new Parquet file
@@ -83,7 +83,7 @@ func NewJSONBlock[T streedb.Entry](data streedb.Entries[T], level int) (*LocalBl
 	}
 
 	return &LocalBlockJSON[T]{
-		Block: block,
+		MetaFile: block,
 	}, nil
 
 }
@@ -119,7 +119,7 @@ func (l *LocalBlockJSON[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	return entry, found, nil
 }
 
-func (l *LocalBlockJSON[T]) Merge(a streedb.Metadata[T]) (streedb.Metadata[T], error) {
+func (l *LocalBlockJSON[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
 	entries, err := l.GetEntries()
 	if err != nil {
 		return nil, err
@@ -137,11 +137,11 @@ func (l *LocalBlockJSON[T]) Merge(a streedb.Metadata[T]) (streedb.Metadata[T], e
 	sort.Sort(dest)
 
 	// TODO: optimistic creation of new block
-	return NewFileFormat(dest, l.Level+1)
+	return NewFile(dest, l.Level+1)
 }
 
 func (l *LocalBlockJSON[T]) Remove() error {
-	l.BlockWriters.Close()
+	l.FileBlockRW.Close()
 
 	log.Debugf("Removing parquet block %s", l.DataFilepath)
 	if err := os.Remove(l.DataFilepath); err != nil {
@@ -156,6 +156,6 @@ func (l *LocalBlockJSON[T]) Remove() error {
 	return nil
 }
 
-func (l *LocalBlockJSON[T]) GetBlock() *streedb.Block[T] {
-	return &l.Block
+func (l *LocalBlockJSON[T]) GetBlock() *streedb.MetaFile[T] {
+	return &l.MetaFile
 }

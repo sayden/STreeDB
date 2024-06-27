@@ -19,13 +19,13 @@ const (
 )
 
 type parquetBlock[T streedb.Entry] struct {
-	streedb.Block[T]
+	streedb.MetaFile[T]
 }
 
 func NewEmptyParquetBlock[T streedb.Entry](min, max *T, filepath string) (*parquetBlock[T], error) {
 	meta := &parquetBlock[T]{
-		Block: streedb.Block[T]{
-			BlockWriters: &streedb.BlockWriters{
+		MetaFile: streedb.MetaFile[T]{
+			FileBlockRW: &streedb.FileBlockRW{
 				MetaFilepath: filepath,
 			},
 			MinVal: *min,
@@ -62,13 +62,13 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parq
 		return nil, err
 	}
 
-	block := streedb.Block[T]{
-		CreatedAt:    time.Now(),
-		ItemCount:    len(data),
-		Level:        level,
-		MinVal:       min.(T),
-		MaxVal:       max.(T),
-		BlockWriters: blockWriters,
+	block := streedb.MetaFile[T]{
+		CreatedAt:   time.Now(),
+		ItemCount:   len(data),
+		Level:       level,
+		MinVal:      min.(T),
+		MaxVal:      max.(T),
+		FileBlockRW: blockWriters,
 	}
 
 	// write data to file, create a new Parquet file
@@ -97,7 +97,7 @@ func NewParquetBlock[T streedb.Entry](data streedb.Entries[T], level int) (*parq
 	}
 
 	return &parquetBlock[T]{
-		Block: block,
+		MetaFile: block,
 	}, nil
 }
 
@@ -138,7 +138,7 @@ func (l *parquetBlock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	return entry, found, nil
 }
 
-func (l *parquetBlock[T]) Merge(a streedb.Metadata[T]) (streedb.Metadata[T], error) {
+func (l *parquetBlock[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
 	entries, err := l.GetEntries()
 	if err != nil {
 		return nil, err
@@ -156,11 +156,11 @@ func (l *parquetBlock[T]) Merge(a streedb.Metadata[T]) (streedb.Metadata[T], err
 	sort.Sort(dest)
 
 	// TODO: optimistic creation of new block
-	return NewFileFormat(dest, l.Level+1)
+	return NewFile(dest, l.Level+1)
 }
 
 func (l *parquetBlock[T]) Remove() error {
-	l.BlockWriters.Close()
+	l.FileBlockRW.Close()
 
 	log.Debugf("Removing parquet block %s", l.DataFilepath)
 	if err := os.Remove(l.DataFilepath); err != nil {
@@ -175,6 +175,6 @@ func (l *parquetBlock[T]) Remove() error {
 	return nil
 }
 
-func (l *parquetBlock[T]) GetBlock() *streedb.Block[T] {
-	return &l.Block
+func (l *parquetBlock[T]) GetBlock() *streedb.MetaFile[T] {
+	return &l.MetaFile
 }

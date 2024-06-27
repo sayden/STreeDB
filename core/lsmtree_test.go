@@ -58,27 +58,31 @@ func TestLsmTreeKv(t *testing.T) {
 	// }
 
 	tree := btree.NewG(2,
-		func(a, b streedb.Block[streedb.Kv]) bool {
-			return a.GetMin().LessThan(b.GetMin())
+		func(a, b streedb.MetaFile[streedb.Kv]) bool {
+			return a.MinVal.LessThan(b.MinVal)
 		})
 
 	for _, block := range lsmtree.levels.GetLevel(0) {
 		b := block.(*fileformat.LocalBlockJSON[streedb.Kv])
-		tree.ReplaceOrInsert(b.Block)
+		tree.ReplaceOrInsert(b.MetaFile)
 	}
 
-	min := streedb.Block[streedb.Kv]{
+	min := streedb.MetaFile[streedb.Kv]{
 		MinVal: streedb.Kv{Key: "hello 06", Val: 0},
 	}
-	max := streedb.Block[streedb.Kv]{
+	max := streedb.MetaFile[streedb.Kv]{
 		MinVal: streedb.Kv{Key: "hello 19", Val: 0},
 	}
 
-	tree.AscendRange(min, max, func(item streedb.Block[streedb.Kv]) bool {
+	tree.DescendLessOrEqual(min, func(item streedb.MetaFile[streedb.Kv]) bool {
+		fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
+		return false
+	})
+
+	tree.AscendRange(min, max, func(item streedb.MetaFile[streedb.Kv]) bool {
 		fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
 		return true
-	},
-	)
+	})
 
 	if compact {
 		err = lsmtree.Compact()

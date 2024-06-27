@@ -74,7 +74,7 @@ func metaFilesInDir[T streedb.Entry](f *fs[T], folder string, levels *streedb.Le
 
 		min := new(T)
 		max := new(T)
-		meta, err := fileformat.NewEmptyFormat(min, max, path.Join(folder, file.Name()))
+		meta, err := fileformat.NewEmptyFile(min, max, path.Join(folder, file.Name()))
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func metaFilesInDir[T streedb.Entry](f *fs[T], folder string, levels *streedb.Le
 			return errors.Join(errors.New("error decoding metadata file: "), err)
 		}
 
-		(*levels).AppendBlock(meta)
+		(*levels).AppendFile(meta)
 	}
 
 	return nil

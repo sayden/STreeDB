@@ -10,7 +10,7 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-type BlockWriters struct {
+type FileBlockRW struct {
 	Uuid string
 
 	DataFilepath string
@@ -20,11 +20,11 @@ type BlockWriters struct {
 	metaFile io.ReadWriteCloser
 }
 
-func NewBlockWriter(filename string, l int) (bfs *BlockWriters, err error) {
+func NewBlockWriter(filename string, l int) (bfs *FileBlockRW, err error) {
 	ext := path.Ext(filename)
 	fNoExtension := strings.ReplaceAll(filename, ext, "")
 
-	bfs = &BlockWriters{
+	bfs = &FileBlockRW{
 		MetaFilepath: path.Join(DEFAULT_DB_PATH, fmt.Sprintf("%02d", l), "meta_"+fNoExtension+".json"),
 		DataFilepath: path.Join(DEFAULT_DB_PATH, fmt.Sprintf("%02d", l), filename),
 	}
@@ -40,7 +40,7 @@ func NewBlockWriter(filename string, l int) (bfs *BlockWriters, err error) {
 	return
 }
 
-func (b *BlockWriters) Close() {
+func (b *FileBlockRW) Close() {
 	if b.dataFile != nil {
 		log.Debugf("Closing data file %s", b.DataFilepath)
 		b.dataFile.Close()
@@ -52,18 +52,18 @@ func (b *BlockWriters) Close() {
 	}
 }
 
-func (b *BlockWriters) GetData() io.ReadWriteCloser {
+func (b *FileBlockRW) GetData() io.ReadWriteCloser {
 	return b.dataFile
 }
 
-func (b *BlockWriters) SetData(m io.ReadWriteCloser) {
+func (b *FileBlockRW) SetData(m io.ReadWriteCloser) {
 	b.dataFile = m
 }
 
-func (b *BlockWriters) GetMeta() io.ReadWriteCloser {
+func (b *FileBlockRW) GetMeta() io.ReadWriteCloser {
 	return b.metaFile
 }
 
-func (b *BlockWriters) SetMeta(m io.ReadWriteCloser) {
+func (b *FileBlockRW) SetMeta(m io.ReadWriteCloser) {
 	b.metaFile = m
 }
