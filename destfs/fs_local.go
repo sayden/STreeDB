@@ -16,7 +16,7 @@ type fs[T streedb.Entry] struct {
 	path string
 }
 
-func InitStartup[T streedb.Entry](initialPath string) (streedb.DestinationFs[T], streedb.Levels[T], error) {
+func InitLocal[T streedb.Entry](initialPath string) (streedb.DestinationFs[T], streedb.Levels[T], error) {
 	streedb.DEFAULT_DB_PATH = initialPath
 
 	if !path.IsAbs(streedb.DEFAULT_DB_PATH) {

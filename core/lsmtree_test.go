@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/sayden/streedb"
+	"github.com/sayden/streedb/destfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/thehivecorporation/log"
 )
@@ -11,7 +12,7 @@ import (
 func TestLsmTreestreedb(t *testing.T) {
 	walSize := 5 //items
 
-	lsmtree, err := NewLsmTree[streedb.Integer]("/tmp/integer", walSize)
+	lsmtree, err := NewLsmTree[streedb.Integer]("/tmp/integer", destfs.DEST_FS_LOCAL, walSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,7 @@ func TestLsmTreeKv(t *testing.T) {
 
 	walSize := 5 //items
 
-	lsmtree, err := NewLsmTree[streedb.Kv]("/tmp/kv", walSize)
+	lsmtree, err := NewLsmTree[streedb.Kv]("/tmp/kv", destfs.DEST_FS_LOCAL, walSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,6 +82,44 @@ func TestLsmTreeKv(t *testing.T) {
 	// 	fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
 	// 	return true
 	// })
+
+	if compact {
+		err = lsmtree.Compact()
+		assert.NoError(t, err)
+	}
+
+	entry := streedb.NewLexicographicKv("hello 06", 0)
+	val, found, err := lsmtree.Find(*entry)
+	assert.NoError(t, err)
+	if !found {
+		t.Fatal("value not found")
+	}
+	assert.Equal(t, int32(6), val.(streedb.Kv).Val)
+}
+
+func TestLsmS3(t *testing.T) {
+	log.SetLevel(log.LevelDebug)
+
+	walSize := 5 //items
+
+	lsmtree, err := NewLsmTree[streedb.Kv]("my-bucket", destfs.DEST_FS_S3, walSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lsmtree.Close()
+
+	compact := false
+
+	// compact = true
+	// r := rand.New(rand.NewSource(42))
+	// n := r.Int31()
+
+	// var i int32
+	// for i < 25 {
+	// lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", n), Val: n})
+	// 	lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", i), Val: i})
+	// 	i++
+	// }
 
 	if compact {
 		err = lsmtree.Compact()

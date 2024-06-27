@@ -52,8 +52,8 @@ type LsmTree[T streedb.Entry] struct {
 	levels  streedb.Levels[T]
 }
 
-func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[T], error) {
-	fs, levels, err := destfs.InitStartup[T](initialPath)
+func NewLsmTree[T streedb.Entry](initialPath string, destinationFs destfs.DEST_FS, maxWalItems int) (*LsmTree[T], error) {
+	fs, levels, err := destfs.InitStartup[T](initialPath, destinationFs)
 	if err != nil {
 		panic(err)
 	}
