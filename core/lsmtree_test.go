@@ -1,12 +1,9 @@
 package core
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/google/btree"
 	"github.com/sayden/streedb"
-	"github.com/sayden/streedb/fileformat"
 	"github.com/stretchr/testify/assert"
 	"github.com/thehivecorporation/log"
 )
@@ -57,32 +54,32 @@ func TestLsmTreeKv(t *testing.T) {
 	// 	i++
 	// }
 
-	tree := btree.NewG(2,
-		func(a, b streedb.MetaFile[streedb.Kv]) bool {
-			return a.MinVal.LessThan(b.MinVal)
-		})
-
-	for _, block := range lsmtree.levels.GetLevel(0) {
-		b := block.(*fileformat.LocalBlockJSON[streedb.Kv])
-		tree.ReplaceOrInsert(b.MetaFile)
-	}
-
-	min := streedb.MetaFile[streedb.Kv]{
-		MinVal: streedb.Kv{Key: "hello 06", Val: 0},
-	}
-	max := streedb.MetaFile[streedb.Kv]{
-		MinVal: streedb.Kv{Key: "hello 19", Val: 0},
-	}
-
-	tree.DescendLessOrEqual(min, func(item streedb.MetaFile[streedb.Kv]) bool {
-		fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
-		return false
-	})
-
-	tree.AscendRange(min, max, func(item streedb.MetaFile[streedb.Kv]) bool {
-		fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
-		return true
-	})
+	// tree := btree.NewG(2,
+	// 	func(a, b streedb.MetaFile[streedb.Kv]) bool {
+	// 		return a.MinVal.LessThan(b.MinVal)
+	// 	})
+	//
+	// for _, block := range lsmtree.levels.GetLevel(0) {
+	// 	b := block.(*fileformat.LocalBlockJSON[streedb.Kv])
+	// 	tree.ReplaceOrInsert(b.MetaFile)
+	// }
+	//
+	// min := streedb.MetaFile[streedb.Kv]{
+	// 	MinVal: streedb.Kv{Key: "hello 06", Val: 0},
+	// }
+	// max := streedb.MetaFile[streedb.Kv]{
+	// 	MinVal: streedb.Kv{Key: "hello 19", Val: 0},
+	// }
+	//
+	// tree.DescendLessOrEqual(min, func(item streedb.MetaFile[streedb.Kv]) bool {
+	// 	fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
+	// 	return false
+	// })
+	//
+	// tree.AscendRange(min, max, func(item streedb.MetaFile[streedb.Kv]) bool {
+	// 	fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
+	// 	return true
+	// })
 
 	if compact {
 		err = lsmtree.Compact()

@@ -18,15 +18,23 @@ const (
 	NUMBER_OF_THREADS = 8
 )
 
+// parquetBlock works using Parquet files to store data. Metadata is stored in a separate file using
+// JSON. Parquet files already contains metadata associated with it, but we export the Metadata to
+// external JSON files to make it easier to generalize RW operations on metadata.
 type parquetBlock[T streedb.Entry] struct {
 	streedb.MetaFile[T]
 }
 
-func NewEmptyParquetBlock[T streedb.Entry](min, max *T, filepath string) (*parquetBlock[T], error) {
+// NewReadOnlyParquetFile is used to read already written Parquet files. `metaFilepath` must contain the
+// path to an already existing metadata file.
+func NewReadOnlyParquetFile[T streedb.Entry](metaFilepath string) (*parquetBlock[T], error) {
+	min := new(T)
+	max := new(T)
+
 	meta := &parquetBlock[T]{
 		MetaFile: streedb.MetaFile[T]{
 			FileBlockRW: &streedb.FileBlockRW{
-				MetaFilepath: filepath,
+				MetaFilepath: metaFilepath,
 			},
 			MinVal: *min,
 			MaxVal: *max,
@@ -106,6 +114,7 @@ func (l *parquetBlock[T]) GetEntries() (streedb.Entries[T], error) {
 	if err != nil {
 		return nil, err
 	}
+	defer pf.Close()
 
 	pr, err := reader.NewParquetReader(pf, new(T), 4)
 	if err != nil {

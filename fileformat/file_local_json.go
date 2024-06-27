@@ -11,16 +11,22 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-type LocalBlockJSON[T streedb.Entry] struct {
+// localBlockJSON works using plain JSON files to store data (and metadata).
+type localBlockJSON[T streedb.Entry] struct {
 	streedb.MetaFile[T]
 	path string
 }
 
-func NewEmptyJSONBlock[T streedb.Entry](min, max *T, filepath string) (*LocalBlockJSON[T], error) {
-	meta := &LocalBlockJSON[T]{
+// NewEmptyJSONFileblock is used to read already written JSON files. `metaFilepath` must contain the
+// path to an already existing metadata file.
+func NewReadOnlyJSONFileblock[T streedb.Entry](metaFilepath string) (*localBlockJSON[T], error) {
+	min := new(T)
+	max := new(T)
+
+	meta := &localBlockJSON[T]{
 		MetaFile: streedb.MetaFile[T]{
 			FileBlockRW: &streedb.FileBlockRW{
-				MetaFilepath: filepath,
+				MetaFilepath: metaFilepath,
 			},
 			MinVal: *min,
 			MaxVal: *max,
@@ -36,18 +42,21 @@ func NewEmptyJSONBlock[T streedb.Entry](min, max *T, filepath string) (*LocalBlo
 	return meta, nil
 }
 
-func NewJSONBlock[T streedb.Entry](data streedb.Entries[T], level int) (*LocalBlockJSON[T], error) {
-	if data.Len() == 0 {
+// NewJSONFileblock is used to create new JSON files.
+// `entries` must contain the data to be written to the file.
+// `level` is the destination level for the fileblock.
+func NewJSONFileblock[T streedb.Entry](entries streedb.Entries[T], level int) (*localBlockJSON[T], error) {
+	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
 
 	var min, max streedb.Entry
-	if data.Len() > 1 {
-		min = data[0]
-		max = data[data.Len()-1]
-	} else if data.Len() == 1 {
-		min = data[0]
-		max = data[0]
+	if entries.Len() > 1 {
+		min = entries[0]
+		max = entries[entries.Len()-1]
+	} else if entries.Len() == 1 {
+		min = entries[0]
+		max = entries[0]
 	}
 
 	uuid := streedb.NewUUID() + ".jsondata"
@@ -58,7 +67,7 @@ func NewJSONBlock[T streedb.Entry](data streedb.Entries[T], level int) (*LocalBl
 
 	block := streedb.MetaFile[T]{
 		CreatedAt:   time.Now(),
-		ItemCount:   len(data),
+		ItemCount:   len(entries),
 		Level:       level,
 		MinVal:      min.(T),
 		MaxVal:      max.(T),
@@ -67,7 +76,7 @@ func NewJSONBlock[T streedb.Entry](data streedb.Entries[T], level int) (*LocalBl
 
 	// write data to file, create a new Parquet file
 	dataFile := blockWriters.GetData()
-	if err = json.NewEncoder(dataFile).Encode(data); err != nil {
+	if err = json.NewEncoder(dataFile).Encode(entries); err != nil {
 		panic(err)
 	}
 
@@ -82,13 +91,13 @@ func NewJSONBlock[T streedb.Entry](data streedb.Entries[T], level int) (*LocalBl
 		panic(err)
 	}
 
-	return &LocalBlockJSON[T]{
+	return &localBlockJSON[T]{
 		MetaFile: block,
 	}, nil
 
 }
 
-func (l *LocalBlockJSON[T]) GetEntries() (streedb.Entries[T], error) {
+func (l *localBlockJSON[T]) GetEntries() (streedb.Entries[T], error) {
 	log.Debugf("Reading JSON file %s ", l.DataFilepath)
 
 	f, err := os.Open(l.DataFilepath)
@@ -105,7 +114,7 @@ func (l *LocalBlockJSON[T]) GetEntries() (streedb.Entries[T], error) {
 	return entries, nil
 }
 
-func (l *LocalBlockJSON[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
+func (l *localBlockJSON[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	if !streedb.EntryFallsInside(l, v) {
 		return nil, false, nil
 	}
@@ -119,7 +128,7 @@ func (l *LocalBlockJSON[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	return entry, found, nil
 }
 
-func (l *LocalBlockJSON[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
+func (l *localBlockJSON[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
 	entries, err := l.GetEntries()
 	if err != nil {
 		return nil, err
@@ -140,7 +149,7 @@ func (l *LocalBlockJSON[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T],
 	return NewFile(dest, l.Level+1)
 }
 
-func (l *LocalBlockJSON[T]) Remove() error {
+func (l *localBlockJSON[T]) Remove() error {
 	l.FileBlockRW.Close()
 
 	log.Debugf("Removing parquet block %s", l.DataFilepath)
@@ -156,6 +165,6 @@ func (l *LocalBlockJSON[T]) Remove() error {
 	return nil
 }
 
-func (l *LocalBlockJSON[T]) GetBlock() *streedb.MetaFile[T] {
+func (l *localBlockJSON[T]) GetBlock() *streedb.MetaFile[T] {
 	return &l.MetaFile
 }

@@ -72,9 +72,7 @@ func metaFilesInDir[T streedb.Entry](f *fs[T], folder string, levels *streedb.Le
 			continue
 		}
 
-		min := new(T)
-		max := new(T)
-		meta, err := fileformat.NewEmptyFile(min, max, path.Join(folder, file.Name()))
+		meta, err := fileformat.NewReadOnlyFile[T](path.Join(folder, file.Name()))
 		if err != nil {
 			return err
 		}

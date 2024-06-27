@@ -1,10 +1,13 @@
 package core
 
 import (
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/sayden/streedb"
 	"github.com/sayden/streedb/destfs"
+	"github.com/sayden/streedb/fileformat"
 	"github.com/thehivecorporation/log"
 )
 
@@ -43,9 +46,10 @@ const (
 )
 
 type LsmTree[T streedb.Entry] struct {
-	wal    Wal[T]
-	fs     streedb.DestinationFs[T]
-	levels streedb.Levels[T]
+	walPool sync.Pool
+	wal     Wal[T]
+	fs      streedb.DestinationFs[T]
+	levels  streedb.Levels[T]
 }
 
 func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[T], error) {
@@ -53,12 +57,16 @@ func NewLsmTree[T streedb.Entry](initialPath string, maxWalItems int) (*LsmTree[
 	if err != nil {
 		panic(err)
 	}
-
 	l := &LsmTree[T]{
-		wal:    newInMemoryWal[T](maxWalItems),
+		walPool: sync.Pool{
+			New: func() interface{} {
+				return newInMemoryWal[T](maxWalItems)
+			},
+		},
 		fs:     fs,
 		levels: levels,
 	}
+	l.wal = l.walPool.Get().(Wal[T])
 
 	return l, nil
 }
@@ -75,6 +83,21 @@ func (l *LsmTree[T]) Append(d T) {
 
 		l.wal = newInMemoryWal[T](cap(l.wal.GetData()))
 	}
+}
+
+func (l *LsmTree[T]) WriteBlock() (streedb.Fileblock[T], error) {
+	entries := l.wal.GetData()
+	sort.Sort(entries)
+
+	block, err := fileformat.NewFile(entries, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	// reset the wal
+	l.wal = l.walPool.Get().(Wal[T])
+
+	return block, nil
 }
 
 func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
@@ -125,6 +148,26 @@ func (l *LsmTree[T]) Compact() error {
 	toRemove := make(map[string]streedb.Fileblock[T])
 	alreadyMerged := make(map[string]struct{})
 
+	// declaring this here because it's only used in this function
+	mergeAndUptadeCandidates := func(a, b streedb.Fileblock[T]) error {
+		newBlock, err := a.Merge(b)
+		if err != nil {
+			return err
+		}
+		newBlock.SetLevel(b.GetLevel() + 1)
+
+		toAdd = append(toAdd, newBlock)
+
+		(toRemove)[a.GetID()] = a
+		(toRemove)[b.GetID()] = b
+
+		(alreadyMerged)[a.GetID()] = struct{}{}
+		(alreadyMerged)[b.GetID()] = struct{}{}
+
+		return nil
+
+	}
+
 	// read blocks from higher levels to lower levels
 	for levelIdx := 5; levelIdx >= 1; levelIdx-- {
 		higherLevel := l.levels.GetLevel(levelIdx)
@@ -155,7 +198,7 @@ func (l *LsmTree[T]) Compact() error {
 		// merge blocks from different levels
 		for _, blocks := range overlapped {
 			// idx 0 always higher level, idx 1 always lower
-			mergeAndUptadeCandidates(blocks[0], blocks[1], blocks[1].GetLevel(), &toAdd, &toRemove, &alreadyMerged)
+			mergeAndUptadeCandidates(blocks[0], blocks[1])
 		}
 	}
 
@@ -172,12 +215,12 @@ func (l *LsmTree[T]) Compact() error {
 				}
 
 				if hasOverlap(blocks[i], blocks[j]) {
-					mergeAndUptadeCandidates(blocks[i], blocks[j], level, &toAdd, &toRemove, &alreadyMerged)
+					mergeAndUptadeCandidates(blocks[i], blocks[j])
 					continue
 				}
 
 				if isSizeExceeded(blocks[i], level) && isSizeExceeded(blocks[j], level) {
-					mergeAndUptadeCandidates(blocks[i], blocks[j], level+1, &toAdd, &toRemove, &alreadyMerged)
+					mergeAndUptadeCandidates(blocks[i], blocks[j])
 					continue
 				}
 			}
@@ -196,7 +239,7 @@ func (l *LsmTree[T]) Compact() error {
 					continue
 				}
 
-				mergeAndUptadeCandidates(blocks[0], blocks[1], level+1, &toAdd, &toRemove, &alreadyMerged)
+				mergeAndUptadeCandidates(blocks[0], blocks[1])
 			}
 		}
 	}
@@ -214,20 +257,10 @@ func (l *LsmTree[T]) Compact() error {
 	return nil
 }
 
-func mergeAndUptadeCandidates[T streedb.Entry](a, b streedb.Fileblock[T], level int, toAdd *[]streedb.Fileblock[T], toRemove *map[string]streedb.Fileblock[T], alreadyMerged *map[string]struct{}) error {
-	newBlock, err := a.Merge(b)
-	if err != nil {
-		return err
-	}
+func (l *LsmTree[T]) AppendFile(b streedb.Fileblock[T]) {
+	l.levels.AppendFile(b)
+}
 
-	*toAdd = append(*toAdd, newBlock)
-
-	(*toRemove)[a.GetID()] = a
-	(*toRemove)[b.GetID()] = b
-
-	(*alreadyMerged)[a.GetID()] = struct{}{}
-	(*alreadyMerged)[b.GetID()] = struct{}{}
-
-	return nil
-
+func (l *LsmTree[T]) RemoveFile(b streedb.Fileblock[T]) error {
+	return l.levels.RemoveFile(b)
 }

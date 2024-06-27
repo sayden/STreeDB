@@ -12,7 +12,7 @@ const FILE_FORMAT = FILE_FORMAT_JSON
 func NewFile[T streedb.Entry](data streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
 	switch FILE_FORMAT {
 	case FILE_FORMAT_JSON:
-		return NewJSONBlock(data, level)
+		return NewJSONFileblock(data, level)
 	case FILE_FORMAT_PARQUET:
 		return NewParquetBlock(data, level)
 	}
@@ -20,13 +20,13 @@ func NewFile[T streedb.Entry](data streedb.Entries[T], level int) (streedb.Fileb
 	return NewParquetBlock(data, level)
 }
 
-func NewEmptyFile[T streedb.Entry](min, max *T, filepath string) (streedb.Fileblock[T], error) {
+func NewReadOnlyFile[T streedb.Entry](filepath string) (streedb.Fileblock[T], error) {
 	switch FILE_FORMAT {
 	case FILE_FORMAT_JSON:
-		return NewEmptyJSONBlock(min, max, filepath)
+		return NewReadOnlyJSONFileblock[T](filepath)
 	case FILE_FORMAT_PARQUET:
-		return NewEmptyParquetBlock(min, max, filepath)
+		return NewReadOnlyParquetFile[T](filepath)
 	}
 
-	return NewEmptyParquetBlock(min, max, filepath)
+	return NewReadOnlyParquetFile[T](filepath)
 }

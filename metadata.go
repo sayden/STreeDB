@@ -15,7 +15,7 @@ type Metadata[T Entry] interface {
 	GetMax() Entry
 	GetSize() int64
 	GetLevel() int
-	GetEntries() (Entries[T], error)
+	SetLevel(int)
 	GetBlock() *MetaFile[T]
 }
 
@@ -27,6 +27,10 @@ type MetaFile[T Entry] struct {
 	MinVal    T
 	MaxVal    T
 	*FileBlockRW
+}
+
+func (b *MetaFile[T]) SetLevel(l int) {
+	b.Level = l
 }
 
 func (b *MetaFile[T]) GetLevel() int {
