@@ -3,8 +3,9 @@ package fileformat
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"path"
 	"sort"
-	"time"
 
 	"github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
@@ -20,27 +21,21 @@ type localBlockJSON[T streedb.Entry] struct {
 // NewEmptyJSONFileblock is used to read already written JSON files. `metaFilepath` must contain the
 // path to an already existing metadata file.
 func NewReadOnlyJSONFileblock[T streedb.Entry](metaFilepath string, fs streedb.DestinationFs[T]) (*localBlockJSON[T], error) {
-	min := new(T)
-	max := new(T)
-
-	meta := &localBlockJSON[T]{
-		MetaFile: streedb.MetaFile[T]{
-			FileBlockRW: &streedb.FileBlockRW{
-				MetaFilepath: metaFilepath,
-			},
-			MinVal: *min,
-			MaxVal: *max,
-		},
-		fs: fs,
-	}
-
-	metafile, err := fs.Open(meta.MetaFilepath)
+	meta, err := streedb.NewMetadataBuilder(fs).
+		WithExtension(".jsondata").
+		WithFilenamePrexix(path.Join(streedb.DEFAULT_DB_PATH, fmt.Sprintf("%02d", level))).
+		WithUUID(streedb.NewUUID()).
+		Build()
 	if err != nil {
 		return nil, err
 	}
-	meta.SetMeta(metafile)
 
-	return meta, nil
+	lb := &localBlockJSON[T]{
+		MetaFile: meta,
+		fs:       fs,
+	}
+
+	return lb, nil
 }
 
 // NewJSONFileblock is used to create new JSON files.
@@ -51,48 +46,58 @@ func NewJSONFileblock[T streedb.Entry](entries streedb.Entries[T], level int, fs
 		return nil, errors.New("empty data")
 	}
 
-	var min, max streedb.Entry
-	if entries.Len() > 1 {
-		min = entries[0]
-		max = entries[entries.Len()-1]
-	} else if entries.Len() == 1 {
-		min = entries[0]
-		max = entries[0]
-	}
-
-	uuid := streedb.NewUUID() + ".jsondata"
-	blockWriters, err := streedb.NewBlockWriter(uuid, level, fs)
+	meta, err := streedb.NewMetadataBuilder(fs).
+		WithEntries(entries).
+		WithLevel(level).
+		WithExtension(".jsondata").
+		WithFilenamePrexix(path.Join(streedb.DEFAULT_DB_PATH, fmt.Sprintf("%02d", level))).
+		WithUUID(streedb.NewUUID()).
+		Build()
 	if err != nil {
 		return nil, err
 	}
 
-	block := streedb.MetaFile[T]{
-		CreatedAt:   time.Now(),
-		ItemCount:   len(entries),
-		Level:       level,
-		MinVal:      min.(T),
-		MaxVal:      max.(T),
-		FileBlockRW: blockWriters,
-	}
+	// var min, max streedb.Entry
+	// if entries.Len() > 1 {
+	// 	min = entries[0]
+	// 	max = entries[entries.Len()-1]
+	// } else if entries.Len() == 1 {
+	// 	min = entries[0]
+	// 	max = entries[0]
+	// }
+	//
+	// uuid := streedb.NewUUID() + ".jsondata"
+	// fileblockRW, err := streedb.NewBlockWriter(uuid, level, fs)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// block := streedb.MetaFile[T]{
+	// 	CreatedAt: time.Now(),
+	// 	ItemCount: len(entries),
+	// 	Level:     level,
+	// 	MinVal:    min.(T),
+	// 	MaxVal:    max.(T),
+	// }
 
 	// write data to file, create a new Parquet file
-	dataFile := blockWriters.GetData()
-	if err = json.NewEncoder(dataFile).Encode(entries); err != nil {
-		panic(err)
-	}
-
-	block.Size, err = fs.Size(dataFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// write metadata to file
-	if err = json.NewEncoder(blockWriters.GetMeta()).Encode(block); err != nil {
-		panic(err)
-	}
+	// dataFile := fileblockRW.GetData()
+	// if err = json.NewEncoder(dataFile).Encode(entries); err != nil {
+	// 	panic(err)
+	// }
+	//
+	// block.Size, err = fs.Size(dataFile)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// // write metadata to file
+	// if err = json.NewEncoder(fileblockRW.GetMeta()).Encode(block); err != nil {
+	// 	panic(err)
+	// }
 
 	return &localBlockJSON[T]{
-		MetaFile: block,
+		MetaFile: meta,
 		fs:       fs,
 	}, nil
 
@@ -151,7 +156,7 @@ func (l *localBlockJSON[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T],
 }
 
 func (l *localBlockJSON[T]) Remove() error {
-	l.FileBlockRW.Close()
+	l.Close()
 
 	log.Debugf("Removing parquet block %s", l.DataFilepath)
 	if err := l.fs.Remove(l.DataFilepath); err != nil {
