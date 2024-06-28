@@ -35,11 +35,11 @@ type S3Config struct {
 }
 
 var FormatMap = map[FILE_FORMAT]string{
-	FILE_FORMAT_JSON:    "JSON",
-	FILE_FORMAT_PARQUET: "PARQUET",
+	FILE_FORMAT_JSON:    "json",
+	FILE_FORMAT_PARQUET: "parquet",
 }
 
 var FilesystemMap = map[FILESYSTEM]string{
-	FILESYSTEM_LOCAL: "LOCAL",
-	FILESYSTEM_S3:    "S3",
+	FILESYSTEM_LOCAL: "local",
+	FILESYSTEM_S3:    "s3",
 }

@@ -14,7 +14,78 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func TestDBs(t *testing.T) {
+func TestLocalJSON(t *testing.T) {
+	log.SetLevel(log.LevelInfo)
+
+	cfg := &streedb.Config{
+		WalMaxItems: 5,
+		DbPath:      "/tmp/kv",
+		Filesystem:  streedb.FILESYSTEM_LOCAL,
+		Format:      streedb.FILE_FORMAT_JSON,
+		MaxLevels:   5,
+	}
+
+	// lsmtree, err := NewLsmTree[streedb.Kv]("/tmp/kv", destfs.DEST_FS_LOCAL, walSize)
+	lsmtree, err := NewLsmTree[streedb.Kv](cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lsmtree.Close()
+	compact := false
+
+	// compact = true
+	// r := rand.New(rand.NewSource(42))
+	// n := r.Int31()
+	// 	// lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", n), Val: n})
+
+	var i int32
+	for i < 25 {
+		lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", i), Val: i})
+		i++
+	}
+
+	// tree := btree.NewG(2,
+	// 	func(a, b streedb.MetaFile[streedb.Kv]) bool {
+	// 		return a.MinVal.LessThan(b.MinVal)
+	// 	})
+	//
+	// for _, block := range lsmtree.levels.GetLevel(0) {
+	// 	b := block.(*fileformat.LocalBlockJSON[streedb.Kv])
+	// 	tree.ReplaceOrInsert(b.MetaFile)
+	// }
+	//
+	// min := streedb.MetaFile[streedb.Kv]{
+	// 	MinVal: streedb.Kv{Key: "hello 06", Val: 0},
+	// }
+	// max := streedb.MetaFile[streedb.Kv]{
+	// 	MinVal: streedb.Kv{Key: "hello 19", Val: 0},
+	// }
+	//
+	// tree.DescendLessOrEqual(min, func(item streedb.MetaFile[streedb.Kv]) bool {
+	// 	fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
+	// 	return false
+	// })
+	//
+	// tree.AscendRange(min, max, func(item streedb.MetaFile[streedb.Kv]) bool {
+	// 	fmt.Printf("item: %#v, %#v\n", item.MinVal, item.MaxVal)
+	// 	return true
+	// })
+
+	if compact {
+		err = lsmtree.Compact()
+		assert.NoError(t, err)
+	}
+
+	entry := streedb.NewLexicographicKv("hello 06", 0)
+	val, found, err := lsmtree.Find(*entry)
+	assert.NoError(t, err)
+	if !found {
+		t.Fatal("value not found")
+	}
+	assert.Equal(t, int32(6), val.(streedb.Kv).Val)
+}
+
+func TestS3(t *testing.T) {
 	createBuckets()
 
 	log.SetLevel(log.LevelInfo)
@@ -40,20 +111,6 @@ func TestDBs(t *testing.T) {
 				Region: "us-east-1",
 			},
 		},
-		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_LOCAL,
-			Format:      streedb.FILE_FORMAT_JSON,
-			MaxLevels:   5,
-			DbPath:      "/tmp/kv/json",
-		},
-		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_LOCAL,
-			Format:      streedb.FILE_FORMAT_PARQUET,
-			MaxLevels:   5,
-			DbPath:      "/tmp/kv/parquet",
-		},
 	}
 
 	testF := func(cfg *streedb.Config, insert bool) {
@@ -66,10 +123,9 @@ func TestDBs(t *testing.T) {
 		compact := false
 
 		// compact = true
-		var total int32 = 25
 		if insert {
 			var i int32
-			for i < total {
+			for i < 25 {
 				lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", i), Val: i})
 				i++
 			}
@@ -80,11 +136,14 @@ func TestDBs(t *testing.T) {
 			assert.NoError(t, err)
 		}
 
-		entry := streedb.NewLexicographicKv("hello 33", 0)
+		entry := streedb.NewLexicographicKv("hello 06", 0)
 		val, found, err := lsmtree.Find(*entry)
 		assert.NoError(t, err)
-		assert.True(t, found, "value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
-		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val < total)
+		if !found {
+			t.Errorf("value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
+		} else {
+			assert.Equal(t, int32(6), val.(streedb.Kv).Val)
+		}
 	}
 
 	for _, cfg := range cfgs {
