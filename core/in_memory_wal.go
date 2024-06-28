@@ -5,12 +5,12 @@ import (
 )
 
 type inMemoryWal[T streedb.Entry] struct {
-	entries  streedb.Entries[T]
-	capacity int
+	entries streedb.Entries[T]
+	cfg     *streedb.Config
 }
 
-func newInMemoryWal[T streedb.Entry](c int) Wal[T] {
-	return &inMemoryWal[T]{entries: make(streedb.Entries[T], 0, c), capacity: c}
+func newInMemoryWal[T streedb.Entry](c *streedb.Config) Wal[T] {
+	return &inMemoryWal[T]{entries: make(streedb.Entries[T], 0, c.WalMaxItems), cfg: c}
 }
 
 func (w *inMemoryWal[T]) Append(d T) (isFull bool) {

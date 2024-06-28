@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/sayden/streedb"
-	"github.com/sayden/streedb/destfs"
-	"github.com/sayden/streedb/fileformat"
+	"github.com/sayden/streedb/fs"
 	"github.com/thehivecorporation/log"
 )
 
@@ -23,7 +22,6 @@ var (
 )
 
 const (
-	// MAX_LEVEL_0_TOTAL_BLOCKS = 1024 * 8
 	MAX_LEVEL_0_TOTAL_BLOCKS = 1024 * 8
 	MAX_LEVEL_0_BLOCK_SIZE   = 1024 * 32
 	MAX_LEVEL_0_BLOCK_AGE    = 1 * time.Hour
@@ -48,23 +46,26 @@ const (
 type LsmTree[T streedb.Entry] struct {
 	walPool sync.Pool
 	wal     Wal[T]
-	fs      streedb.DestinationFs[T]
+	fs      streedb.Filesystem[T]
 	levels  streedb.Levels[T]
+	cfg     *streedb.Config
 }
 
-func NewLsmTree[T streedb.Entry](initialPath string, destinationFs destfs.DEST_FS, maxWalItems int) (*LsmTree[T], error) {
-	fs, levels, err := destfs.InitStartup[T](initialPath, destinationFs)
+func NewLsmTree[T streedb.Entry](c *streedb.Config) (*LsmTree[T], error) {
+	fs, levels, err := fs.NewFilesystem[T](c)
 	if err != nil {
 		panic(err)
 	}
+
 	l := &LsmTree[T]{
 		walPool: sync.Pool{
 			New: func() interface{} {
-				return newInMemoryWal[T](maxWalItems)
+				return newInMemoryWal[T](c)
 			},
 		},
 		fs:     fs,
 		levels: levels,
+		cfg:    c,
 	}
 	l.wal = l.walPool.Get().(Wal[T])
 
@@ -81,7 +82,7 @@ func (l *LsmTree[T]) Append(d T) {
 		}
 		l.levels.AppendFile(newBlock)
 
-		l.wal = newInMemoryWal[T](cap(l.wal.GetData()))
+		l.wal = newInMemoryWal[T](l.cfg)
 	}
 }
 
@@ -89,7 +90,7 @@ func (l *LsmTree[T]) WriteBlock() (streedb.Fileblock[T], error) {
 	entries := l.wal.GetData()
 	sort.Sort(entries)
 
-	block, err := fileformat.NewFile(entries, 0, l.fs)
+	block, err := l.fs.Create(entries, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -101,15 +102,17 @@ func (l *LsmTree[T]) WriteBlock() (streedb.Fileblock[T], error) {
 }
 
 func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
+	log.WithField("key", d).Debugf("Looking for key in LSM tree")
+
 	// Look in the WAL
 	if v, found := l.wal.Find(d); found {
 		return v, true, nil
 	}
 
 	// Look in the meta, to open the files
-	for i := 0; i <= streedb.MAX_LEVELS; i++ {
-		for _, level := range l.levels.GetLevel(i) {
-			if v, found, err := level.Find(d); found {
+	for i := 0; i <= l.cfg.MaxLevels; i++ {
+		for _, fileblock := range l.levels.GetLevel(i) {
+			if v, found, err := fileblock.Find(d); found {
 				return v, true, nil
 			} else if err != nil {
 				return nil, false, err
@@ -160,15 +163,19 @@ func (l *LsmTree[T]) Compact() error {
 		if err != nil {
 			return err
 		}
-		newBlock.SetLevel(b.GetLevel() + 1)
+		aMeta := a.Metadata()
+		bMeta := b.Metadata()
+
+		meta := newBlock.Metadata()
+		meta.Level = bMeta.Level + 1
 
 		toAdd = append(toAdd, newBlock)
 
-		(toRemove)[a.GetID()] = a
-		(toRemove)[b.GetID()] = b
+		(toRemove)[aMeta.Uuid] = a
+		(toRemove)[bMeta.Uuid] = b
 
-		(alreadyMerged)[a.GetID()] = struct{}{}
-		(alreadyMerged)[b.GetID()] = struct{}{}
+		(alreadyMerged)[aMeta.Uuid] = struct{}{}
+		(alreadyMerged)[bMeta.Uuid] = struct{}{}
 
 		return nil
 
@@ -186,15 +193,15 @@ func (l *LsmTree[T]) Compact() error {
 	higherBlock:
 		// find overlapping blocks from different levels
 		for _, higherBlock := range higherLevel {
-			if _, ok := alreadyMerged[higherBlock.GetID()]; ok {
+			if _, ok := alreadyMerged[higherBlock.Metadata().Uuid]; ok {
 				continue
 			}
 
 			for _, lowerBlock := range lowerLevel {
-				if _, ok := alreadyMerged[lowerBlock.GetID()]; ok {
+				if _, ok := alreadyMerged[lowerBlock.Metadata().Uuid]; ok {
 					continue
 				}
-				if hasOverlap(higherBlock, lowerBlock) {
+				if hasOverlap(higherBlock.Metadata(), lowerBlock.Metadata()) {
 					overlapped = append(overlapped, [2]streedb.Fileblock[T]{higherBlock, lowerBlock})
 					break higherBlock
 				}
@@ -209,23 +216,23 @@ func (l *LsmTree[T]) Compact() error {
 	}
 
 	// merge blocks from the same level
-	for level := 0; level < streedb.MAX_LEVELS; level++ {
+	for level := 0; level < l.cfg.MaxLevels; level++ {
 		blocks := l.levels.GetLevel(level)
 		for i := 0; i < len(blocks)-1; i++ {
-			if _, ok := alreadyMerged[blocks[i].GetID()]; ok {
+			if _, ok := alreadyMerged[blocks[i].Metadata().Uuid]; ok {
 				continue
 			}
 			for j := i + 1; j < len(blocks); j++ {
-				if _, found := alreadyMerged[blocks[j].GetID()]; found {
+				if _, found := alreadyMerged[blocks[j].Metadata().Uuid]; found {
 					continue
 				}
 
-				if hasOverlap(blocks[i], blocks[j]) {
+				if hasOverlap(blocks[i].Metadata(), blocks[j].Metadata()) {
 					mergeAndUptadeCandidates(blocks[i], blocks[j])
 					continue
 				}
 
-				if isSizeExceeded(blocks[i], level) && isSizeExceeded(blocks[j], level) {
+				if isSizeExceeded(blocks[i].Metadata(), level) && isSizeExceeded(blocks[j].Metadata(), level) {
 					mergeAndUptadeCandidates(blocks[i], blocks[j])
 					continue
 				}
@@ -234,14 +241,14 @@ func (l *LsmTree[T]) Compact() error {
 	}
 
 	// merge blocks if level contains too many blocks
-	for level := 0; level < streedb.MAX_LEVELS-1; level++ {
+	for level := 0; level < l.cfg.MaxLevels-1; level++ {
 		blocks := l.levels.GetLevel(level)
 		if len(blocks) >= MAX_LEVELS_TOTAL_BLOCKS[level] {
 			for i, j := 0, 1; j < len(blocks); i, j = i+1, j+1 {
-				if _, ok := alreadyMerged[blocks[i].GetID()]; ok {
+				if _, ok := alreadyMerged[blocks[i].Metadata().Uuid]; ok {
 					continue
 				}
-				if _, ok := alreadyMerged[blocks[j].GetID()]; ok {
+				if _, ok := alreadyMerged[blocks[j].Metadata().Uuid]; ok {
 					continue
 				}
 

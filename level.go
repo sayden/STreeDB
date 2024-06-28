@@ -1,9 +1,5 @@
 package streedb
 
-const (
-	MAX_LEVELS = 5
-)
-
 type Level[T Entry] interface {
 	AppendFile(b Fileblock[T])
 	RemoveFiles(r map[int]struct{})
@@ -19,10 +15,10 @@ type Levels[T Entry] interface {
 
 // NewLevels is redundant atm because there is only one implementation of Levels, but facilitates
 // refactor
-func NewLevels[T Entry](maxLevels int) Levels[T] {
-	l := make(BasicLevels[T], maxLevels+1)
+func NewLevels[T Entry](c *Config) Levels[T] {
+	l := make(BasicLevels[T], c.MaxLevels+1)
 
-	for i := 0; i < maxLevels+1; i++ {
+	for i := 0; i < c.MaxLevels+1; i++ {
 		l[i] = make([]Fileblock[T], 0)
 	}
 

@@ -14,19 +14,21 @@ type Level[T streedb.Entry] struct {
 	min streedb.Entry
 	max streedb.Entry
 
-	fileblocks []streedb.Metadata[T]
+	fileblocks []streedb.Fileblock[T]
 }
 
-func NewLevel[T streedb.Entry](data []streedb.Metadata[T]) streedb.Level[T] {
+func NewLevel[T streedb.Entry](data []streedb.Fileblock[T]) streedb.Level[T] {
 	// find min and max
-	min := data[0].GetMin()
-	max := data[0].GetMax()
+	meta := data[0].Metadata()
+	min := meta.Min
+	max := meta.Max
 	for _, block := range data {
-		if block.GetMin().LessThan(min) {
-			min = block.GetMin()
+		meta = block.Metadata()
+		if meta.Min.LessThan(min) {
+			min = meta.Min
 		}
-		if max.LessThan(block.GetMax()) {
-			max = block.GetMax()
+		if max.LessThan(meta.Max) {
+			max = meta.Max
 		}
 	}
 
@@ -35,11 +37,12 @@ func NewLevel[T streedb.Entry](data []streedb.Metadata[T]) streedb.Level[T] {
 
 func (l *Level[T]) AppendFile(b streedb.Fileblock[T]) {
 	// when appending a block, we need to update the min and max
-	if b.GetMin().LessThan(l.min) {
-		l.min = b.GetMin()
+	meta := b.Metadata()
+	if meta.Min.LessThan(l.min) {
+		l.min = meta.Min
 	}
-	if l.max.LessThan(b.GetMax()) {
-		l.max = b.GetMax()
+	if l.max.LessThan(meta.Max) {
+		l.max = meta.Max
 	}
 
 	l.fileblocks = append(l.fileblocks, b)
@@ -50,7 +53,7 @@ func (l *Level[T]) RemoveFiles(r map[int]struct{}) {
 		return
 	}
 
-	temp := make([]streedb.Metadata[T], 0, len(l.fileblocks)-len(r))
+	temp := make([]streedb.Fileblock[T], 0, len(l.fileblocks)-len(r))
 
 	for i := 0; i < len(l.fileblocks); i++ {
 		if _, ok := r[i]; ok {
@@ -68,9 +71,7 @@ func (l *Level[T]) Find(d T) (streedb.Entry, bool, error) {
 	}
 
 	// iterate through each block
-	for _, blockTmp := range l.fileblocks {
-		// TODO: This type assertion is indicating some coupling
-		block := blockTmp.(streedb.Fileblock[T])
+	for _, block := range l.fileblocks {
 		if v, found, err := block.Find(d); found {
 			return v, true, nil
 		} else if err != nil {
@@ -82,18 +83,23 @@ func (l *Level[T]) Find(d T) (streedb.Entry, bool, error) {
 }
 
 func (l *Level[T]) Close() {
-	for _, blockTmp := range l.fileblocks {
-		block := blockTmp.(streedb.Fileblock[T])
-		block.Close()
-	}
+	//noop
 }
 
-func hasOverlap[T streedb.Entry](a, b streedb.Metadata[T]) bool {
-	return b.GetMin().LessThan(a.GetMax()) && a.GetMin().LessThan(b.GetMax())
+func hasOverlap[T streedb.Entry](a, b *streedb.MetaFile[T]) bool {
+	return b.Min.LessThan(a.Max) && a.Min.LessThan(b.Max)
 }
 
-func isSizeExceeded[T streedb.Entry](b streedb.Metadata[T], level int) bool {
-	return b.GetSize() > MAX_LEVEL_0_BLOCK_SIZE*int64(level+1)
+// func hasOverlap[T streedb.Entry](a, b streedb.Metadata[T]) bool {
+// 	return b.GetMin().LessThan(a.GetMax()) && a.GetMin().LessThan(b.GetMax())
+// }
+
+// func isSizeExceeded[T streedb.Entry](b streedb.Metadata[T], level int) bool {
+// 	return b.GetSize() > MAX_LEVEL_0_BLOCK_SIZE*int64(level+1)
+// }
+
+func isSizeExceeded[T streedb.Entry](b *streedb.MetaFile[T], level int) bool {
+	return b.Size > MAX_LEVEL_0_BLOCK_SIZE*int64(level+1)
 }
 
 func isTooOld[T streedb.Entry](b streedb.MetaFile[T], level int) bool {
