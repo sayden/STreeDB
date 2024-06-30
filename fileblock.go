@@ -23,6 +23,8 @@ type Fileblock[T Entry] interface {
 	Metadata() *MetaFile[T]
 }
 
+type FileblockBuilder[T Entry] func(entries Entries[T]) (Fileblock[T], error)
+
 func NewUUID() string {
 	return uuid.New().String()
 }

@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/sayden/streedb"
 )
@@ -82,39 +81,11 @@ func (l *Level[T]) Find(d T) (streedb.Entry, bool, error) {
 	return nil, false, nil
 }
 
-func (l *Level[T]) Close() {
+func (l *Level[T]) Close() error {
 	//noop
+	return nil
 }
 
-func hasOverlap[T streedb.Entry](a, b *streedb.MetaFile[T]) bool {
-	return b.Min.LessThan(a.Max) && a.Min.LessThan(b.Max)
-}
-
-// func hasOverlap[T streedb.Entry](a, b streedb.Metadata[T]) bool {
-// 	return b.GetMin().LessThan(a.GetMax()) && a.GetMin().LessThan(b.GetMax())
-// }
-
-// func isSizeExceeded[T streedb.Entry](b streedb.Metadata[T], level int) bool {
-// 	return b.GetSize() > MAX_LEVEL_0_BLOCK_SIZE*int64(level+1)
-// }
-
-func isSizeExceeded[T streedb.Entry](b *streedb.MetaFile[T], level int) bool {
-	return b.Size > MAX_LEVEL_0_BLOCK_SIZE*int64(level+1)
-}
-
-func isTooOld[T streedb.Entry](b streedb.MetaFile[T], level int) bool {
-	switch level {
-	case 0:
-		return time.Since(b.CreatedAt) > MAX_LEVEL_0_BLOCK_AGE
-	case 1:
-		return time.Since(b.CreatedAt) > MAX_LEVEL_1_BLOCK_AGE
-	case 2:
-		return time.Since(b.CreatedAt) > MAX_LEVEL_2_BLOCK_AGE
-	case 3:
-		return time.Since(b.CreatedAt) > MAX_LEVEL_3_BLOCK_AGE
-	case 4:
-		return time.Since(b.CreatedAt) > MAX_LEVEL_4_BLOCK_AGE
-	default:
-		return false
-	}
+func (l *Level[T]) Fileblocks() []streedb.Fileblock[T] {
+	return l.fileblocks
 }

@@ -4,7 +4,8 @@ type Level[T Entry] interface {
 	AppendFile(b Fileblock[T])
 	RemoveFiles(r map[int]struct{})
 	Find(d T) (Entry, bool, error)
-	Close()
+	Fileblocks() []Fileblock[T]
+	Close() error
 }
 
 type Levels[T Entry] interface {

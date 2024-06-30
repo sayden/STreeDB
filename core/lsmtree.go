@@ -201,7 +201,7 @@ func (l *LsmTree[T]) Compact() error {
 				if _, ok := alreadyMerged[lowerBlock.Metadata().Uuid]; ok {
 					continue
 				}
-				if hasOverlap(higherBlock.Metadata(), lowerBlock.Metadata()) {
+				if streedb.HasOverlap[T](higherBlock.Metadata(), lowerBlock.Metadata()) {
 					overlapped = append(overlapped, [2]streedb.Fileblock[T]{higherBlock, lowerBlock})
 					break higherBlock
 				}
@@ -227,12 +227,12 @@ func (l *LsmTree[T]) Compact() error {
 					continue
 				}
 
-				if hasOverlap(blocks[i].Metadata(), blocks[j].Metadata()) {
+				if streedb.HasOverlap(blocks[i].Metadata(), blocks[j].Metadata()) {
 					mergeAndUptadeCandidates(blocks[i], blocks[j])
 					continue
 				}
 
-				if isSizeExceeded(blocks[i].Metadata(), level) && isSizeExceeded(blocks[j].Metadata(), level) {
+				if streedb.IsSizeExceeded(blocks[i].Metadata(), level) && streedb.IsSizeExceeded(blocks[j].Metadata(), level) {
 					mergeAndUptadeCandidates(blocks[i], blocks[j])
 					continue
 				}

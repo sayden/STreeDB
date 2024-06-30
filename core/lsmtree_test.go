@@ -14,6 +14,59 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
+func TestDev(t *testing.T) {
+	createBuckets()
+
+	log.SetLevel(log.LevelInfo)
+
+	cfgs := []*streedb.Config{
+		{
+			WalMaxItems: 5,
+			Filesystem:  streedb.FILESYSTEM_LOCAL,
+			Format:      streedb.FILE_FORMAT_JSON,
+			MaxLevels:   5,
+			DbPath:      "/tmp/kv/json",
+		},
+	}
+
+	testF := func(cfg *streedb.Config, insert bool) {
+		lsmtree, err := NewLsmTree[streedb.Kv](cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lsmtree.Close()
+
+		compact := false
+
+		// compact = true
+		keys := []int{1, 2, 4, 5, 6, 3, 7, 7, 8, 8, 10, 11, 12, 13, 14, 15, 11, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 16, 27, 28, 29, 30}
+		total := int32(len(keys))
+		if insert {
+			var i int32
+			for _, k := range keys {
+				lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", k), Val: i})
+				i++
+			}
+		}
+
+		if compact {
+			err = lsmtree.Compact()
+			assert.NoError(t, err)
+		}
+
+		entry := streedb.NewLexicographicKv("hello 07", 0)
+		val, found, err := lsmtree.Find(*entry)
+		assert.NoError(t, err)
+		assert.True(t, found, "value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
+		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val <= total)
+	}
+
+	for _, cfg := range cfgs {
+		// testF(cfg, true)
+		testF(cfg, false)
+	}
+}
+
 func TestDBs(t *testing.T) {
 	createBuckets()
 
@@ -66,11 +119,12 @@ func TestDBs(t *testing.T) {
 		compact := false
 
 		// compact = true
-		var total int32 = 25
+		keys := []int{1, 2, 4, 5, 6, 3, 7, 7, 8, 8, 10, 11, 12, 13, 14, 15, 11, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 16, 27, 28, 29, 30}
+		total := int32(len(keys))
 		if insert {
 			var i int32
-			for i < total {
-				lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", i), Val: i})
+			for _, k := range keys {
+				lsmtree.Append(streedb.Kv{Key: fmt.Sprintf("hello %02d", k), Val: i})
 				i++
 			}
 		}
@@ -84,7 +138,7 @@ func TestDBs(t *testing.T) {
 		val, found, err := lsmtree.Find(entry)
 		assert.NoError(t, err)
 		assert.True(t, found, "value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
-		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val < total)
+		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val <= total)
 	}
 
 	for _, cfg := range cfgs {

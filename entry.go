@@ -3,6 +3,7 @@ package streedb
 type Entry interface {
 	LessThan(Entry) bool
 	Equals(Entry) bool
+	Adjacent(Entry) bool
 }
 
 type Entries[T Entry] []T
