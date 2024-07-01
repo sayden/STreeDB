@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sort"
 
 	s3config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -15,7 +14,7 @@ import (
 )
 
 func InitJSONS3[T streedb.Entry](cfg *streedb.Config) (streedb.Filesystem[T], streedb.Levels[T], error) {
-	return initS3[T](cfg, buildJSONS3)
+	return initS3[T](cfg, newS3FilesystemJSON)
 }
 
 type s3JSONFs[T streedb.Entry] struct {
@@ -48,6 +47,14 @@ func (f *s3JSONFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error) {
 	}
 
 	return entries, nil
+}
+
+func (f *s3JSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
+	newEntries, err := merge(a, b)
+	if err != nil {
+		return nil, err
+	}
+	return f.Create(newEntries, a.Metadata().Level)
 }
 
 func (f *s3JSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
@@ -115,7 +122,7 @@ func (f *s3JSONFs[T]) Remove(m *streedb.MetaFile[T]) error {
 }
 
 func (f *s3JSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	return openAllMetadataFilesInS3[T](f.cfg, f.client, f, buildJSONS3Fileblock)
+	return openAllMetadataFilesInS3[T](f.cfg, f.client, f, newS3FileblockJSON)
 }
 
 // s3JSONFileblock works using plain JSON files to store data (and metadata).
@@ -142,32 +149,6 @@ func (l *s3JSONFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) 
 	entry, found := entries.Find(v)
 
 	return entry, found, nil
-}
-
-// Merge the entries from this block with the entries of `a` and return the new block
-func (l *s3JSONFileblock[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	entries, err := l.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	entries2, err := a.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	dest := make(streedb.Entries[T], 0, entries.Len()+entries2.Len())
-	dest = append(dest, entries...)
-	dest = append(dest, entries2...)
-
-	sort.Sort(dest)
-
-	// TODO: optimistic creation of new block
-	return newJSONS3Fileblock(dest, l.cfg, l.Level+1, l.fs)
-}
-
-func (l *s3JSONFileblock[T]) Remove() error {
-	return l.fs.Remove(&l.MetaFile)
 }
 
 func (l *s3JSONFileblock[T]) Metadata() *streedb.MetaFile[T] {

@@ -11,6 +11,7 @@ type Level[T Entry] interface {
 type Levels[T Entry] interface {
 	GetLevel(i int) []Fileblock[T]
 	AppendFile(b Fileblock[T])
+	AppendLevel(l Level[T], level int)
 	RemoveFile(b Fileblock[T]) error
 }
 
@@ -34,12 +35,6 @@ func NewLevel[T Entry](data []Fileblock[T]) Level[T] {
 
 // NewLevels is redundant atm because there is only one implementation of Levels, but facilitates
 // refactor
-func NewLevels[T Entry](c *Config) Levels[T] {
-	l := make(BasicLevels[T], c.MaxLevels+1)
-
-	for i := 0; i < c.MaxLevels+1; i++ {
-		l[i] = make([]Fileblock[T], 0)
-	}
-
-	return l
+func NewLevels[T Entry](c *Config, fs Filesystem[T]) Levels[T] {
+	return NewBasicLevels(c, fs)
 }

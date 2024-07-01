@@ -13,8 +13,8 @@ type MetaFile[T Entry] struct {
 	Max       T
 	Uuid      string
 
-	DataFilepath string
-	MetaFilepath string
+	DataFilepath string `json:"-"`
+	MetaFilepath string `json:"data"`
 }
 
 func NewMetadataBuilder[T Entry](rootPath string) MetadataBuilder[T] {

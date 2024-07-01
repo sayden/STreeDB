@@ -27,22 +27,22 @@ func NewFileblockBuilder[T streedb.Entry](c *streedb.Config, fs streedb.Filesyst
 	switch c.Filesystem {
 	case streedb.FILESYSTEM_S3:
 		if c.Format == streedb.FILE_FORMAT_PARQUET {
-			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-				return newParquetS3Fileblock(entries, c, level, fs)
+			return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newParquetS3Fileblock(entries, cfg, level, fs)
 			}, nil
 		} else {
-			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-				return newJSONS3Fileblock(entries, c, level, fs)
+			return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newJSONS3Fileblock(entries, cfg, level, fs)
 			}, nil
 		}
 	case streedb.FILESYSTEM_LOCAL:
 		if c.Format == streedb.FILE_FORMAT_PARQUET {
-			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-				return newJSONS3Fileblock(entries, c, level, fs)
+			return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newJSONS3Fileblock(entries, cfg, level, fs)
 			}, nil
 		} else {
-			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-				return newJSONLocalFileblock(entries, c, level, fs)
+			return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newJSONLocalFileblock(entries, cfg, level, fs)
 			}, nil
 		}
 	}

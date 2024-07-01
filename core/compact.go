@@ -1,71 +1,71 @@
 package core
 
 import (
-	"sort"
+	"errors"
 	"time"
 
 	"github.com/emirpasic/gods/v2/sets/treeset"
 	"github.com/sayden/streedb"
+	"github.com/thehivecorporation/log"
 )
 
-type SameLevelCompactor[T streedb.Entry] struct {
-	fBuilder streedb.FileblockBuilder[T]
-	level    streedb.Level[T]
+func NewSameLevelCompactor[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], level streedb.Level[T]) streedb.Compactor[T] {
+	return &SingleLevelCompactor[T]{
+		fs:    fs,
+		level: level,
+		cfg:   cfg,
+	}
 }
 
-func (s *SameLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
+type SingleLevelCompactor[T streedb.Entry] struct {
+	fs    streedb.Filesystem[T]
+	level streedb.Level[T]
+	cfg   *streedb.Config
+}
+
+func (s *SingleLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
 	fileblocks := s.level.Fileblocks()
 	if len(fileblocks) < 1 {
 		return fileblocks, nil
 	}
-
 	var (
-		i                  = 0
-		j                  = 1
-		aEntries, bEntries streedb.Entries[T]
-		newFileblock       streedb.Fileblock[T]
-		err                error
-		found              bool
-		pairs              = treeset.New[int]()
-		a                  streedb.Fileblock[T]
-		b                  streedb.Fileblock[T]
+		passes         = s.cfg.CompactionPasses
+		i              = 0
+		j              = 1
+		err            error
+		found          bool
+		blocksToRemove = treeset.New[int]()
+		a              streedb.Fileblock[T]
+		b              streedb.Fileblock[T]
 	)
 
-	for i < len(fileblocks) {
+compactionLoop:
+	initialLen := len(fileblocks)
+	for i < initialLen {
 		a = fileblocks[i]
 		j = i + 1
 
-		for j < len(fileblocks) {
+		for j < initialLen {
 			b = fileblocks[j]
-			if pairs.Contains(i); found {
+			if blocksToRemove.Contains(i); found {
 				j++
 				continue
 			}
-			if pairs.Contains(j); found {
+			if blocksToRemove.Contains(j); found {
 				j++
 				continue
 			}
 
 			if HasOverlap(a.Metadata(), b.Metadata()) || isAdjacent(a.Metadata(), b.Metadata()) {
-				if aEntries, err = a.Load(); err != nil {
-					continue
-				}
-				if bEntries, err = b.Load(); err != nil {
-					continue
-				}
-				highestLevel := b.Metadata().Level
-				if a.Metadata().Level > highestLevel {
-					highestLevel = a.Metadata().Level
-				}
-
-				mergedEntries := MergeSort(aEntries, bEntries)
-				if newFileblock, err = s.fBuilder(mergedEntries, highestLevel); err != nil {
+				newFileblock, err := s.fs.Merge(a, b)
+				if err != nil {
+					log.WithError(err).Error("failed to create new fileblock")
 					continue
 				}
 
 				fileblocks = append(fileblocks, newFileblock)
-				pairs.Add(i)
-				pairs.Add(j)
+				blocksToRemove.Add(i)
+				blocksToRemove.Add(j)
 				i++
 				break
 			}
@@ -74,10 +74,13 @@ func (s *SameLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
 		i++
 	}
 
-	// remove block pairs
+	// remove blocks
 	result := make([]streedb.Fileblock[T], 0, len(fileblocks))
 	for i := 0; i < len(fileblocks); i++ {
-		if pairs.Contains(i) {
+		if blocksToRemove.Contains(i) {
+			if err = s.fs.Remove(fileblocks[i].Metadata()); err != nil {
+				return nil, errors.Join(errors.New("error deleting block during compaction"), err)
+			}
 			continue
 		}
 		result = append(result, fileblocks[i])
@@ -86,19 +89,18 @@ func (s *SameLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
 	return result, nil
 }
 
-func NewTieredCompactor[T streedb.Entry](cfg *streedb.Config, fBuilder streedb.FileblockBuilder[T], levels streedb.Levels[T]) streedb.MultiLevelCompactor[T] {
+func NewTieredCompactor[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], fBuilder streedb.FileblockBuilder[T], levels streedb.Levels[T]) streedb.MultiLevelCompactor[T] {
 	return &TieredCompactor[T]{
-		fBuilder: fBuilder,
-		cfg:      cfg,
-		levels:   levels,
+		cfg:    cfg,
+		levels: levels,
+		fs:     fs,
 	}
 }
 
 type TieredCompactor[T streedb.Entry] struct {
-	fBuilder streedb.FileblockBuilder[T]
-	same     SameLevelCompactor[T]
-	cfg      *streedb.Config
-	levels   streedb.Levels[T]
+	fs     streedb.Filesystem[T]
+	cfg    *streedb.Config
+	levels streedb.Levels[T]
 }
 
 func (t *TieredCompactor[T]) Compact() (streedb.Levels[T], error) {
@@ -112,36 +114,23 @@ func (t *TieredCompactor[T]) Compact() (streedb.Levels[T], error) {
 	}
 
 	mergedFileblocks := make([]streedb.Fileblock[T], 0, totalFileblocks)
-	for level := 0; level < t.cfg.MaxLevels; level++ {
-		mergedFileblocks = append(mergedFileblocks, t.levels.GetLevel(level)...)
+	for levelIdx := 0; levelIdx < t.cfg.MaxLevels; levelIdx++ {
+		level := t.levels.GetLevel(levelIdx)
+		mergedFileblocks = append(mergedFileblocks, level...)
 	}
 
-	same := SameLevelCompactor[T]{
-		fBuilder: t.fBuilder,
-		level:    streedb.NewLevel(mergedFileblocks),
-	}
+	same := NewSameLevelCompactor(t.fs, streedb.NewLevel(mergedFileblocks))
 	blocks, err := same.Compact()
 	if err != nil {
 		return nil, err
 	}
 
-	newLevels := streedb.NewLevels[T](t.cfg)
+	newLevels := streedb.NewLevels[T](t.cfg, t.fs)
 	for _, block := range blocks {
 		newLevels.AppendFile(block)
 	}
 
 	return newLevels, nil
-}
-
-func MergeSort[T streedb.Entry](a, b streedb.Entries[T]) streedb.Entries[T] {
-	result := make(streedb.Entries[T], 0, a.Len()+b.Len())
-
-	result = append(result, a...)
-	result = append(result, b...)
-
-	sort.Sort(result)
-
-	return result
 }
 
 func isAdjacent[T streedb.Entry](a, b *streedb.MetaFile[T]) bool {

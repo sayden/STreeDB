@@ -24,6 +24,14 @@ func (f *localJSONFs[T]) Open(p string) (meta *streedb.MetaFile[T], err error) {
 	return open[T](p)
 }
 
+func (f *localJSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
+	newEntries, err := merge(a, b)
+	if err != nil {
+		return nil, err
+	}
+	return f.Create(newEntries, a.Metadata().Level)
+}
+
 func (f *localJSONFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error) {
 	file, err := os.Open(m.DataFilepath)
 	if err != nil {
@@ -90,7 +98,7 @@ func (f *localJSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.
 		return nil, err
 	}
 
-	return &localJSONFileblock[T]{MetaFile: *meta, fs: f}, nil
+	return NewLocalFileblockJSON(f.cfg, meta, f), nil
 }
 
 func (f *localJSONFs[T]) Remove(m *streedb.MetaFile[T]) error {
@@ -98,8 +106,13 @@ func (f *localJSONFs[T]) Remove(m *streedb.MetaFile[T]) error {
 }
 
 func (f *localJSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	levels := streedb.NewLevels[T](f.cfg)
-	return levels, metaFilesInDir(f, f.cfg.DbPath, &levels, usingJSON)
+	filesystem := streedb.Filesystem[T](f)
+
+	levels := streedb.NewLevels[T](f.cfg, filesystem)
+
+	initialSearchPath := f.cfg.DbPath
+
+	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels, NewLocalFileblockJSON)
 }
 
 // newJSONLocalFileblock is used to create new JSON files.
@@ -120,10 +133,7 @@ func newJSONLocalFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *str
 		return nil, err
 	}
 
-	return &localJSONFileblock[T]{
-		MetaFile: *meta,
-		fs:       fs,
-	}, nil
+	return NewLocalFileblockJSON(cfg, meta, fs), nil
 }
 
 // localJSONFileblock works using plain JSON files to store data (and metadata).
@@ -141,21 +151,6 @@ func (l *localJSONFileblock[T]) Load() (streedb.Entries[T], error) {
 
 func (l *localJSONFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	return find(l, v)
-}
-
-// Merge the entries from this block with the entries of `a` and return the new block
-func (l *localJSONFileblock[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	dest, err := merge(l, a)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: optimistic creation of new block
-	return newJSONLocalFileblock(dest, l.cfg, l.Level+1, l.fs)
-}
-
-func (l *localJSONFileblock[T]) Remove() error {
-	return l.fs.Remove(&l.MetaFile)
 }
 
 func (l *localJSONFileblock[T]) Metadata() *streedb.MetaFile[T] {

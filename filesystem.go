@@ -5,5 +5,6 @@ type Filesystem[T Entry] interface {
 	Open(p string) (*MetaFile[T], error)
 	Load(*MetaFile[T]) (Entries[T], error)
 	Remove(*MetaFile[T]) error
+	Merge(a, b Fileblock[T]) (Fileblock[T], error)
 	OpenAllMetaFiles() (Levels[T], error)
 }

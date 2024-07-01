@@ -52,6 +52,14 @@ func (f *localParquetFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], er
 	return entries, nil
 }
 
+func (f *localParquetFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
+	newEntries, err := merge(a, b)
+	if err != nil {
+		return nil, err
+	}
+	return f.Create(newEntries, a.Metadata().Level)
+}
+
 func (f *localParquetFs[T]) Create(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
@@ -110,7 +118,7 @@ func (f *localParquetFs[T]) Create(entries streedb.Entries[T], level int) (stree
 		return nil, err
 	}
 
-	return &localParquetFileblock[T]{MetaFile: *meta, fs: f}, nil
+	return NewLocalFileblockParquet(f.cfg, meta, f), nil
 }
 
 func (f *localParquetFs[T]) Remove(m *streedb.MetaFile[T]) error {
@@ -118,8 +126,13 @@ func (f *localParquetFs[T]) Remove(m *streedb.MetaFile[T]) error {
 }
 
 func (f *localParquetFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	levels := streedb.NewLevels[T](f.cfg)
-	return levels, metaFilesInDir(f, f.cfg.DbPath, &levels, usingParquet)
+	filesystem := streedb.Filesystem[T](f)
+
+	levels := streedb.NewLevels(f.cfg, filesystem)
+
+	initialSearchPath := f.cfg.DbPath
+
+	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels, NewLocalFileblockJSON)
 }
 
 func newParquetFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *streedb.Config, level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
@@ -157,21 +170,6 @@ func (l *localParquetFileblock[T]) Load() (streedb.Entries[T], error) {
 
 func (l *localParquetFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	return find(l, v)
-}
-
-// Merge the entries from this block with the entries of `a` and return the new block
-func (l *localParquetFileblock[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	dest, err := merge(l, a)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: optimistic creation of new block
-	return newParquetFileblock(dest, l.cfg, l.Level+1, l.fs)
-}
-
-func (l *localParquetFileblock[T]) Remove() error {
-	return remove(&l.MetaFile)
 }
 
 func (l *localParquetFileblock[T]) Metadata() *streedb.MetaFile[T] {

@@ -13,9 +13,9 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-type fsBuilder[T streedb.Entry] func(cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T]
+type s3FilesystemBuilder[T streedb.Entry] func(cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T]
 
-func buildParquetS3[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T] {
+func newS3FilesystemParquet[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T] {
 	s3fs := &s3ParquetFs[T]{
 		cfg:    cfg,
 		s3cfg:  s3cfg,
@@ -25,7 +25,7 @@ func buildParquetS3[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, cli
 	return s3fs
 }
 
-func buildJSONS3[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T] {
+func newS3FilesystemJSON[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T] {
 	s3fs := &s3JSONFs[T]{
 		cfg:    cfg,
 		s3cfg:  s3cfg,
@@ -35,7 +35,7 @@ func buildJSONS3[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client
 	return s3fs
 }
 
-func initS3[T streedb.Entry](cfg *streedb.Config, builder fsBuilder[T]) (streedb.Filesystem[T], streedb.Levels[T], error) {
+func initS3[T streedb.Entry](cfg *streedb.Config, builder s3FilesystemBuilder[T]) (streedb.Filesystem[T], streedb.Levels[T], error) {
 	s3Cfg, err := s3config.LoadDefaultConfig(
 		context.TODO(),
 		s3config.WithRegion(cfg.S3Config.Region),
@@ -100,25 +100,27 @@ func removeS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, m *streed
 	return nil
 }
 
-type s3FileblockBuilder[T streedb.Entry] func(meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T]
+type s3FileblockBuilder[T streedb.Entry] func(cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T]
 
-func buildParquetS3Fileblock[T streedb.Entry](meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
+func newS3FileblockParquet[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
 	return &s3ParquetFileblock[T]{
 		MetaFile: *meta,
 		fs:       fs,
+		cfg:      cfg,
 	}
 
 }
 
-func buildJSONS3Fileblock[T streedb.Entry](meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
+func newS3FileblockJSON[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
 	return &s3JSONFileblock[T]{
 		MetaFile: *meta,
 		fs:       fs,
+		cfg:      cfg,
 	}
 }
 
 func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.Client, fs streedb.Filesystem[T], builder s3FileblockBuilder[T]) (streedb.Levels[T], error) {
-	levels := streedb.NewLevels[T](cfg)
+	levels := streedb.NewLevels[T](cfg, fs)
 
 	listInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(cfg.S3Config.Bucket),
@@ -145,7 +147,7 @@ func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.C
 
 			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
 
-			fileblock := builder(meta, fs)
+			fileblock := builder(cfg, meta, fs)
 
 			levels.AppendFile(fileblock)
 		}

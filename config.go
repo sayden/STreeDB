@@ -21,12 +21,13 @@ const (
 )
 
 type Config struct {
-	MaxLevels   int
-	DbPath      string
-	Filesystem  FILESYSTEM
-	Format      FILE_FORMAT
-	WalMaxItems int
-	S3Config    S3Config
+	CompactionPasses int
+	MaxLevels        int
+	DbPath           string
+	Filesystem       FILESYSTEM
+	Format           FILE_FORMAT
+	WalMaxItems      int
+	S3Config         S3Config
 }
 
 type S3Config struct {

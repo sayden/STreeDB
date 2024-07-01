@@ -14,9 +14,7 @@ type Fileblock[T Entry] interface {
 type DataOps[T Entry] interface {
 	Load() (Entries[T], error)
 	Find(v Entry) (Entry, bool, error)
-	Merge(a Fileblock[T]) (Fileblock[T], error)
 	Close() error
-	Remove() error
 }
 
-type FileblockBuilder[T Entry] func(entries Entries[T], level int) (Fileblock[T], error)
+type FileblockBuilder[T Entry] func(cfg *Config, entries Entries[T], level int) (Fileblock[T], error)

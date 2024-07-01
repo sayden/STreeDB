@@ -24,16 +24,16 @@ func (c *mockLevel[T]) Load() (streedb.Entries[T], error) {
 	return res2.entries, nil
 }
 
-func (c *mockLevel[T]) Fileblocks() []streedb.Fileblock[T]                         { return c.iter }
-func (c *mockLevel[T]) Find(v streedb.Entry) (streedb.Entry, bool, error)          { return nil, false, nil }
-func (c *mockLevel[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) { return nil, nil }
-func (c *mockLevel[T]) Close() error                                               { return nil }
-func (c *mockLevel[T]) Remove() error                                              { return nil }
-func (c *mockLevel[T]) AppendFile(b streedb.Fileblock[T])                          {}
-func (c *mockLevel[T]) RemoveFiles(r map[int]struct{})                             {}
+func (c *mockLevel[T]) Fileblocks() []streedb.Fileblock[T]                       { return c.iter }
+func (c *mockLevel[T]) Find(v streedb.Entry) (streedb.Entry, bool, error)        { return nil, false, nil }
+func (c *mockLevel[T]) Merge(a streedb.Fileblock[T]) (streedb.Entries[T], error) { return nil, nil }
+func (c *mockLevel[T]) Close() error                                             { return nil }
+func (c *mockLevel[T]) Remove() error                                            { return nil }
+func (c *mockLevel[T]) AppendFile(b streedb.Fileblock[T])                        {}
+func (c *mockLevel[T]) RemoveFiles(r map[int]struct{})                           {}
 
 func mockBuilder[T streedb.Entry]() streedb.FileblockBuilder[T] {
-	return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+	return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
 		return &MemFileblock[T]{
 			entries: entries,
 			metadata: streedb.MetaFile[T]{
@@ -60,7 +60,7 @@ func (m *MemFileblock[T]) Load() (streedb.Entries[T], error) { return m.entries,
 func (m *MemFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
 	return nil, false, nil
 }
-func (m *MemFileblock[T]) Merge(a streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
+func (m *MemFileblock[T]) Merge(a streedb.Fileblock[T]) (streedb.Entries[T], error) {
 	return nil, nil
 }
 func (m *MemFileblock[T]) Close() error  { return nil }
@@ -82,11 +82,14 @@ func TestIsAdjacent(t *testing.T) {
 
 func TestCompactSameLevel(t *testing.T) {
 	keys := []int{
-		1, 2, 4, 5, 6, 3, 7, 7, 8, 8,
-		10, 11, 12, 13, 14, 15, 11, 17,
-		18, 19, 20, 21, 22, 23, 24, 25,
-		26, 16, 27, 28, 29, 44, 45, 36,
-		59, 60,
+		1, 2, 4, 5, 6,
+		3, 7, 7, 8, 8,
+		10, 11, 12, 13, 14,
+		15, 11, 17, 18, 19,
+		20, 21, 22, 23, 24,
+		25, 26, 16, 27, 28,
+		29, 44, 45, 36, 59,
+		60,
 	}
 	iter := make([]streedb.Fileblock[streedb.Entry], 0)
 
@@ -101,9 +104,8 @@ func TestCompactSameLevel(t *testing.T) {
 	}
 	sort.Ints(keys)
 
-	sameCompactor := SameLevelCompactor[streedb.Entry]{
-		fBuilder: mockBuilder[streedb.Entry](),
-		level:    &mockLevel[streedb.Entry]{iter: iter},
+	sameCompactor := SingleLevelCompactor[streedb.Entry]{
+		level: &mockLevel[streedb.Entry]{iter: iter},
 	}
 
 	blocks, err := sameCompactor.Compact()
@@ -153,25 +155,19 @@ func TestCompactTiered(t *testing.T) {
 	sort.Ints(keys)
 	assert.Equal(t, 35, len(keys))
 
-	levels := streedb.NewLevels[streedb.Entry](&streedb.Config{}).(streedb.BasicLevels[streedb.Entry])
-	levels[0] = iter[1:4]
-	levels[1] = append(levels[1], iter[4])
-	levels[1] = append(levels[1], iter[0])
-	levels[0] = append(levels[0], iter[5])
-	levels[0] = append(levels[0], iter[6])
+	levels := streedb.NewLevels[streedb.Entry](&streedb.Config{}, nil)
+	iter[4].Metadata().Level = 1
+	iter[0].Metadata().Level = 1
 
-	// set the level in metadata to all level 1's
-	for i := 0; i < len(levels[1]); i++ {
-		levels[1][i].Metadata().Level = 1
+	for _, b := range iter {
+		levels.AppendFile(b)
 	}
 
-	assert.Equal(t, 5, len(levels[0]))
-	assert.Equal(t, 2, len(levels[1]))
+	// set the level in metadata to all level 1's
 
 	tieredCompactor := TieredCompactor[streedb.Entry]{
-		fBuilder: mockBuilder[streedb.Entry](),
-		levels:   levels,
-		cfg:      &streedb.Config{MaxLevels: 5},
+		levels: levels,
+		cfg:    &streedb.Config{MaxLevels: 5},
 	}
 	_ = tieredCompactor
 

@@ -6,29 +6,30 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"sort"
 
 	"github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 )
 
-type fileblockBuilder[T streedb.Entry] func(meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T]
+type localFileblockBuilder[T streedb.Entry] func(cfg *streedb.Config, meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T]
 
-func usingParquet[T streedb.Entry](meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T] {
+func NewLocalFileblockParquet[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T] {
 	return &localParquetFileblock[T]{
 		MetaFile: *meta,
 		fs:       f,
+		cfg:      cfg,
 	}
 }
 
-func usingJSON[T streedb.Entry](meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T] {
+func NewLocalFileblockJSON[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T] {
 	return &localJSONFileblock[T]{
 		MetaFile: *meta,
 		fs:       f,
+		cfg:      cfg,
 	}
 }
 
-func metaFilesInDir[T streedb.Entry](f streedb.Filesystem[T], folder string, levels *streedb.Levels[T], builder fileblockBuilder[T]) error {
+func metaFilesInDir[T streedb.Entry](cfg *streedb.Config, f streedb.Filesystem[T], folder string, levels *streedb.Levels[T], builder localFileblockBuilder[T]) error {
 	files, err := os.ReadDir(folder)
 	if err != nil {
 		return err
@@ -36,7 +37,7 @@ func metaFilesInDir[T streedb.Entry](f streedb.Filesystem[T], folder string, lev
 
 	for _, file := range files {
 		if file.IsDir() {
-			err2 := metaFilesInDir(f, path.Join(folder, file.Name()), levels, builder)
+			err2 := metaFilesInDir(cfg, f, path.Join(folder, file.Name()), levels, builder)
 			if err2 != nil {
 				return err2
 			}
@@ -50,7 +51,7 @@ func metaFilesInDir[T streedb.Entry](f streedb.Filesystem[T], folder string, lev
 		if err != nil {
 			return err
 		}
-		lb := builder(meta, f)
+		lb := builder(cfg, meta, f)
 		(*levels).AppendFile(lb)
 	}
 
@@ -69,26 +70,6 @@ func find[T streedb.Entry](l streedb.Fileblock[T], v streedb.Entry) (streedb.Ent
 
 	entry, found := entries.Find(v)
 	return entry, found, nil
-}
-
-func merge[T streedb.Entry](l streedb.Fileblock[T], a streedb.Fileblock[T]) (streedb.Entries[T], error) {
-	entries, err := l.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	entries2, err := a.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	dest := make(streedb.Entries[T], 0, entries.Len()+entries2.Len())
-	dest = append(dest, entries...)
-	dest = append(dest, entries2...)
-
-	sort.Sort(dest)
-
-	return dest, nil
 }
 
 func open[T streedb.Entry](p string) (meta *streedb.MetaFile[T], err error) {
@@ -123,7 +104,7 @@ func remove[T streedb.Entry](m *streedb.MetaFile[T]) error {
 	return nil
 }
 
-type builder[T streedb.Entry] func(c *streedb.Config) streedb.Filesystem[T]
+type localFilesystemBuilder[T streedb.Entry] func(c *streedb.Config) streedb.Filesystem[T]
 
 func jSONFsBuilder[T streedb.Entry](c *streedb.Config) streedb.Filesystem[T] {
 	return &localJSONFs[T]{cfg: c}
@@ -133,7 +114,7 @@ func parquetFsBuilder[T streedb.Entry](c *streedb.Config) streedb.Filesystem[T] 
 	return &localParquetFs[T]{cfg: c}
 }
 
-func initLocal[T streedb.Entry](c *streedb.Config, fsBuilder builder[T]) (streedb.Filesystem[T], streedb.Levels[T], error) {
+func initLocal[T streedb.Entry](c *streedb.Config, fsBuilder localFilesystemBuilder[T]) (streedb.Filesystem[T], streedb.Levels[T], error) {
 	if !path.IsAbs(c.DbPath) {
 		cwd, err := os.Getwd()
 		if err != nil {

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -67,7 +68,7 @@ func NewLsmTree[T streedb.Entry](c *streedb.Config) (*LsmTree[T], error) {
 	}
 
 	// TODO: Passing the levels here feels a bit hacky
-	l.compactor = NewTieredCompactor(c, fileblockBuilder, levels)
+	l.compactor = NewTieredCompactor(c, filesystem, fileblockBuilder, levels)
 
 	return l, nil
 }
@@ -147,6 +148,9 @@ func (l *LsmTree[T]) Close() error {
 		errs = append(errs, err)
 	} else {
 		l.levels.AppendFile(fileblock)
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	for i := 0; i <= 5; i++ {
