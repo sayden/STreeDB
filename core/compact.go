@@ -2,14 +2,15 @@ package core
 
 import (
 	"errors"
+	"math"
 	"time"
 
 	"github.com/emirpasic/gods/v2/sets/treeset"
 	"github.com/sayden/streedb"
-	"github.com/thehivecorporation/log"
+	"github.com/sayden/streedb/fs"
 )
 
-func NewSameLevelCompactor[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], level streedb.Level[T]) streedb.Compactor[T] {
+func NewSingleLevelCompactor[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], level streedb.Level[T]) streedb.Compactor[T] {
 	return &SingleLevelCompactor[T]{
 		fs:    fs,
 		level: level,
@@ -28,45 +29,62 @@ func (s *SingleLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
 	if len(fileblocks) < 1 {
 		return fileblocks, nil
 	}
+
 	var (
-		passes         = s.cfg.CompactionPasses
-		i              = 0
-		j              = 1
-		err            error
-		found          bool
-		blocksToRemove = treeset.New[int]()
-		a              streedb.Fileblock[T]
-		b              streedb.Fileblock[T]
+		blocksToRemove = treeset.New[string]()
+		blocksToSkip   = treeset.New[string]()
 	)
 
-compactionLoop:
+	var (
+		i            = 0
+		j            = 1
+		err          error
+		a            streedb.Fileblock[T]
+		b            streedb.Fileblock[T]
+		newFileblock streedb.Fileblock[T]
+		entries      streedb.Entries[T]
+	)
+
 	initialLen := len(fileblocks)
 	for i < initialLen {
 		a = fileblocks[i]
+		if blocksToSkip.Contains(a.UUID()) || blocksToRemove.Contains(a.UUID()) {
+			i++
+			continue
+		}
 		j = i + 1
 
 		for j < initialLen {
 			b = fileblocks[j]
-			if blocksToRemove.Contains(i); found {
-				j++
-				continue
-			}
-			if blocksToRemove.Contains(j); found {
+
+			// don't try to merge level 5 with level 1 blocks to reduce write amplification
+			areNonAdjacentLevels := math.Abs(float64(a.Metadata().Level-b.Metadata().Level)) > 1
+
+			if blocksToSkip.Contains(b.UUID()) || blocksToRemove.Contains(b.UUID()) || areNonAdjacentLevels {
 				j++
 				continue
 			}
 
 			if HasOverlap(a.Metadata(), b.Metadata()) || isAdjacent(a.Metadata(), b.Metadata()) {
-				newFileblock, err := s.fs.Merge(a, b)
-				if err != nil {
-					log.WithError(err).Error("failed to create new fileblock")
-					continue
+				if entries, err = fs.Merge(a, b); err != nil {
+					return nil, errors.Join(errors.New("failed to create new fileblock"), err)
+				}
+
+				// Write the new block to storage directly
+				if newFileblock, err = s.fs.Create(s.cfg, entries, a.Metadata().Level); err != nil {
+					return nil, errors.Join(errors.New("failed to create new fileblock"), err)
 				}
 
 				fileblocks = append(fileblocks, newFileblock)
-				blocksToRemove.Add(i)
-				blocksToRemove.Add(j)
+				blocksToSkip.Add(newFileblock.UUID())
+
+				blocksToRemove.Add(a.UUID())
+				blocksToRemove.Add(b.UUID())
+
+				// current i,j pair have been merged, so we can skip the next i and trust
+				// blocksToRemove to skip j in a future iteration
 				i++
+
 				break
 			}
 			j++
@@ -74,36 +92,66 @@ compactionLoop:
 		i++
 	}
 
-	// remove blocks
+	// Remove flagged blocks
 	result := make([]streedb.Fileblock[T], 0, len(fileblocks))
 	for i := 0; i < len(fileblocks); i++ {
-		if blocksToRemove.Contains(i) {
-			if err = s.fs.Remove(fileblocks[i].Metadata()); err != nil {
+		block := fileblocks[i]
+
+		if blocksToRemove.Contains(block.UUID()) {
+			if err = s.fs.Remove(block); err != nil {
 				return nil, errors.Join(errors.New("error deleting block during compaction"), err)
 			}
 			continue
 		}
-		result = append(result, fileblocks[i])
+
+		// Untouched fileblock
+		result = append(result, block)
 	}
 
 	return result, nil
 }
 
-func NewTieredCompactor[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], fBuilder streedb.FileblockBuilder[T], levels streedb.Levels[T]) streedb.MultiLevelCompactor[T] {
+func NewTieredCompactor[T streedb.Entry](
+	cfg *streedb.Config,
+	fs streedb.Filesystem[T],
+	fBuilder streedb.FileblockBuilder[T],
+	levels streedb.Levels[T],
+	promoter streedb.LevelPromoter[T]) streedb.MultiLevelCompactor[T] {
 	return &TieredCompactor[T]{
-		cfg:    cfg,
-		levels: levels,
-		fs:     fs,
+		cfg:      cfg,
+		levels:   levels,
+		fs:       fs,
+		promoter: promoter,
 	}
 }
 
 type TieredCompactor[T streedb.Entry] struct {
-	fs     streedb.Filesystem[T]
-	cfg    *streedb.Config
-	levels streedb.Levels[T]
+	fs       streedb.Filesystem[T]
+	cfg      *streedb.Config
+	levels   streedb.Levels[T]
+	promoter streedb.LevelPromoter[T]
 }
 
 func (t *TieredCompactor[T]) Compact() (streedb.Levels[T], error) {
+	blocks, err := t.compact()
+	if err != nil {
+		return nil, err
+	}
+
+	blocks, err = t.promoter.Promote(blocks)
+	if err != nil {
+		return nil, err
+	}
+
+	newLevels := streedb.NewLevels(t.cfg, t.fs)
+	for _, block := range blocks {
+		newLevels.AppendFile(block)
+	}
+
+	return newLevels, nil
+}
+
+func (t *TieredCompactor[T]) compact() ([]streedb.Fileblock[T], error) {
 	totalFileblocks := 0
 
 	for level := 0; level < t.cfg.MaxLevels; level++ {
@@ -119,22 +167,48 @@ func (t *TieredCompactor[T]) Compact() (streedb.Levels[T], error) {
 		mergedFileblocks = append(mergedFileblocks, level...)
 	}
 
-	same := NewSameLevelCompactor(t.fs, streedb.NewLevel(mergedFileblocks))
+	same := NewSingleLevelCompactor(t.cfg, t.fs, streedb.NewLevel(mergedFileblocks))
 	blocks, err := same.Compact()
 	if err != nil {
 		return nil, err
 	}
 
-	newLevels := streedb.NewLevels[T](t.cfg, t.fs)
-	for _, block := range blocks {
-		newLevels.AppendFile(block)
+	return blocks, nil
+}
+
+func NewItemLimitPromoter[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], maxItems int) streedb.LevelPromoter[T] {
+	return &ItemLimitPromoter[T]{
+		fs:       fs,
+		cfg:      cfg,
+		maxItems: maxItems,
+	}
+}
+
+type ItemLimitPromoter[T streedb.Entry] struct {
+	fs       streedb.Filesystem[T]
+	cfg      *streedb.Config
+	maxItems int
+}
+
+func (i *ItemLimitPromoter[T]) Promote(blocks []streedb.Fileblock[T]) ([]streedb.Fileblock[T], error) {
+	if len(blocks) == 0 {
+		return nil, nil
 	}
 
-	return newLevels, nil
+	for _, block := range blocks {
+		realLevel := block.Metadata().ItemCount / i.maxItems
+		if realLevel == block.Metadata().Level {
+			continue
+		}
+		block.Metadata().Level = realLevel
+		i.fs.UpdateMetadata(block)
+	}
+
+	return blocks, nil
 }
 
 func isAdjacent[T streedb.Entry](a, b *streedb.MetaFile[T]) bool {
-	return (a.Max.Adjacent(b.Min) || b.Max.Adjacent(a.Min))
+	return a.Max.Adjacent(b.Min) || b.Max.Adjacent(a.Min)
 }
 
 func HasOverlap[T streedb.Entry](a, b *streedb.MetaFile[T]) bool {

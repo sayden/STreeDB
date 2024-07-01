@@ -32,10 +32,10 @@ func (s *s3ParquetFs[T]) Open(p string) (*streedb.MetaFile[T], error) {
 	return openS3[T](s.client, s.cfg, p)
 }
 
-func (f *s3ParquetFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error) {
+func (f *s3ParquetFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
 	out, err := f.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(f.cfg.S3Config.Bucket),
-		Key:    aws.String(m.DataFilepath),
+		Key:    aws.String(b.Metadata().DataFilepath),
 	})
 	if err != nil {
 		return nil, errors.Join(errors.New("error getting obj from S3"), err)
@@ -80,15 +80,19 @@ func (f *s3ParquetFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error
 	return entries, nil
 }
 
+func (f *s3ParquetFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
+	return updateMetadataS3(f.cfg, f.client, f, b.Metadata())
+}
+
 func (f *s3ParquetFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := merge(a, b)
+	newEntries, err := Merge(a, b)
 	if err != nil {
 		return nil, err
 	}
-	return f.Create(newEntries, a.Metadata().Level)
+	return f.Create(f.cfg, newEntries, a.Metadata().Level)
 }
 
-func (f *s3ParquetFs[T]) Create(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+func (f *s3ParquetFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -153,8 +157,8 @@ func (f *s3ParquetFs[T]) Create(entries streedb.Entries[T], level int) (streedb.
 	return &s3ParquetFileblock[T]{MetaFile: *meta, fs: f}, nil
 }
 
-func (f *s3ParquetFs[T]) Remove(m *streedb.MetaFile[T]) error {
-	return removeS3[T](f.client, f.cfg, m)
+func (f *s3ParquetFs[T]) Remove(b streedb.Fileblock[T]) error {
+	return removeS3[T](f.client, f.cfg, b.Metadata())
 }
 
 func (f *s3ParquetFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
@@ -170,7 +174,7 @@ type s3ParquetFileblock[T streedb.Entry] struct {
 }
 
 func (l *s3ParquetFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(&l.MetaFile)
+	return l.fs.Load(l)
 }
 
 func (l *s3ParquetFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
@@ -190,6 +194,10 @@ func (l *s3ParquetFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, erro
 
 func (l *s3ParquetFileblock[T]) Metadata() *streedb.MetaFile[T] {
 	return &l.MetaFile
+}
+
+func (l *s3ParquetFileblock[T]) UUID() string {
+	return l.MetaFile.Uuid
 }
 
 func (l *s3ParquetFileblock[T]) Close() error {

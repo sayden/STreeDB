@@ -9,6 +9,7 @@ package streedb
 type Fileblock[T Entry] interface {
 	DataOps[T]
 	Metadata() *MetaFile[T]
+	UUID() string
 }
 
 type DataOps[T Entry] interface {

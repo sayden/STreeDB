@@ -21,13 +21,21 @@ const (
 )
 
 type Config struct {
-	CompactionPasses int
-	MaxLevels        int
-	DbPath           string
-	Filesystem       FILESYSTEM
-	Format           FILE_FORMAT
-	WalMaxItems      int
-	S3Config         S3Config
+	CompactionExtraPasses int
+	MaxLevels             int
+	DbPath                string
+	Filesystem            FILESYSTEM
+	Format                FILE_FORMAT
+	WalMaxItems           int
+	S3Config              S3Config
+	LevelPromoter         LevelPromoterCfg
+}
+
+type LevelPromoterCfg struct {
+	MaxItemsExponential int
+	MaxItemsLinar       int
+	MaxSizeExponential  int
+	MaxSizeLinear       int
 }
 
 type S3Config struct {

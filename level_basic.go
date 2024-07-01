@@ -105,7 +105,7 @@ func (b BasicLevels[T]) RemoveFile(a Fileblock[T]) error {
 	for i, block := range b.levels[level] {
 		if block.Metadata().Uuid == meta.Uuid {
 			// remove block
-			if err := b.fs.Remove(block.Metadata()); err != nil {
+			if err := b.fs.Remove(block); err != nil {
 				return err
 			}
 			idx = i

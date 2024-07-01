@@ -1,20 +1,22 @@
 package fs
 
 import (
+	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/sayden/streedb"
 )
 
-func merge[T streedb.Entry](a streedb.Fileblock[T], b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+func Merge[T streedb.Entry](a streedb.Fileblock[T], b streedb.Fileblock[T]) (streedb.Entries[T], error) {
 	entries, err := a.Load()
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)
 	}
 
 	entries2, err := b.Load()
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", b.Metadata().DataFilepath), err)
 	}
 
 	dest := make(streedb.Entries[T], 0, entries.Len()+entries2.Len())

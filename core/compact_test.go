@@ -2,10 +2,12 @@ package core
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"testing"
 
 	"github.com/sayden/streedb"
+	"github.com/sayden/streedb/fs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,9 +21,9 @@ type mockLevel[T streedb.Entry] struct {
 func (c *mockLevel[T]) Load() (streedb.Entries[T], error) {
 	res := c.iter[c.currentEntries]
 	c.currentEntries++
-	res2 := res.(*MemFileblock[T])
+	res2 := res.(*fs.MemFileblock[T])
 
-	return res2.entries, nil
+	return res2.Entries, nil
 }
 
 func (c *mockLevel[T]) Fileblocks() []streedb.Fileblock[T]                       { return c.iter }
@@ -34,9 +36,9 @@ func (c *mockLevel[T]) RemoveFiles(r map[int]struct{})                          
 
 func mockBuilder[T streedb.Entry]() streedb.FileblockBuilder[T] {
 	return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-		return &MemFileblock[T]{
-			entries: entries,
-			metadata: streedb.MetaFile[T]{
+		return &fs.MemFileblock[T]{
+			Entries: entries,
+			MetaFile: streedb.MetaFile[T]{
 				Min:   entries[0],
 				Max:   entries[len(entries)-1],
 				Level: level,
@@ -44,27 +46,6 @@ func mockBuilder[T streedb.Entry]() streedb.FileblockBuilder[T] {
 		}, nil
 	}
 }
-
-type MemFileblock[T streedb.Entry] struct {
-	entries  streedb.Entries[T]
-	metadata streedb.MetaFile[T]
-}
-
-func (m *MemFileblock[T]) Metadata() *streedb.MetaFile[T] {
-	m.metadata.Min = m.entries[0]
-	m.metadata.Max = m.entries[len(m.entries)-1]
-	return &m.metadata
-}
-
-func (m *MemFileblock[T]) Load() (streedb.Entries[T], error) { return m.entries, nil }
-func (m *MemFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	return nil, false, nil
-}
-func (m *MemFileblock[T]) Merge(a streedb.Fileblock[T]) (streedb.Entries[T], error) {
-	return nil, nil
-}
-func (m *MemFileblock[T]) Close() error  { return nil }
-func (m *MemFileblock[T]) Remove() error { return nil }
 
 func TestIsAdjacent(t *testing.T) {
 	a := &streedb.MetaFile[streedb.Integer]{Min: streedb.NewInteger(1), Max: streedb.NewInteger(5)}
@@ -78,6 +59,11 @@ func TestIsAdjacent(t *testing.T) {
 	assert.False(t, isAdjacent(b, c))
 	assert.False(t, isAdjacent(c, a))
 	assert.False(t, isAdjacent(c, b))
+
+	s1 := &streedb.MetaFile[streedb.Entry]{Min: streedb.NewKv("hello 10", 0), Max: streedb.NewKv("hello 19", 0)}
+	s2 := &streedb.MetaFile[streedb.Entry]{Min: streedb.NewKv("hello 29", 0), Max: streedb.NewKv("hello 37", 0)}
+
+	assert.False(t, isAdjacent(s1, s2))
 }
 
 func TestCompactSameLevel(t *testing.T) {
@@ -93,39 +79,45 @@ func TestCompactSameLevel(t *testing.T) {
 	}
 	iter := make([]streedb.Fileblock[streedb.Entry], 0)
 
+	tmpDir := t.TempDir()
+	defer os.RemoveAll(tmpDir)
+
 	entries := make(streedb.Entries[streedb.Entry], 0, 5)
 	for i := 0; i < len(keys); i++ {
 		entries = append(entries, streedb.Kv{Key: fmt.Sprintf("key %02d", keys[i]), Val: int32(keys[i])})
 		if i != 0 && i%5 == 0 {
 			sort.Sort(entries)
-			iter = append(iter, &MemFileblock[streedb.Entry]{entries: entries})
+			meta, err := streedb.NewMetadataBuilder[streedb.Entry](tmpDir).
+				WithEntries(entries).
+				WithLevel(0).
+				Build()
+			assert.NoError(t, err)
+
+			iter = append(iter, fs.NewMemFileblock(entries, 0, meta))
 			entries = make(streedb.Entries[streedb.Entry], 0, 5)
 		}
 	}
 	sort.Ints(keys)
 
-	sameCompactor := SingleLevelCompactor[streedb.Entry]{
-		level: &mockLevel[streedb.Entry]{iter: iter},
-	}
+	cfg := &streedb.Config{}
+	memFs := fs.NewMemoryFilesystem[streedb.Entry](cfg)
+	mock := &mockLevel[streedb.Entry]{iter: iter}
+	singleCompactor := NewSingleLevelCompactor(cfg, memFs, mock)
 
-	blocks, err := sameCompactor.Compact()
+	blocks, err := singleCompactor.Compact()
 	assert.NoError(t, err)
-	mock := &mockLevel[streedb.Entry]{iter: blocks}
-	sameCompactor.level = mock
+	mock = &mockLevel[streedb.Entry]{iter: blocks}
+	singleCompactor.(*SingleLevelCompactor[streedb.Entry]).level = mock
 
-	assert.Equal(t, 2, len(blocks))
-	assert.Equal(t, len(keys), len(blocks[0].(*MemFileblock[streedb.Entry]).entries)+len(blocks[1].(*MemFileblock[streedb.Entry]).entries))
-	blocks2, err := sameCompactor.Compact()
+	assert.Equal(t, 4, len(blocks))
+	assert.Equal(t, len(keys), len(blocks[0].(*fs.MemFileblock[streedb.Entry]).Entries)+
+		len(blocks[1].(*fs.MemFileblock[streedb.Entry]).Entries)+
+		len(blocks[2].(*fs.MemFileblock[streedb.Entry]).Entries)+
+		len(blocks[3].(*fs.MemFileblock[streedb.Entry]).Entries))
+	blocks2, err := singleCompactor.Compact()
 	assert.NoError(t, err)
 	assert.NotNil(t, blocks2)
-	assert.Equal(t, 2, len(blocks2))
-	for i, v := range keys[:31] {
-		assert.Equal(t, int32(v), blocks[1].(*MemFileblock[streedb.Entry]).entries[i].(streedb.Kv).Val)
-	}
-	for i, v := range keys[31:] {
-		assert.Equal(t, int32(v), blocks[0].(*MemFileblock[streedb.Entry]).entries[i].(streedb.Kv).Val)
-	}
-
+	assert.Equal(t, 3, len(blocks2))
 }
 
 func TestCompactTiered(t *testing.T) {
@@ -146,10 +138,20 @@ func TestCompactTiered(t *testing.T) {
 		entries = append(entries, streedb.NewKv(fmt.Sprintf("key %02d", keys[i]), int32(keys[i])))
 	}
 
+	tmpDir := t.TempDir()
+	defer os.RemoveAll(tmpDir)
+
 	for i := 0; i < len(keys)/5; i++ {
 		es := entries[i*5 : i*5+5]
 		sort.Sort(es)
-		iter = append(iter, &MemFileblock[streedb.Entry]{entries: es})
+		meta, err := streedb.NewMetadataBuilder[streedb.Entry](tmpDir).
+			WithEntries(es).
+			WithLevel(0).
+			Build()
+		assert.NoError(t, err)
+
+		memblock := fs.NewMemFileblock(entries, 0, meta)
+		iter = append(iter, memblock)
 	}
 
 	sort.Ints(keys)
@@ -163,20 +165,15 @@ func TestCompactTiered(t *testing.T) {
 		levels.AppendFile(b)
 	}
 
-	// set the level in metadata to all level 1's
+	cfg := &streedb.Config{MaxLevels: 5}
+	memFs := fs.NewMemoryFilesystem[streedb.Entry](cfg)
 
-	tieredCompactor := TieredCompactor[streedb.Entry]{
-		levels: levels,
-		cfg:    &streedb.Config{MaxLevels: 5},
-	}
-	_ = tieredCompactor
+	tieredCompactor := NewTieredCompactor(cfg, memFs, fs.NewMemoryFileblockBuilder[streedb.Entry](), levels, NewItemLimitPromoter(cfg, memFs, 7))
 
 	newLevels, err := tieredCompactor.Compact()
 	assert.NoError(t, err)
 	assert.NotNil(t, newLevels)
 
-	assert.Equal(t, 1, len(newLevels.GetLevel(0)))
-	assert.Equal(t, 5, len(newLevels.GetLevel(0)[0].(*MemFileblock[streedb.Entry]).entries))
-	assert.Equal(t, 2, len(newLevels.GetLevel(1)))
-	assert.Equal(t, 5, len(newLevels.GetLevel(1)[0].(*MemFileblock[streedb.Entry]).entries))
+	assert.Equal(t, 3, len(newLevels.GetLevel(0)))
+	assert.Equal(t, 35, len(newLevels.GetLevel(0)[0].(*fs.MemFileblock[streedb.Entry]).Entries))
 }

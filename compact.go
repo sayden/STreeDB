@@ -42,3 +42,7 @@ type Compactor[T Entry] interface {
 type MultiLevelCompactor[T Entry] interface {
 	Compact() (Levels[T], error)
 }
+
+type LevelPromoter[T Entry] interface {
+	Promote(blocks []Fileblock[T]) ([]Fileblock[T], error)
+}

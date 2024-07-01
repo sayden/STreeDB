@@ -18,17 +18,17 @@ func InitJSONS3[T streedb.Entry](cfg *streedb.Config) (streedb.Filesystem[T], st
 }
 
 type s3JSONFs[T streedb.Entry] struct {
-	cfg      *streedb.Config
-	s3cfg    s3config.Config
-	client   *s3.Client
-	rootPath string
+	cfg    *streedb.Config
+	s3cfg  s3config.Config
+	client *s3.Client
 }
 
 func (s *s3JSONFs[T]) Open(p string) (*streedb.MetaFile[T], error) {
 	return openS3[T](s.client, s.cfg, p)
 }
 
-func (f *s3JSONFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error) {
+func (f *s3JSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+	m := b.Metadata()
 	log.WithField("data_filepath", m.DataFilepath).Debug("Loading data from S3")
 
 	out, err := f.client.GetObject(context.TODO(),
@@ -50,14 +50,18 @@ func (f *s3JSONFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error) {
 }
 
 func (f *s3JSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := merge(a, b)
+	newEntries, err := Merge(a, b)
 	if err != nil {
 		return nil, err
 	}
-	return f.Create(newEntries, a.Metadata().Level)
+	return f.Create(f.cfg, newEntries, a.Metadata().Level)
 }
 
-func (f *s3JSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+func (f *s3JSONFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
+	return updateMetadataS3[T](f.cfg, f.client, f, b.Metadata())
+}
+
+func (f *s3JSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -117,8 +121,8 @@ func (f *s3JSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.Fil
 	return &s3JSONFileblock[T]{MetaFile: *meta, fs: f}, nil
 }
 
-func (f *s3JSONFs[T]) Remove(m *streedb.MetaFile[T]) error {
-	return removeS3[T](f.client, f.cfg, m)
+func (f *s3JSONFs[T]) Remove(b streedb.Fileblock[T]) error {
+	return removeS3[T](f.client, f.cfg, b.Metadata())
 }
 
 func (f *s3JSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
@@ -133,7 +137,11 @@ type s3JSONFileblock[T streedb.Entry] struct {
 }
 
 func (l *s3JSONFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(&l.MetaFile)
+	return l.fs.Load(l)
+}
+
+func (l *s3JSONFileblock[T]) UUID() string {
+	return l.Uuid
 }
 
 func (l *s3JSONFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {

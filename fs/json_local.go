@@ -25,15 +25,15 @@ func (f *localJSONFs[T]) Open(p string) (meta *streedb.MetaFile[T], err error) {
 }
 
 func (f *localJSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := merge(a, b)
+	newEntries, err := Merge(a, b)
 	if err != nil {
 		return nil, err
 	}
-	return f.Create(newEntries, a.Metadata().Level)
+	return f.Create(f.cfg, newEntries, a.Metadata().Level)
 }
 
-func (f *localJSONFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error) {
-	file, err := os.Open(m.DataFilepath)
+func (f *localJSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+	file, err := os.Open(b.Metadata().DataFilepath)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (f *localJSONFs[T]) Load(m *streedb.MetaFile[T]) (streedb.Entries[T], error
 	return entries, nil
 }
 
-func (f *localJSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+func (f *localJSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -56,7 +56,6 @@ func (f *localJSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.
 		WithEntries(entries).
 		WithLevel(level).
 		WithExtension(".jsondata").
-		WithFilenamePrefix(fmt.Sprintf("%02d/", level)).
 		Build()
 	if err != nil {
 		return nil, errors.Join(errors.New("error creating metadata: "), err)
@@ -101,8 +100,16 @@ func (f *localJSONFs[T]) Create(entries streedb.Entries[T], level int) (streedb.
 	return NewLocalFileblockJSON(f.cfg, meta, f), nil
 }
 
-func (f *localJSONFs[T]) Remove(m *streedb.MetaFile[T]) error {
-	return remove(m)
+func (f *localJSONFs[T]) MoveToLevel(m *streedb.MetaFile[T]) error {
+	return moveToNewLocalLevel(f.cfg, m)
+}
+
+func (f *localJSONFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
+	return updateMetadata(b.Metadata())
+}
+
+func (f *localJSONFs[T]) Remove(b streedb.Fileblock[T]) error {
+	return remove(b.Metadata())
 }
 
 func (f *localJSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
@@ -118,7 +125,7 @@ func (f *localJSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
 // newJSONLocalFileblock is used to create new JSON files.
 // `entries` must contain the data to be written to the file.
 // `level` is the destination level for the filebeock.
-func newJSONLocalFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *streedb.Config, level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
+func newJSONLocalFileblock[T streedb.Entry](cfg *streedb.Config, entries streedb.Entries[T], level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -127,7 +134,6 @@ func newJSONLocalFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *str
 		WithEntries(entries).
 		WithLevel(level).
 		WithExtension(".jsondata").
-		WithFilenamePrefix(fmt.Sprintf("%02d/", level)).
 		Build()
 	if err != nil {
 		return nil, err
@@ -146,7 +152,7 @@ type localJSONFileblock[T streedb.Entry] struct {
 }
 
 func (l *localJSONFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(&l.MetaFile)
+	return l.fs.Load(l)
 }
 
 func (l *localJSONFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
@@ -160,4 +166,8 @@ func (l *localJSONFileblock[T]) Metadata() *streedb.MetaFile[T] {
 func (l *localJSONFileblock[T]) Close() error {
 	//noop
 	return nil
+}
+
+func (l *localJSONFileblock[T]) UUID() string {
+	return l.Metadata().Uuid
 }

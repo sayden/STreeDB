@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,11 +20,12 @@ func TestDev(t *testing.T) {
 
 	cfgs := []*streedb.Config{
 		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_LOCAL,
-			Format:      streedb.FILE_FORMAT_JSON,
-			MaxLevels:   5,
-			DbPath:      "/tmp/kv/json",
+			WalMaxItems:           5,
+			Filesystem:            streedb.FILESYSTEM_LOCAL,
+			Format:                streedb.FILE_FORMAT_JSON,
+			MaxLevels:             5,
+			DbPath:                "/tmp/kv/json",
+			CompactionExtraPasses: 1,
 		},
 	}
 
@@ -44,7 +46,8 @@ func TestDev(t *testing.T) {
 			15, 11, 17, 18, 19,
 			20, 21, 22, 23, 24,
 			25, 26, 16, 27, 28,
-			29, 44, 45, 36, 59, 60, 61,
+			29, 44, 45, 36, 59,
+			60, 61,
 		}
 		totalKeys := int32(len(keys))
 
@@ -70,7 +73,7 @@ func TestDev(t *testing.T) {
 
 	for _, cfg := range cfgs {
 		testF(cfg, true)
-		// testF(cfg, false)
+		testF(cfg, false)
 	}
 }
 
@@ -78,6 +81,9 @@ func TestDBs(t *testing.T) {
 	createBuckets()
 
 	log.SetLevel(log.LevelInfo)
+
+	tmpDir := t.TempDir()
+	defer os.RemoveAll(tmpDir)
 
 	cfgs := []*streedb.Config{
 		{
@@ -105,14 +111,14 @@ func TestDBs(t *testing.T) {
 			Filesystem:  streedb.FILESYSTEM_LOCAL,
 			Format:      streedb.FILE_FORMAT_JSON,
 			MaxLevels:   5,
-			DbPath:      "/tmp/kv/json",
+			DbPath:      tmpDir + "/json",
 		},
 		{
 			WalMaxItems: 5,
 			Filesystem:  streedb.FILESYSTEM_LOCAL,
 			Format:      streedb.FILE_FORMAT_PARQUET,
 			MaxLevels:   5,
-			DbPath:      "/tmp/kv/parquet",
+			DbPath:      tmpDir + "/parquet",
 		},
 	}
 
@@ -125,7 +131,7 @@ func TestDBs(t *testing.T) {
 
 		compact := false
 
-		// compact = true
+		compact = true
 		keys := []int{1, 2, 4, 5, 6, 3, 7, 7, 8, 8, 10, 11, 12, 13, 14, 15, 11, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 16, 27, 28, 29, 30}
 		total := int32(len(keys))
 		if insert {

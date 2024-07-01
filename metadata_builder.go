@@ -2,6 +2,8 @@ package streedb
 
 import (
 	"path"
+
+	"github.com/thehivecorporation/log"
 )
 
 type MetadataBuilder[T Entry] interface {
@@ -57,6 +59,9 @@ func (b *metadataBuilder[T]) WithEntries(es Entries[T]) MetadataBuilder[T] {
 }
 
 func (b *metadataBuilder[T]) WithFilename(s string) MetadataBuilder[T] {
+	if b.metaFile.Uuid != "" {
+		log.WithFields(log.Fields{"old_uuid": b.metaFile.Uuid, "new_uuid": s}).Warn("Overwriting UUID with filename")
+	}
 	b.metaFile.Uuid = s
 	return b
 }

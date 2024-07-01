@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -154,4 +155,22 @@ func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.C
 	}
 
 	return levels, nil
+}
+
+func updateMetadataS3[T streedb.Entry](cfg *streedb.Config, client *s3.Client, fs streedb.Filesystem[T], m *streedb.MetaFile[T]) error {
+	byt, err := json.Marshal(m)
+	if err != nil {
+		return errors.Join(errors.New("error encoding entries"), err)
+	}
+
+	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String(cfg.S3Config.Bucket),
+		Key:    aws.String(m.MetaFilepath),
+		Body:   bytes.NewReader(byt),
+	})
+	if err != nil {
+		return errors.Join(errors.New("error updating obj to S3"), err)
+	}
+
+	return nil
 }

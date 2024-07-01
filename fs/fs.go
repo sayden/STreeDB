@@ -42,7 +42,7 @@ func NewFileblockBuilder[T streedb.Entry](c *streedb.Config, fs streedb.Filesyst
 			}, nil
 		} else {
 			return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-				return newJSONLocalFileblock(entries, cfg, level, fs)
+				return newJSONLocalFileblock(cfg, entries, level, fs)
 			}, nil
 		}
 	}

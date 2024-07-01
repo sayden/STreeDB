@@ -3,7 +3,6 @@ package fs
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path"
 
@@ -125,18 +124,6 @@ func initLocal[T streedb.Entry](c *streedb.Config, fsBuilder localFilesystemBuil
 
 	os.MkdirAll(c.DbPath, 0755)
 
-	folders := make([]string, 0, c.MaxLevels+1)
-
-	for i := 0; i < c.MaxLevels; i++ {
-		level := path.Join(c.DbPath, fmt.Sprintf("%02d", i))
-		folders = append(folders, level)
-	}
-	folders = append(folders, path.Join(c.DbPath, "wal"))
-
-	for _, folder := range folders {
-		os.MkdirAll(folder, 0755)
-	}
-
 	fs := fsBuilder(c)
 	meta, err := fs.OpenAllMetaFiles()
 	if err != nil {
@@ -144,4 +131,62 @@ func initLocal[T streedb.Entry](c *streedb.Config, fsBuilder localFilesystemBuil
 	}
 
 	return fs, meta, nil
+}
+
+func updateMetadata[T streedb.Entry](meta *streedb.MetaFile[T]) error {
+	file, err := os.Create(meta.MetaFilepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err = file.Truncate(0); err != nil {
+		return err
+	}
+
+	if err = json.NewEncoder(file).Encode(meta); err != nil {
+		return err
+	}
+
+	return file.Sync()
+}
+
+func moveToNewLocalLevel[T streedb.Entry](cfg *streedb.Config, oldMeta *streedb.MetaFile[T]) error {
+	// move the data file to its new location
+	ext := path.Ext(oldMeta.DataFilepath)
+	meta, err := streedb.NewMetadataBuilder[T](cfg.DbPath).
+		WithLevel(oldMeta.Level).
+		WithExtension("." + ext).
+		Build()
+	if err != nil {
+		return err
+	}
+
+	if err = os.Rename(oldMeta.DataFilepath, meta.DataFilepath); err != nil {
+		return err
+	}
+
+	// update the metadata with the new locations
+	oldMeta.DataFilepath = meta.DataFilepath
+	oldPath := oldMeta.MetaFilepath
+	oldMeta.MetaFilepath = meta.MetaFilepath
+	if err = os.Rename(oldPath, meta.MetaFilepath); err != nil {
+		return err
+	}
+
+	// move the metadata file to its new location
+	file, err := os.Create(meta.MetaFilepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if err = file.Truncate(0); err != nil {
+		return err
+	}
+
+	if err = json.NewEncoder(file).Encode(oldMeta); err != nil {
+		return err
+	}
+
+	return nil
 }
