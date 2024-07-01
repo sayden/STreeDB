@@ -32,7 +32,7 @@ func (c *mockLevel[T]) Merge(a streedb.Fileblock[T]) (streedb.Entries[T], error)
 func (c *mockLevel[T]) Close() error                                             { return nil }
 func (c *mockLevel[T]) Remove() error                                            { return nil }
 func (c *mockLevel[T]) AppendFile(b streedb.Fileblock[T])                        {}
-func (c *mockLevel[T]) RemoveFiles(r map[int]struct{})                           {}
+func (c *mockLevel[T]) RemoveFile(b streedb.Fileblock[T]) error                  { return nil }
 
 func mockBuilder[T streedb.Entry]() streedb.FileblockBuilder[T] {
 	return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
@@ -102,7 +102,7 @@ func TestCompactSameLevel(t *testing.T) {
 	cfg := &streedb.Config{}
 	memFs := fs.NewMemoryFilesystem[streedb.Entry](cfg)
 	mock := &mockLevel[streedb.Entry]{iter: iter}
-	singleCompactor := NewSingleLevelCompactor(cfg, memFs, mock)
+	singleCompactor := NewSingleLevelCompactor[streedb.Entry](cfg, memFs, mock)
 
 	blocks, err := singleCompactor.Compact()
 	assert.NoError(t, err)
@@ -157,7 +157,8 @@ func TestCompactTiered(t *testing.T) {
 	sort.Ints(keys)
 	assert.Equal(t, 35, len(keys))
 
-	levels := streedb.NewLevels[streedb.Entry](&streedb.Config{}, nil)
+	cfg := &streedb.Config{MaxLevels: 5}
+	levels := streedb.NewLevels[streedb.Entry](cfg, fs.NewMemoryFilesystem[streedb.Entry](cfg))
 	iter[4].Metadata().Level = 1
 	iter[0].Metadata().Level = 1
 
@@ -165,7 +166,6 @@ func TestCompactTiered(t *testing.T) {
 		levels.AppendFile(b)
 	}
 
-	cfg := &streedb.Config{MaxLevels: 5}
 	memFs := fs.NewMemoryFilesystem[streedb.Entry](cfg)
 
 	tieredCompactor := NewTieredCompactor(cfg, memFs, fs.NewMemoryFileblockBuilder[streedb.Entry](), levels, NewItemLimitPromoter(cfg, memFs, 7))
@@ -174,6 +174,6 @@ func TestCompactTiered(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, newLevels)
 
-	assert.Equal(t, 3, len(newLevels.GetLevel(0)))
-	assert.Equal(t, 35, len(newLevels.GetLevel(0)[0].(*fs.MemFileblock[streedb.Entry]).Entries))
+	assert.Equal(t, 3, len(newLevels.GetLevel(0).Fileblocks()))
+	assert.Equal(t, 35, len(newLevels.GetLevel(0).Fileblocks()[0].(*fs.MemFileblock[streedb.Entry]).Entries))
 }

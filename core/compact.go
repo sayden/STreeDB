@@ -155,8 +155,9 @@ func (t *TieredCompactor[T]) compact() ([]streedb.Fileblock[T], error) {
 	totalFileblocks := 0
 
 	for level := 0; level < t.cfg.MaxLevels; level++ {
-		totalFileblocks += len(t.levels.GetLevel(level))
+		totalFileblocks += len(t.levels.GetLevel(level).Fileblocks())
 	}
+
 	if totalFileblocks == 0 {
 		return nil, nil
 	}
@@ -164,7 +165,7 @@ func (t *TieredCompactor[T]) compact() ([]streedb.Fileblock[T], error) {
 	mergedFileblocks := make([]streedb.Fileblock[T], 0, totalFileblocks)
 	for levelIdx := 0; levelIdx < t.cfg.MaxLevels; levelIdx++ {
 		level := t.levels.GetLevel(levelIdx)
-		mergedFileblocks = append(mergedFileblocks, level...)
+		mergedFileblocks = append(mergedFileblocks, level.Fileblocks()...)
 	}
 
 	same := NewSingleLevelCompactor(t.cfg, t.fs, streedb.NewLevel(mergedFileblocks))
@@ -197,6 +198,9 @@ func (i *ItemLimitPromoter[T]) Promote(blocks []streedb.Fileblock[T]) ([]streedb
 
 	for _, block := range blocks {
 		realLevel := block.Metadata().ItemCount / i.maxItems
+		if realLevel > i.cfg.MaxLevels {
+			realLevel = i.cfg.MaxLevels
+		}
 		if realLevel == block.Metadata().Level {
 			continue
 		}

@@ -2,17 +2,18 @@ package streedb
 
 type Level[T Entry] interface {
 	AppendFile(b Fileblock[T])
-	RemoveFiles(r map[int]struct{})
+	RemoveFile(b Fileblock[T]) error
 	Find(d T) (Entry, bool, error)
 	Fileblocks() []Fileblock[T]
 	Close() error
 }
 
 type Levels[T Entry] interface {
-	GetLevel(i int) []Fileblock[T]
+	GetLevel(i int) Level[T]
 	AppendFile(b Fileblock[T])
 	AppendLevel(l Level[T], level int)
 	RemoveFile(b Fileblock[T]) error
+	Close() error
 }
 
 func NewLevel[T Entry](data []Fileblock[T]) Level[T] {

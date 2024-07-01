@@ -5,9 +5,17 @@ import (
 	"fmt"
 )
 
+func NewBasicLevel[T Entry](fs Filesystem[T]) Level[T] {
+	return &BasicLevel[T]{
+		fs:         fs,
+		fileblocks: make([]Fileblock[T], 0, 10),
+	}
+}
+
 type BasicLevel[T Entry] struct {
 	min Entry
 	max Entry
+	fs  Filesystem[T]
 
 	fileblocks []Fileblock[T]
 }
@@ -15,6 +23,11 @@ type BasicLevel[T Entry] struct {
 func (b *BasicLevel[T]) AppendFile(f Fileblock[T]) {
 	// when appending a block, we need to update the min and max
 	meta := f.Metadata()
+	if b.min == nil {
+		b.min = meta.Min
+		b.max = meta.Max
+	}
+
 	if meta.Min.LessThan(b.min) {
 		b.min = meta.Min
 	}
@@ -25,21 +38,26 @@ func (b *BasicLevel[T]) AppendFile(f Fileblock[T]) {
 	b.fileblocks = append(b.fileblocks, f)
 }
 
-func (b *BasicLevel[T]) RemoveFiles(r map[int]struct{}) {
-	if len(r) == 0 {
-		return
-	}
+func (b *BasicLevel[T]) RemoveFile(f Fileblock[T]) error {
+	idx := 0
 
-	temp := make([]Fileblock[T], 0, len(b.fileblocks)-len(r))
-
-	for i := 0; i < len(b.fileblocks); i++ {
-		if _, ok := r[i]; ok {
-			continue
+	meta := f.Metadata()
+	// search for block
+	for i, block := range b.fileblocks {
+		if block.Metadata().Uuid == meta.Uuid {
+			// remove block
+			if err := b.fs.Remove(block); err != nil {
+				return err
+			}
+			idx = i
+			break
 		}
-		temp = append(temp, (b.fileblocks)[i])
 	}
 
-	b.fileblocks = temp
+	// remove block from slice
+	b.fileblocks = append(b.fileblocks[:idx], b.fileblocks[idx+1:]...)
+
+	return nil
 }
 
 func (b *BasicLevel[T]) Find(d T) (Entry, bool, error) {
@@ -60,7 +78,10 @@ func (b *BasicLevel[T]) Find(d T) (Entry, bool, error) {
 }
 
 func (b *BasicLevel[T]) Close() error {
-	//noop
+	for _, block := range b.fileblocks {
+		block.Close()
+	}
+
 	return nil
 }
 
@@ -70,12 +91,12 @@ func (b *BasicLevel[T]) Fileblocks() []Fileblock[T] {
 
 func NewBasicLevels[T Entry](c *Config, fs Filesystem[T]) Levels[T] {
 	l := &BasicLevels[T]{
-		levels: make(map[int][]Fileblock[T]),
+		levels: make(map[int]Level[T]),
 		fs:     fs,
 	}
 
 	for i := 0; i < c.MaxLevels+1; i++ {
-		l.levels[i] = make([]Fileblock[T], 0)
+		l.levels[i] = NewBasicLevel(fs)
 	}
 
 	return l
@@ -83,41 +104,37 @@ func NewBasicLevels[T Entry](c *Config, fs Filesystem[T]) Levels[T] {
 
 // BasicLevels is a simple implementation of a list of Levels
 type BasicLevels[T Entry] struct {
-	levels map[int][]Fileblock[T]
+	levels map[int]Level[T]
 	fs     Filesystem[T]
 }
 
-func (b *BasicLevels[T]) GetLevel(i int) []Fileblock[T] {
+func (b *BasicLevels[T]) GetLevel(i int) Level[T] {
 	return b.levels[i]
 }
 
 func (b *BasicLevels[T]) AppendFile(f Fileblock[T]) {
 	level := f.Metadata().Level
-	b.levels[level] = append(b.levels[level], f)
+	b.levels[level].AppendFile(f)
 }
 
 func (b BasicLevels[T]) RemoveFile(a Fileblock[T]) error {
-	idx := 0
-
 	meta := a.Metadata()
 	level := meta.Level
-	// search for block
-	for i, block := range b.levels[level] {
-		if block.Metadata().Uuid == meta.Uuid {
-			// remove block
-			if err := b.fs.Remove(block); err != nil {
-				return err
-			}
-			idx = i
-			break
+	return b.levels[level].RemoveFile(a)
+}
+
+func (b BasicLevels[T]) AppendLevel(l Level[T], level int) {
+	for _, block := range l.Fileblocks() {
+		b.levels[level].AppendFile(block)
+	}
+}
+
+func (b BasicLevels[T]) Close() error {
+	for _, level := range b.levels {
+		if err := level.Close(); err != nil {
+			return err
 		}
 	}
 
-	// remove block from slice
-	b.levels[level] = append(b.levels[level][:idx], b.levels[level][idx+1:]...)
-
 	return nil
-}
-func (b BasicLevels[T]) AppendLevel(l Level[T], level int) {
-	b.levels[level] = append(b.levels[level], l.Fileblocks()...)
 }

@@ -123,7 +123,7 @@ func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
 
 	// Look in the meta, to open the files
 	for i := 0; i <= l.cfg.MaxLevels; i++ {
-		for _, fileblock := range l.levels.GetLevel(i) {
+		for _, fileblock := range l.levels.GetLevel(i).Fileblocks() {
 			if v, found, err := fileblock.Find(d); found {
 				return v, true, nil
 			} else if err != nil {
@@ -154,15 +154,7 @@ func (l *LsmTree[T]) Close() error {
 		return errors.Join(errs...)
 	}
 
-	for i := 0; i <= 5; i++ {
-		for _, level := range l.levels.GetLevel(i) {
-			if err := level.Close(); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return l.levels.Close()
 }
 
 func (l *LsmTree[T]) AppendFile(b streedb.Fileblock[T]) {
