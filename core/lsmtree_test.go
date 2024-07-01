@@ -80,8 +80,8 @@ func TestDBs(t *testing.T) {
 			assert.NoError(t, err)
 		}
 
-		entry := streedb.NewLexicographicKv("hello 33", 0)
-		val, found, err := lsmtree.Find(*entry)
+		entry := streedb.NewKv("hello 33", 0)
+		val, found, err := lsmtree.Find(entry)
 		assert.NoError(t, err)
 		assert.True(t, found, "value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
 		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val < total)
