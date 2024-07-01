@@ -1,17 +1,5 @@
 package streedb
 
-import (
-	"github.com/google/uuid"
-)
-
-type DataOps[T Entry] interface {
-	Load() (Entries[T], error)
-	Find(v Entry) (Entry, bool, error)
-	Merge(a Fileblock[T]) (Fileblock[T], error)
-	Close() error
-	Remove() error
-}
-
 // Fileblock represents a block of data that is written to disk.
 // A block of data is a list of Entries, defined by the entries.go file.
 // Implementations of Fileblock should be able to read and write data into their respective
@@ -23,8 +11,12 @@ type Fileblock[T Entry] interface {
 	Metadata() *MetaFile[T]
 }
 
-type FileblockBuilder[T Entry] func(entries Entries[T]) (Fileblock[T], error)
-
-func NewUUID() string {
-	return uuid.New().String()
+type DataOps[T Entry] interface {
+	Load() (Entries[T], error)
+	Find(v Entry) (Entry, bool, error)
+	Merge(a Fileblock[T]) (Fileblock[T], error)
+	Close() error
+	Remove() error
 }
+
+type FileblockBuilder[T Entry] func(entries Entries[T], level int) (Fileblock[T], error)

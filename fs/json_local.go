@@ -128,10 +128,11 @@ func newJSONLocalFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *str
 
 // localJSONFileblock works using plain JSON files to store data (and metadata).
 type localJSONFileblock[T streedb.Entry] struct {
-	cfg *streedb.Config
 	streedb.MetaFile[T]
-	path string
-	fs   streedb.Filesystem[T]
+
+	fs streedb.Filesystem[T]
+
+	cfg *streedb.Config
 }
 
 func (l *localJSONFileblock[T]) Load() (streedb.Entries[T], error) {

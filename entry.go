@@ -42,3 +42,7 @@ func (t Entries[T]) Min() Entry {
 func (t Entries[T]) Max() Entry {
 	return t[len(t)-1]
 }
+
+func EntryFallsInsideMinMax(min, max, t Entry) bool {
+	return (min.LessThan(t) || min.Equals(t)) && (t.LessThan(max) || t.Equals(max))
+}

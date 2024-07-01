@@ -17,6 +17,10 @@ type MetaFile[T Entry] struct {
 	MetaFilepath string
 }
 
-func EntryFallsInsideMinMax(min, max, t Entry) bool {
-	return (min.LessThan(t) || min.Equals(t)) && (t.LessThan(max) || t.Equals(max))
+func NewMetadataBuilder[T Entry](rootPath string) MetadataBuilder[T] {
+	return &metadataBuilder[T]{
+		rootPath: rootPath,
+		metaFile: MetaFile[T]{
+			CreatedAt: time.Now(),
+		}}
 }

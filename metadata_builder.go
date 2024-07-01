@@ -2,7 +2,6 @@ package streedb
 
 import (
 	"path"
-	"time"
 )
 
 type MetadataBuilder[T Entry] interface {
@@ -22,14 +21,6 @@ type metadataBuilder[T Entry] struct {
 	rootPath       string
 
 	metaFile MetaFile[T]
-}
-
-func NewMetadataBuilder[T Entry](rootPath string) MetadataBuilder[T] {
-	return &metadataBuilder[T]{
-		rootPath: rootPath,
-		metaFile: MetaFile[T]{
-			CreatedAt: time.Now(),
-		}}
 }
 
 func (b *metadataBuilder[T]) WithFilepath(p string) MetadataBuilder[T] {

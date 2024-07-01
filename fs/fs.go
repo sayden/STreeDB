@@ -1,6 +1,10 @@
 package fs
 
-import "github.com/sayden/streedb"
+import (
+	"errors"
+
+	"github.com/sayden/streedb"
+)
 
 func NewFilesystem[T streedb.Entry](c *streedb.Config) (streedb.Filesystem[T], streedb.Levels[T], error) {
 	switch c.Filesystem {
@@ -17,4 +21,31 @@ func NewFilesystem[T streedb.Entry](c *streedb.Config) (streedb.Filesystem[T], s
 			return InitJSONLocal[T](c)
 		}
 	}
+}
+
+func NewFileblockBuilder[T streedb.Entry](c *streedb.Config, fs streedb.Filesystem[T]) (streedb.FileblockBuilder[T], error) {
+	switch c.Filesystem {
+	case streedb.FILESYSTEM_S3:
+		if c.Format == streedb.FILE_FORMAT_PARQUET {
+			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newParquetS3Fileblock(entries, c, level, fs)
+			}, nil
+		} else {
+			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newJSONS3Fileblock(entries, c, level, fs)
+			}, nil
+		}
+	case streedb.FILESYSTEM_LOCAL:
+		if c.Format == streedb.FILE_FORMAT_PARQUET {
+			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newJSONS3Fileblock(entries, c, level, fs)
+			}, nil
+		} else {
+			return func(entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+				return newJSONLocalFileblock(entries, c, level, fs)
+			}, nil
+		}
+	}
+
+	return nil, errors.New("unsupported filesystem or format")
 }
