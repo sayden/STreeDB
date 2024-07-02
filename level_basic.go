@@ -5,18 +5,19 @@ import (
 	"fmt"
 )
 
-func NewBasicLevel[T Entry](fs Filesystem[T]) Level[T] {
+func NewBasicLevel[T Entry](cfg *Config, fs Filesystem[T]) Level[T] {
 	return &BasicLevel[T]{
+		cfg:        cfg,
 		fs:         fs,
 		fileblocks: make([]Fileblock[T], 0, 10),
 	}
 }
 
 type BasicLevel[T Entry] struct {
-	min Entry
-	max Entry
-	fs  Filesystem[T]
-
+	min        Entry
+	max        Entry
+	fs         Filesystem[T]
+	cfg        *Config
 	fileblocks []Fileblock[T]
 }
 
@@ -34,6 +35,8 @@ func (b *BasicLevel[T]) AppendFile(f Fileblock[T]) {
 	if b.max.LessThan(meta.Max) {
 		b.max = meta.Max
 	}
+
+	f.SetFilesystem(b.fs)
 
 	b.fileblocks = append(b.fileblocks, f)
 }
@@ -96,7 +99,7 @@ func NewBasicLevels[T Entry](c *Config, fs Filesystem[T]) Levels[T] {
 	}
 
 	for i := 0; i < c.MaxLevels+1; i++ {
-		l.levels[i] = NewBasicLevel(fs)
+		l.levels[i] = NewBasicLevel(c, fs)
 	}
 
 	return l

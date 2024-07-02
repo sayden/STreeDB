@@ -1,4 +1,4 @@
-package fs
+package fslocal
 
 import "github.com/sayden/streedb"
 
@@ -32,7 +32,12 @@ func (m *MemFilesystem[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], err
 }
 func (m *MemFilesystem[T]) Remove(meta streedb.Fileblock[T]) error { return nil }
 func (m *MemFilesystem[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	return nil, nil
+	entries, err := streedb.Merge(a, b)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.Create(m.cfg, entries, a.Metadata().Level)
 }
 func (m *MemFilesystem[T]) UpdateMetadata(meta streedb.Fileblock[T]) error { return nil }
 func (m *MemFilesystem[T]) OpenAllMetaFiles() (streedb.Levels[T], error)   { return nil, nil }
@@ -62,3 +67,4 @@ type MemFileblock[T streedb.Entry] struct {
 func (m *MemFileblock[T]) Load() (streedb.Entries[T], error)                 { return m.Entries, nil }
 func (m *MemFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) { return nil, false, nil }
 func (m *MemFileblock[T]) Close() error                                      { return nil }
+func (m *MemFileblock[T]) SetFilesystem(fs streedb.Filesystem[T])            {}

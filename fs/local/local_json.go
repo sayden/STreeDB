@@ -1,4 +1,4 @@
-package fs
+package fslocal
 
 import (
 	"encoding/json"
@@ -17,6 +17,8 @@ func InitJSONLocal[T streedb.Entry](cfg *streedb.Config) (streedb.Filesystem[T],
 }
 
 type localJSONFs[T streedb.Entry] struct {
+	streedb.Filesystem[T] // Implements
+
 	cfg *streedb.Config
 }
 
@@ -25,7 +27,7 @@ func (f *localJSONFs[T]) Open(p string) (meta *streedb.MetaFile[T], err error) {
 }
 
 func (f *localJSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := Merge(a, b)
+	newEntries, err := streedb.Merge(a, b)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func (f *localJSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T],
 		return nil, err
 	}
 
-	return NewLocalFileblockJSON(f.cfg, meta, f), nil
+	return NewLocalFileblock(f.cfg, meta, f), nil
 }
 
 func (f *localJSONFs[T]) MoveToLevel(m *streedb.MetaFile[T]) error {
@@ -115,11 +117,11 @@ func (f *localJSONFs[T]) Remove(b streedb.Fileblock[T]) error {
 func (f *localJSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
 	filesystem := streedb.Filesystem[T](f)
 
-	levels := streedb.NewLevels[T](f.cfg, filesystem)
+	levels := streedb.NewLevels(f.cfg, filesystem)
 
 	initialSearchPath := f.cfg.DbPath
 
-	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels, NewLocalFileblockJSON)
+	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels)
 }
 
 // newJSONLocalFileblock is used to create new JSON files.
@@ -139,35 +141,5 @@ func newJSONLocalFileblock[T streedb.Entry](cfg *streedb.Config, entries streedb
 		return nil, err
 	}
 
-	return NewLocalFileblockJSON(cfg, meta, fs), nil
-}
-
-// localJSONFileblock works using plain JSON files to store data (and metadata).
-type localJSONFileblock[T streedb.Entry] struct {
-	streedb.MetaFile[T]
-
-	fs streedb.Filesystem[T]
-
-	cfg *streedb.Config
-}
-
-func (l *localJSONFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(l)
-}
-
-func (l *localJSONFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	return find(l, v)
-}
-
-func (l *localJSONFileblock[T]) Metadata() *streedb.MetaFile[T] {
-	return &l.MetaFile
-}
-
-func (l *localJSONFileblock[T]) Close() error {
-	//noop
-	return nil
-}
-
-func (l *localJSONFileblock[T]) UUID() string {
-	return l.Metadata().Uuid
+	return NewLocalFileblock(cfg, meta, fs), nil
 }

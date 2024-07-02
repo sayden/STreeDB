@@ -7,7 +7,6 @@ import (
 
 	"github.com/emirpasic/gods/v2/sets/treeset"
 	"github.com/sayden/streedb"
-	"github.com/sayden/streedb/fs"
 )
 
 func NewSingleLevelCompactor[T streedb.Entry](cfg *streedb.Config, fs streedb.Filesystem[T], level streedb.Level[T]) streedb.Compactor[T] {
@@ -66,7 +65,7 @@ func (s *SingleLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
 			}
 
 			if HasOverlap(a.Metadata(), b.Metadata()) || isAdjacent(a.Metadata(), b.Metadata()) {
-				if entries, err = fs.Merge(a, b); err != nil {
+				if entries, err = streedb.Merge(a, b); err != nil {
 					return nil, errors.Join(errors.New("failed to create new fileblock"), err)
 				}
 
@@ -114,7 +113,6 @@ func (s *SingleLevelCompactor[T]) Compact() ([]streedb.Fileblock[T], error) {
 func NewTieredCompactor[T streedb.Entry](
 	cfg *streedb.Config,
 	fs streedb.Filesystem[T],
-	fBuilder streedb.FileblockBuilder[T],
 	levels streedb.Levels[T],
 	promoter streedb.LevelPromoter[T]) streedb.MultiLevelCompactor[T] {
 	return &TieredCompactor[T]{
@@ -198,9 +196,6 @@ func (i *ItemLimitPromoter[T]) Promote(blocks []streedb.Fileblock[T]) ([]streedb
 
 	for _, block := range blocks {
 		realLevel := block.Metadata().ItemCount / i.maxItems
-		if realLevel > i.cfg.MaxLevels {
-			realLevel = i.cfg.MaxLevels
-		}
 		if realLevel == block.Metadata().Level {
 			continue
 		}

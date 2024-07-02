@@ -1,21 +1,36 @@
 package streedb
 
-// Fileblock represents a block of data that is written to disk.
-// A block of data is a list of Entries, defined by the entries.go file.
-// Implementations of Fileblock should be able to read and write data into their respective
-// storage formats and retrieve the metadata associated with their contents like Min or Max. They
-// must not know about the destination of the data files and work mostly with io.Readers and
-// io.Writers
+import (
+	"errors"
+	"fmt"
+	"sort"
+)
+
 type Fileblock[T Entry] interface {
-	DataOps[T]
+	Close() error
+	Find(v Entry) (Entry, bool, error)
+	Load() (Entries[T], error)
 	Metadata() *MetaFile[T]
+	SetFilesystem(fs Filesystem[T])
 	UUID() string
 }
 
-type DataOps[T Entry] interface {
-	Load() (Entries[T], error)
-	Find(v Entry) (Entry, bool, error)
-	Close() error
-}
+func Merge[T Entry](a Fileblock[T], b Fileblock[T]) (Entries[T], error) {
+	entries, err := a.Load()
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)
+	}
 
-type FileblockBuilder[T Entry] func(cfg *Config, entries Entries[T], level int) (Fileblock[T], error)
+	entries2, err := b.Load()
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", b.Metadata().DataFilepath), err)
+	}
+
+	dest := make(Entries[T], 0, entries.Len()+entries2.Len())
+	dest = append(dest, entries...)
+	dest = append(dest, entries2...)
+
+	sort.Sort(dest)
+
+	return dest, nil
+}

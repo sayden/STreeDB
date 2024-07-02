@@ -56,20 +56,19 @@ func NewLsmTree[T streedb.Entry](c *streedb.Config) (*LsmTree[T], error) {
 				return newInMemoryWal[T](c)
 			},
 		},
-		fs:     filesystem,
-		levels: levels,
-		cfg:    c,
+		levelZeroFilesystem: filesystem,
+		levels:              levels,
+		cfg:                 c,
 	}
 
-	l.wal = l.walPool.Get().(Wal[T])
-	fileblockBuilder, err := fs.NewFileblockBuilder(c, filesystem)
+	l.wal = l.walPool.Get().(streedb.Wal[T])
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Passing the levels here feels a bit hacky
 	promoter := NewItemLimitPromoter(c, filesystem, 7)
-	l.compactor = NewTieredCompactor(c, filesystem, fileblockBuilder, levels, promoter)
+	l.compactor = NewTieredCompactor(c, filesystem, levels, promoter)
 
 	return l, nil
 }
@@ -77,11 +76,11 @@ func NewLsmTree[T streedb.Entry](c *streedb.Config) (*LsmTree[T], error) {
 type LsmTree[T streedb.Entry] struct {
 	compactor streedb.MultiLevelCompactor[T]
 
-	walPool sync.Pool
-	wal     Wal[T]
-	fs      streedb.Filesystem[T]
-	levels  streedb.Levels[T]
-	cfg     *streedb.Config
+	walPool             sync.Pool
+	wal                 streedb.Wal[T]
+	levelZeroFilesystem streedb.Filesystem[T]
+	levels              streedb.Levels[T]
+	cfg                 *streedb.Config
 }
 
 func (l *LsmTree[T]) Append(d T) {
@@ -102,13 +101,13 @@ func (l *LsmTree[T]) WriteBlock() (streedb.Fileblock[T], error) {
 	entries := l.wal.GetData()
 	sort.Sort(entries)
 
-	block, err := l.fs.Create(l.cfg, entries, 0)
+	block, err := l.levelZeroFilesystem.Create(l.cfg, entries, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	// reset the wal
-	l.wal = l.walPool.Get().(Wal[T])
+	l.wal = l.walPool.Get().(streedb.Wal[T])
 
 	return block, nil
 }

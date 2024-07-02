@@ -1,4 +1,4 @@
-package fs
+package fss3
 
 import (
 	"bytes"
@@ -101,26 +101,7 @@ func removeS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, m *streed
 	return nil
 }
 
-type s3FileblockBuilder[T streedb.Entry] func(cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T]
-
-func newS3FileblockParquet[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
-	return &s3ParquetFileblock[T]{
-		MetaFile: *meta,
-		fs:       fs,
-		cfg:      cfg,
-	}
-
-}
-
-func newS3FileblockJSON[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
-	return &s3JSONFileblock[T]{
-		MetaFile: *meta,
-		fs:       fs,
-		cfg:      cfg,
-	}
-}
-
-func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.Client, fs streedb.Filesystem[T], builder s3FileblockBuilder[T]) (streedb.Levels[T], error) {
+func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.Client, fs streedb.Filesystem[T]) (streedb.Levels[T], error) {
 	levels := streedb.NewLevels[T](cfg, fs)
 
 	listInput := &s3.ListObjectsV2Input{
@@ -148,8 +129,7 @@ func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.C
 
 			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
 
-			fileblock := builder(cfg, meta, fs)
-
+			fileblock := NewS3Fileblock(cfg, meta, fs)
 			levels.AppendFile(fileblock)
 		}
 	}

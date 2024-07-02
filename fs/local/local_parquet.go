@@ -1,4 +1,4 @@
-package fs
+package fslocal
 
 import (
 	"encoding/json"
@@ -56,7 +56,7 @@ func (f *localParquetFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], er
 }
 
 func (f *localParquetFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := Merge(a, b)
+	newEntries, err := streedb.Merge(a, b)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (f *localParquetFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[
 		return nil, err
 	}
 
-	return NewLocalFileblockParquet(f.cfg, meta, f), nil
+	return NewLocalFileblock(f.cfg, meta, f), nil
 }
 
 func (f *localParquetFs[T]) Remove(b streedb.Fileblock[T]) error {
@@ -134,7 +134,7 @@ func (f *localParquetFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
 
 	initialSearchPath := f.cfg.DbPath
 
-	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels, NewLocalFileblockJSON)
+	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels)
 }
 
 func newParquetFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *streedb.Config, level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
@@ -151,37 +151,9 @@ func newParquetFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *stree
 		return nil, err
 	}
 
-	return &localParquetFileblock[T]{
+	return &localFileblock[T]{
 		MetaFile: *meta,
 		fs:       fs,
 		cfg:      cfg,
 	}, nil
-}
-
-type localParquetFileblock[T streedb.Entry] struct {
-	streedb.MetaFile[T]
-
-	cfg *streedb.Config
-	fs  streedb.Filesystem[T]
-}
-
-func (l *localParquetFileblock[T]) UUID() string {
-	return l.Uuid
-}
-
-func (l *localParquetFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(l)
-}
-
-func (l *localParquetFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	return find(l, v)
-}
-
-func (l *localParquetFileblock[T]) Metadata() *streedb.MetaFile[T] {
-	return &l.MetaFile
-}
-
-func (l *localParquetFileblock[T]) Close() error {
-	//noop
-	return nil
 }

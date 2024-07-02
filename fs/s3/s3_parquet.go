@@ -1,4 +1,4 @@
-package fs
+package fss3
 
 import (
 	"bufio"
@@ -85,7 +85,7 @@ func (f *s3ParquetFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
 }
 
 func (f *s3ParquetFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := Merge(a, b)
+	newEntries, err := streedb.Merge(a, b)
 	if err != nil {
 		return nil, err
 	}
@@ -154,55 +154,15 @@ func (f *s3ParquetFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T],
 		return nil, errors.Join(errors.New("error putting obj to S3"), err)
 	}
 
-	return &s3ParquetFileblock[T]{MetaFile: *meta, fs: f}, nil
+	return NewS3Fileblock(cfg, meta, f), nil
 }
 
 func (f *s3ParquetFs[T]) Remove(b streedb.Fileblock[T]) error {
-	return removeS3[T](f.client, f.cfg, b.Metadata())
+	return removeS3(f.client, f.cfg, b.Metadata())
 }
 
 func (f *s3ParquetFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	return openAllMetadataFilesInS3[T](f.cfg, f.client, f, newS3FileblockParquet)
-}
-
-// s3ParquetFileblock works using plain JSON files to store data (and metadata).
-type s3ParquetFileblock[T streedb.Entry] struct {
-	streedb.MetaFile[T]
-
-	cfg *streedb.Config
-	fs  streedb.Filesystem[T]
-}
-
-func (l *s3ParquetFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(l)
-}
-
-func (l *s3ParquetFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	if !streedb.EntryFallsInsideMinMax(l.Min, l.Max, v) {
-		return nil, false, nil
-	}
-
-	entries, err := l.Load()
-	if err != nil {
-		return nil, false, errors.Join(errors.New("error loading block"), err)
-	}
-
-	entry, found := entries.Find(v)
-
-	return entry, found, nil
-}
-
-func (l *s3ParquetFileblock[T]) Metadata() *streedb.MetaFile[T] {
-	return &l.MetaFile
-}
-
-func (l *s3ParquetFileblock[T]) UUID() string {
-	return l.MetaFile.Uuid
-}
-
-func (l *s3ParquetFileblock[T]) Close() error {
-	//noop
-	return nil
+	return openAllMetadataFilesInS3(f.cfg, f.client, f)
 }
 
 func newParquetS3Fileblock[T streedb.Entry](entries streedb.Entries[T], cfg *streedb.Config, level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
@@ -219,9 +179,5 @@ func newParquetS3Fileblock[T streedb.Entry](entries streedb.Entries[T], cfg *str
 		return nil, err
 	}
 
-	return &s3ParquetFileblock[T]{
-		cfg:      cfg,
-		MetaFile: *meta,
-		fs:       fs,
-	}, nil
+	return NewS3Fileblock(cfg, meta, fs), nil
 }
