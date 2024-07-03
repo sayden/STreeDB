@@ -17,11 +17,6 @@ func NewLeveledFilesystem[T db.Entry](cfg *db.Config) (map[int]db.Level[T], erro
 		panic("MaxLevels number and LevelFilesystems lenght must be the same")
 	}
 
-	// First level is always local filesystem
-	if db.FilesystemTypeReverseMap[cfg.LevelFilesystems[0]] != db.FILESYSTEM_TYPE_LOCAL {
-		panic(`First level in 'LevelFilesystems' list in config must be a 'local' filesystem. Ex: ["local", "s3", "s3"]`)
-	}
-
 	var err error
 
 	for levelIdx, level := range cfg.LevelFilesystems {
@@ -29,30 +24,38 @@ func NewLeveledFilesystem[T db.Entry](cfg *db.Config) (map[int]db.Level[T], erro
 
 		switch db.FilesystemTypeReverseMap[level] {
 		case db.FILESYSTEM_TYPE_LOCAL:
-			if db.ReverseFormatMap[cfg.Format] == db.FILE_FORMAT_PARQUET {
+			switch db.ReverseFormatMap[cfg.Format] {
+			case db.FILE_FORMAT_PARQUET:
 				if fs, err = local.InitParquetLocal[T](cfg, levelIdx); err != nil {
 					return nil, err
 				}
 				result[levelIdx] = NewBasicLevel(cfg, fs)
-			} else {
+			case db.FILE_FORMAT_JSON:
 				if fs, err = local.InitJSONLocal[T](cfg, levelIdx); err != nil {
 					return nil, err
 				}
 				result[levelIdx] = NewBasicLevel(cfg, fs)
+			default:
+				return nil, db.ErrUnknownFortmaType
 			}
 
 		case db.FILESYSTEM_TYPE_S3:
-			if db.ReverseFormatMap[cfg.Format] == db.FILE_FORMAT_JSON {
+			switch db.ReverseFormatMap[cfg.Format] {
+			case db.FILE_FORMAT_PARQUET:
 				if fs, err = fss3.InitParquetS3[T](cfg, levelIdx); err != nil {
 					return nil, err
 				}
 				result[levelIdx] = NewBasicLevel(cfg, fs)
-			} else {
+			case db.FILE_FORMAT_JSON:
 				if fs, err = fss3.InitJSONS3[T](cfg, levelIdx); err != nil {
 					return nil, err
 				}
 				result[levelIdx] = NewBasicLevel(cfg, fs)
+			default:
+				return nil, db.ErrUnknownFilesystemType
 			}
+		default:
+			return nil, db.ErrUnknownFilesystemType
 		}
 	}
 

@@ -55,35 +55,6 @@ func open[T db.Entry](p string) (meta *db.MetaFile[T], err error) {
 	return meta, nil
 }
 
-func metaFilesInFolders[T db.Entry](cfg *db.Config, f db.Filesystem[T], folder string, levels db.Levels[T]) error {
-	files, err := os.ReadDir(folder)
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			err2 := metaFilesInFolders(cfg, f, path.Join(folder, file.Name()), levels)
-			if err2 != nil {
-				return err2
-			}
-		}
-
-		if path.Ext(file.Name()) != ".json" {
-			continue
-		}
-
-		meta, err := f.Open(path.Join(folder, file.Name()))
-		if err != nil {
-			return err
-		}
-		lb := NewLocalFileblock(cfg, meta, f)
-		levels.AppendFileblock(lb)
-	}
-
-	return nil
-}
-
 func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T], level db.Level[T]) error {
 	files, err := os.ReadDir(folder)
 	if err != nil {
@@ -110,46 +81,6 @@ func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T
 
 	return nil
 }
-
-// func moveToNewLocalLevel[T db.Entry](cfg *db.Config, oldMeta *db.MetaFile[T]) error {
-// 	// move the data file to its new location
-// 	ext := path.Ext(oldMeta.DataFilepath)
-// 	meta, err := db.NewMetadataBuilder[T](cfg.DbPath).
-// 		WithLevel(oldMeta.Level).
-// 		WithExtension("." + ext).
-// 		Build()
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	if err = os.Rename(oldMeta.DataFilepath, meta.DataFilepath); err != nil {
-// 		return err
-// 	}
-//
-// 	// update the metadata with the new locations
-// 	oldMeta.DataFilepath = meta.DataFilepath
-// 	oldPath := oldMeta.MetaFilepath
-// 	oldMeta.MetaFilepath = meta.MetaFilepath
-// 	if err = os.Rename(oldPath, meta.MetaFilepath); err != nil {
-// 		return err
-// 	}
-//
-// 	// move the metadata file to its new location
-// 	file, err := os.Create(meta.MetaFilepath)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer file.Close()
-// 	if err = file.Truncate(0); err != nil {
-// 		return err
-// 	}
-//
-// 	if err = json.NewEncoder(file).Encode(oldMeta); err != nil {
-// 		return err
-// 	}
-//
-// 	return nil
-// }
 
 func remove[T db.Entry](m *db.MetaFile[T]) error {
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)

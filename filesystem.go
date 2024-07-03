@@ -1,5 +1,7 @@
 package streedb
 
+import "errors"
+
 type FilesystemType int
 
 const (
@@ -7,6 +9,9 @@ const (
 	FILESYSTEM_TYPE_S3
 	FILESYSTEM_TYPE_MEMORY
 )
+
+var ErrUnknownFilesystemType = errors.New("unknown filesystem type")
+var ErrUnknownFortmaType = errors.New("unknown format type")
 
 var FilesystemTypeMap = map[FilesystemType]string{
 	FILESYSTEM_TYPE_LOCAL:  "local",
@@ -25,7 +30,7 @@ type Filesystem[T Entry] interface {
 	Load(Fileblock[T]) (Entries[T], error)
 	Open(p string) (*MetaFile[T], error)
 	OpenAllMetaFiles() (Levels[T], error)
-	OpenMetaFileInLevel(level Level[T]) error
+	OpenMetaFilesInLevel(level Level[T]) error
 	Remove(Fileblock[T]) error
 	UpdateMetadata(Fileblock[T]) error
 	FillMetadataBuilder(meta *MetadataBuilder[T]) *MetadataBuilder[T]

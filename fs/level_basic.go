@@ -19,7 +19,7 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] 
 		Filesystem: fs,
 		fileblocks: make([]db.Fileblock[T], 0, 10),
 	}
-	fs.OpenMetaFileInLevel(level)
+	fs.OpenMetaFilesInLevel(level)
 
 	return level
 }

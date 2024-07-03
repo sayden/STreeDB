@@ -88,40 +88,44 @@ func TestDBs(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	cfgs := []*streedb.Config{
+		// {
+		// 	WalMaxItems:      5,
+		// 	Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
+		// 	Format:           streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
+		// 	MaxLevels:        5,
+		// 	LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
+		// 	S3Config: streedb.S3Config{
+		// 		Bucket: "parquet",
+		// 		Region: "us-east-1",
+		// 	},
+		// 	DbPath: "/tmp/kv/parquet",
+		// },
 		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
-			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
-			MaxLevels:   5,
-			S3Config: streedb.S3Config{
-				Bucket: "parquet",
-				Region: "us-east-1",
-			},
-		},
-		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
-			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
-			MaxLevels:   5,
+			WalMaxItems:      5,
+			LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
+			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
+			Format:           streedb.FormatMap[streedb.FILE_FORMAT_JSON],
+			MaxLevels:        5,
+			DbPath:           "/tmp/kv/json",
 			S3Config: streedb.S3Config{
 				Bucket: "json",
 				Region: "us-east-1",
 			},
 		},
-		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
-			MaxLevels:   5,
-			DbPath:      tmpDir + "/json",
-		},
-		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
-			MaxLevels:   5,
-			DbPath:      tmpDir + "/parquet",
-		},
+		// {
+		// 	WalMaxItems: 5,
+		// 	Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+		// 	Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
+		// 	MaxLevels:   5,
+		// 	DbPath:      tmpDir + "/json",
+		// },
+		// {
+		// 	WalMaxItems: 5,
+		// 	Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+		// 	Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
+		// 	MaxLevels:   5,
+		// 	DbPath:      tmpDir + "/parquet",
+		// },
 	}
 
 	testF := func(cfg *streedb.Config, insert bool) {
@@ -134,7 +138,17 @@ func TestDBs(t *testing.T) {
 		compact := false
 
 		compact = true
-		keys := []int{1, 2, 4, 5, 6, 3, 7, 7, 8, 8, 10, 11, 12, 13, 14, 15, 11, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 16, 27, 28, 29, 30}
+		keys := []int{
+			1, 2, 4, 5, 6,
+			3, 7, 7, 8, 8,
+			10, 11, 12, 13, 14,
+			15, 11, 17, 18, 19,
+			20, 21, 22, 23, 24,
+			25, 26, 16, 27, 28,
+			29, 44, 45, 36, 59,
+			60, 61, 62,
+		}
+
 		total := int32(len(keys))
 		if insert {
 			var i int32

@@ -91,7 +91,7 @@ func (f *localJSONFs[T]) Remove(b db.Fileblock[T]) error {
 	return remove(b.Metadata())
 }
 
-func (f *localJSONFs[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+func (f *localJSONFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
 	return metaFilesInDir(f.cfg, f.rootPath, f, level)
 }
 

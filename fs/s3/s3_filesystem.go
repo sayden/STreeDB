@@ -15,12 +15,6 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func NewS3Levels[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) (db.Levels[T], error) {
-	filesystem := fs.(*s3JSONFs[T])
-	client := filesystem.client
-	return openAllMetadataFilesInS3(cfg, client, fs, filesystem.rootPath)
-}
-
 type s3FilesystemBuilder[T db.Entry] func(cfg *db.Config, s3cfg *aws.Config, client *s3.Client, rootPath string) db.Filesystem[T]
 
 func newS3FilesystemParquet[T db.Entry](cfg *db.Config, s3cfg *aws.Config, client *s3.Client, rootPath string) db.Filesystem[T] {
@@ -56,7 +50,8 @@ func initS3[T db.Entry](cfg *db.Config, level int, builder s3FilesystemBuilder[T
 	}
 
 	client := s3.NewFromConfig(s3Cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String("http://127.0.0.1:9000")
+		// o.BaseEndpoint = aws.String("http://127.0.0.1:9000")
+		o.BaseEndpoint = aws.String("http://127.0.0.1:8080")
 		o.UsePathStyle = true // S3ninja typically requires path-style addresing
 	})
 
@@ -108,9 +103,6 @@ func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, m *db.MetaFile[T]) 
 }
 
 func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[T], rootPath string, level db.Level[T]) error {
-	panic("not implemented")
-	// levels := fs.NewLevels(cfg, filesystem)
-
 	listInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Prefix: aws.String(rootPath + "/meta_"),
@@ -129,16 +121,15 @@ func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Clien
 		}
 
 		for _, object := range page.Contents {
-			meta, err := filesystem.Open(*object.Key)
+			meta, err := level.Open(*object.Key)
 			if err != nil {
-				return errors.Join(errors.New("error opening meta file"), err)
+				return err
 			}
 
 			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
 
-			fileblock := NewS3Fileblock(cfg, meta, filesystem)
-			_ = fileblock
-			// levels.AppendFile(fileblock)
+			lb := NewS3Fileblock(cfg, meta, filesystem)
+			level.AppendFileblock(lb)
 		}
 	}
 

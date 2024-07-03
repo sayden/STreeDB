@@ -30,7 +30,7 @@ func (m *MemFilesystem[T]) Load(fb db.Fileblock[T]) (db.Entries[T], error) {
 func (m *MemFilesystem[T]) Remove(meta db.Fileblock[T]) error         { return nil }
 func (m *MemFilesystem[T]) UpdateMetadata(meta db.Fileblock[T]) error { return nil }
 func (m *MemFilesystem[T]) OpenAllMetaFiles() (db.Levels[T], error)   { return nil, nil }
-func (f *MemFilesystem[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+func (f *MemFilesystem[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
 	return nil
 }
 

@@ -111,7 +111,7 @@ func (f *localParquetFs[T]) Remove(b db.Fileblock[T]) error {
 	return remove(b.Metadata())
 }
 
-func (f *localParquetFs[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+func (f *localParquetFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
 	return metaFilesInDir(f.cfg, f.rootPath, f, level)
 }
 
