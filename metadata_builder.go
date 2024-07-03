@@ -8,10 +8,7 @@ import (
 )
 
 func NewMetadataBuilder[T Entry]() *MetadataBuilder[T] {
-	return &MetadataBuilder[T]{
-		MetaFile: MetaFile[T]{
-			CreatedAt: time.Now(),
-		}}
+	return &MetadataBuilder[T]{MetaFile: MetaFile[T]{CreatedAt: time.Now()}}
 }
 
 type MetadataBuilder[T Entry] struct {

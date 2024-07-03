@@ -9,8 +9,7 @@ func InitMemoryFilesystem[T db.Entry](cfg *db.Config) (db.Filesystem[T], db.Leve
 }
 
 func NewMemoryFilesystem[T db.Entry](cfg *db.Config) db.Filesystem[T] {
-	panic("not implemented")
-	// return &MemFilesystem[T]{cfg: cfg}
+	return &MemFilesystem[T]{cfg: cfg}
 }
 
 type MemFilesystem[T db.Entry] struct {

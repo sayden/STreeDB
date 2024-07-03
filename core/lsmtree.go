@@ -45,21 +45,17 @@ const (
 )
 
 func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
-	// filesystem, levels, err := fs.NewFilesystem[T](cfg)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	var filesystem db.Filesystem[T]
-	var levels db.Levels[T]
-	var err error
+	if cfg.LevelFilesystems == nil {
+		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
+		for i := 0; i < cfg.MaxLevels; i++ {
+			cfg.LevelFilesystems = append(cfg.LevelFilesystems, cfg.Filesystem)
+		}
+	}
 
 	promoter := NewItemLimitPromoter[T](7)
-	if cfg.LevelFilesystems != nil {
-		levels, err = fs.NewMultiFsLevels[T](cfg, promoter)
-		if err != nil {
-			panic(err)
-		}
+	levels, err := fs.NewMultiFsLevels(cfg, promoter)
+	if err != nil {
+		panic(err)
 	}
 
 	l := &LsmTree[T]{
@@ -73,16 +69,10 @@ func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
 	}
 
 	l.wal = l.walPool.Get().(db.Wal[T])
-	if err != nil {
-		return nil, err
-	}
 
-	l.compactor = NewTieredSingleFsCompactor(cfg, filesystem, levels, promoter)
-	if cfg.LevelFilesystems != nil {
-		l.compactor, err = NewTieredMultiFsCompactor(cfg, levels)
-		if err != nil {
-			panic(err)
-		}
+	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels)
+	if err != nil {
+		panic(err)
 	}
 
 	return l, nil
