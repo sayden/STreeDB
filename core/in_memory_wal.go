@@ -1,25 +1,27 @@
 package core
 
 import (
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 )
 
-type inMemoryWal[T streedb.Entry] struct {
-	entries streedb.Entries[T]
-	cfg     *streedb.Config
+type inMemoryWal[T db.Entry] struct {
+	entries db.Entries[T]
+	cfg     *db.Config
 }
 
-func newInMemoryWal[T streedb.Entry](c *streedb.Config) Wal[T] {
-	return &inMemoryWal[T]{entries: make(streedb.Entries[T], 0, c.WalMaxItems), cfg: c}
+func newInMemoryWal[T db.Entry](c *db.Config) db.Wal[T] {
+	return &inMemoryWal[T]{
+		entries: make(db.Entries[T], 0, c.WalMaxItems),
+		cfg:     c,
+	}
 }
 
 func (w *inMemoryWal[T]) Append(d T) (isFull bool) {
 	w.entries = append(w.entries, d)
-	isFull = len(w.entries) == cap(w.entries)
-	return
+	return len(w.entries) == cap(w.entries)
 }
 
-func (w *inMemoryWal[T]) Find(d streedb.Entry) (streedb.Entry, bool) {
+func (w *inMemoryWal[T]) Find(d db.Entry) (db.Entry, bool) {
 	for _, v := range w.entries {
 		if v.Equals(d) {
 			return v, true
@@ -29,11 +31,10 @@ func (w *inMemoryWal[T]) Find(d streedb.Entry) (streedb.Entry, bool) {
 	return nil, false
 }
 
-func (w *inMemoryWal[T]) Close() (streedb.Fileblock[T], error) {
-	// return w.WriteBlock()
-	return nil, nil
+func (w *inMemoryWal[T]) Close() error {
+	return nil
 }
 
-func (w *inMemoryWal[T]) GetData() streedb.Entries[T] {
+func (w *inMemoryWal[T]) GetData() db.Entries[T] {
 	return w.entries
 }

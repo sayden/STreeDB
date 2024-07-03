@@ -1,50 +1,33 @@
 package fslocal
 
 import (
-	"errors"
-
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 )
 
-func NewLocalFileblock[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], f streedb.Filesystem[T]) streedb.Fileblock[T] {
+func NewLocalFileblock[T db.Entry](cfg *db.Config, meta *db.MetaFile[T], filesystem db.Filesystem[T]) db.Fileblock[T] {
 	return &localFileblock[T]{
-		MetaFile: *meta,
-		fs:       f,
-		cfg:      cfg,
+		MetaFile:   *meta,
+		cfg:        cfg,
+		filesystem: filesystem,
 	}
 }
 
-type localFileblock[T streedb.Entry] struct {
-	streedb.MetaFile[T]
-
-	fs  streedb.Filesystem[T]
-	cfg *streedb.Config
+type localFileblock[T db.Entry] struct {
+	db.MetaFile[T]
+	cfg        *db.Config
+	filesystem db.Filesystem[T]
 }
 
-func (l *localFileblock[T]) Load() (streedb.Entries[T], error) {
-	return l.fs.Load(l)
+func (l *localFileblock[T]) Load() (db.Entries[T], error) {
+	return l.filesystem.Load(l)
 }
 
-func (l *localFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	if !streedb.EntryFallsInsideMinMax(l.Metadata().Min, l.Metadata().Max, v) {
-		return nil, false, nil
-	}
-
-	entries, err := l.Load()
-	if err != nil {
-		return nil, false, errors.Join(errors.New("error loading block"), err)
-	}
-
-	entry, found := entries.Find(v)
-	return entry, found, nil
+func (l *localFileblock[T]) Find(v db.Entry) bool {
+	return db.EntryFallsInsideMinMax(l.Metadata().Min, l.Metadata().Max, v)
 }
 
-func (l *localFileblock[T]) Metadata() *streedb.MetaFile[T] {
+func (l *localFileblock[T]) Metadata() *db.MetaFile[T] {
 	return &l.MetaFile
-}
-
-func (l *localFileblock[T]) SetFilesystem(fs streedb.Filesystem[T]) {
-	l.fs = fs
 }
 
 func (l *localFileblock[T]) Close() error {

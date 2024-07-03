@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
@@ -14,37 +14,38 @@ import (
 
 // InitParquetLocal initializes a local filesystem destination. Writes the folder structure if required
 // and then read the medatada files that are already there.
-func InitParquetLocal[T streedb.Entry](c *streedb.Config) (streedb.Filesystem[T], streedb.Levels[T], error) {
-	return initLocal[T](c, parquetFsBuilder)
+func InitParquetLocal[T db.Entry](c *db.Config, level int) (db.Filesystem[T], error) {
+	return initLocal[T](c, level, parquetFsBuilder)
 }
 
-type localParquetFs[T streedb.Entry] struct {
-	cfg *streedb.Config
+type localParquetFs[T db.Entry] struct {
+	cfg      *db.Config
+	rootPath string
 }
 
-func (f *localParquetFs[T]) Open(p string) (meta *streedb.MetaFile[T], err error) {
+func (f *localParquetFs[T]) Open(p string) (meta *db.MetaFile[T], err error) {
 	return open[T](p)
 }
 
-func (f *localParquetFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
+func (f *localParquetFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
 	return updateMetadata(b.Metadata())
 }
 
 // Load the parquet file using the data stored in the metadata file
-func (f *localParquetFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+func (f *localParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	pf, err := local.NewLocalFileReader(b.Metadata().DataFilepath)
 	if err != nil {
 		return nil, err
 	}
 	defer pf.Close()
 
-	pr, err := reader.NewParquetReader(pf, new(T), streedb.PARQUET_NUMBER_OF_THREADS)
+	pr, err := reader.NewParquetReader(pf, new(T), db.PARQUET_NUMBER_OF_THREADS)
 	if err != nil {
 		return nil, err
 	}
 
 	numRows := int(pr.GetNumRows())
-	entries := make(streedb.Entries[T], numRows)
+	entries := make(db.Entries[T], numRows)
 	err = pr.Read(&entries)
 	if err != nil {
 		return nil, err
@@ -55,26 +56,9 @@ func (f *localParquetFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], er
 	return entries, nil
 }
 
-func (f *localParquetFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := streedb.Merge(a, b)
-	if err != nil {
-		return nil, err
-	}
-	return f.Create(f.cfg, newEntries, a.Metadata().Level)
-}
-
-func (f *localParquetFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
-	}
-
-	meta, err := streedb.NewMetadataBuilder[T](f.cfg.DbPath).
-		WithEntries(entries).
-		WithLevel(level).
-		WithExtension(".parquet").
-		Build()
-	if err != nil {
-		return nil, err
 	}
 
 	dataFile, err := os.Create(meta.DataFilepath)
@@ -83,7 +67,7 @@ func (f *localParquetFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[
 	}
 	defer dataFile.Close()
 
-	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, new(T), streedb.PARQUET_NUMBER_OF_THREADS)
+	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, new(T), db.PARQUET_NUMBER_OF_THREADS)
 	if err != nil {
 		panic(err)
 	}
@@ -123,37 +107,28 @@ func (f *localParquetFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[
 	return NewLocalFileblock(f.cfg, meta, f), nil
 }
 
-func (f *localParquetFs[T]) Remove(b streedb.Fileblock[T]) error {
+func (f *localParquetFs[T]) Remove(b db.Fileblock[T]) error {
 	return remove(b.Metadata())
 }
 
-func (f *localParquetFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	filesystem := streedb.Filesystem[T](f)
-
-	levels := streedb.NewLevels(f.cfg, filesystem)
-
-	initialSearchPath := f.cfg.DbPath
-
-	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels)
+func (f *localParquetFs[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+	return metaFilesInDir(f.cfg, f.rootPath, f, level)
 }
 
-func newParquetFileblock[T streedb.Entry](entries streedb.Entries[T], cfg *streedb.Config, level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
-	if entries.Len() == 0 {
-		return nil, errors.New("empty data")
-	}
+func (f *localParquetFs[T]) OpenAllMetaFiles() (db.Levels[T], error) {
+	panic("not implemented")
 
-	meta, err := streedb.NewMetadataBuilder[T](cfg.DbPath).
-		WithEntries(entries).
-		WithLevel(level).
-		WithExtension(".parquet").
-		Build()
-	if err != nil {
-		return nil, err
-	}
+	// filesystem := db.Filesystem[T](f)
+	//
+	// levels := db.NewLevels(f.cfg, filesystem)
+	//
+	// return levels, metaFilesInFolders(f.cfg, filesystem, f.rootPath, levels)
+}
 
-	return &localFileblock[T]{
-		MetaFile: *meta,
-		fs:       fs,
-		cfg:      cfg,
-	}, nil
+func (f *localParquetFs[T]) RootPath() string {
+	return f.rootPath
+}
+
+func (f *localParquetFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
+	return meta.WithRootPath(f.rootPath).WithExtension(".parquet")
 }

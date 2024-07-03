@@ -5,62 +5,68 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 )
 
-type s3FilesystemBuilder[T streedb.Entry] func(cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T]
+func NewS3Levels[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) (db.Levels[T], error) {
+	filesystem := fs.(*s3JSONFs[T])
+	client := filesystem.client
+	return openAllMetadataFilesInS3(cfg, client, fs, filesystem.rootPath)
+}
 
-func newS3FilesystemParquet[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T] {
+type s3FilesystemBuilder[T db.Entry] func(cfg *db.Config, s3cfg *aws.Config, client *s3.Client, rootPath string) db.Filesystem[T]
+
+func newS3FilesystemParquet[T db.Entry](cfg *db.Config, s3cfg *aws.Config, client *s3.Client, rootPath string) db.Filesystem[T] {
 	s3fs := &s3ParquetFs[T]{
-		cfg:    cfg,
-		s3cfg:  s3cfg,
-		client: client,
+		cfg:      cfg,
+		s3cfg:    s3cfg,
+		client:   client,
+		rootPath: rootPath,
 	}
 
 	return s3fs
 }
 
-func newS3FilesystemJSON[T streedb.Entry](cfg *streedb.Config, s3cfg *aws.Config, client *s3.Client) streedb.Filesystem[T] {
+func newS3FilesystemJSON[T db.Entry](cfg *db.Config, s3cfg *aws.Config, client *s3.Client, rootPath string) db.Filesystem[T] {
 	s3fs := &s3JSONFs[T]{
-		cfg:    cfg,
-		s3cfg:  s3cfg,
-		client: client,
+		cfg:      cfg,
+		s3cfg:    s3cfg,
+		client:   client,
+		rootPath: rootPath,
 	}
 
 	return s3fs
 }
 
-func initS3[T streedb.Entry](cfg *streedb.Config, builder s3FilesystemBuilder[T]) (streedb.Filesystem[T], streedb.Levels[T], error) {
+func initS3[T db.Entry](cfg *db.Config, level int, builder s3FilesystemBuilder[T]) (db.Filesystem[T], error) {
 	s3Cfg, err := s3config.LoadDefaultConfig(
 		context.TODO(),
 		s3config.WithRegion(cfg.S3Config.Region),
 		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "")),
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	client := s3.NewFromConfig(s3Cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String("http://localhost:8080")
+		o.BaseEndpoint = aws.String("http://127.0.0.1:9000")
 		o.UsePathStyle = true // S3ninja typically requires path-style addresing
 	})
 
-	s3fs := builder(cfg, &s3Cfg, client)
-	levels, err := s3fs.OpenAllMetaFiles()
-	if err != nil {
-		return nil, nil, errors.Join(errors.New("error loading metadata from storage"), err)
-	}
+	rootPath := fmt.Sprintf("%02d", level)
+	s3fs := builder(cfg, &s3Cfg, client, rootPath)
 
-	return s3fs, levels, nil
+	return s3fs, nil
 }
 
-func openS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, p string) (*streedb.MetaFile[T], error) {
+func openS3[T db.Entry](client *s3.Client, cfg *db.Config, p string) (*db.MetaFile[T], error) {
 	out, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Key:    aws.String(p),
@@ -70,7 +76,7 @@ func openS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, p string) (
 	}
 	defer out.Body.Close()
 
-	meta := &streedb.MetaFile[T]{}
+	meta := &db.MetaFile[T]{}
 	if err = json.NewDecoder(out.Body).Decode(&meta); err != nil {
 		return nil, errors.Join(errors.New("Open error decoding metadata"), err)
 	}
@@ -78,7 +84,7 @@ func openS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, p string) (
 	return meta, nil
 }
 
-func removeS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, m *streedb.MetaFile[T]) error {
+func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, m *db.MetaFile[T]) error {
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
 
 	_, err := client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
@@ -101,12 +107,13 @@ func removeS3[T streedb.Entry](client *s3.Client, cfg *streedb.Config, m *streed
 	return nil
 }
 
-func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.Client, fs streedb.Filesystem[T]) (streedb.Levels[T], error) {
-	levels := streedb.NewLevels[T](cfg, fs)
+func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[T], rootPath string, level db.Level[T]) error {
+	panic("not implemented")
+	// levels := fs.NewLevels(cfg, filesystem)
 
 	listInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(cfg.S3Config.Bucket),
-		Prefix: aws.String("meta_"),
+		Prefix: aws.String(rootPath + "/meta_"),
 	}
 
 	paginator := s3.NewListObjectsV2Paginator(client, listInput)
@@ -122,22 +129,62 @@ func openAllMetadataFilesInS3[T streedb.Entry](cfg *streedb.Config, client *s3.C
 		}
 
 		for _, object := range page.Contents {
-			meta, err := fs.Open(*object.Key)
+			meta, err := filesystem.Open(*object.Key)
+			if err != nil {
+				return errors.Join(errors.New("error opening meta file"), err)
+			}
+
+			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
+
+			fileblock := NewS3Fileblock(cfg, meta, filesystem)
+			_ = fileblock
+			// levels.AppendFile(fileblock)
+		}
+	}
+
+	return nil
+}
+
+func openAllMetadataFilesInS3[T db.Entry](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[T], rootPath string) (db.Levels[T], error) {
+	panic("not implemented")
+	// levels := fs.NewLevels(cfg, filesystem)
+
+	listInput := &s3.ListObjectsV2Input{
+		Bucket: aws.String(cfg.S3Config.Bucket),
+		Prefix: aws.String(rootPath + "/meta_"),
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(client, listInput)
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.TODO())
+		if err != nil {
+			log.Errorf("error getting paginator to list objects in S3: %v\n", err)
+			break
+		}
+		if page.KeyCount != nil {
+			log.WithField("items", *page.KeyCount).Debug("Iterating page")
+		}
+
+		for _, object := range page.Contents {
+			meta, err := filesystem.Open(*object.Key)
 			if err != nil {
 				return nil, errors.Join(errors.New("error opening meta file"), err)
 			}
 
 			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
 
-			fileblock := NewS3Fileblock(cfg, meta, fs)
-			levels.AppendFile(fileblock)
+			fileblock := NewS3Fileblock(cfg, meta, filesystem)
+			_ = fileblock
+			// levels.AppendFile(fileblock)
 		}
 	}
 
-	return levels, nil
+	// return levels, nil
+	return nil, nil
 }
 
-func updateMetadataS3[T streedb.Entry](cfg *streedb.Config, client *s3.Client, fs streedb.Filesystem[T], m *streedb.MetaFile[T]) error {
+func updateMetadataS3[T db.Entry](cfg *db.Config, client *s3.Client, fs db.Filesystem[T], m *db.MetaFile[T]) error {
 	byt, err := json.Marshal(m)
 	if err != nil {
 		return errors.Join(errors.New("error encoding entries"), err)

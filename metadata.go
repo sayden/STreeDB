@@ -24,11 +24,3 @@ func (m *MetaFile[T]) Metadata() *MetaFile[T] {
 func (m *MetaFile[T]) UUID() string {
 	return m.Uuid
 }
-
-func NewMetadataBuilder[T Entry](rootPath string) MetadataBuilder[T] {
-	return &metadataBuilder[T]{
-		rootPath: rootPath,
-		metaFile: MetaFile[T]{
-			CreatedAt: time.Now(),
-		}}
-}

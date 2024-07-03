@@ -20,6 +20,7 @@ func (e Entries[T]) Find(d Entry) (Entry, bool) {
 			hi = mid - 1
 		}
 	}
+
 	return nil, false
 }
 

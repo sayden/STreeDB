@@ -9,25 +9,26 @@ import (
 	s3config "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 )
 
-func InitJSONS3[T streedb.Entry](cfg *streedb.Config) (streedb.Filesystem[T], streedb.Levels[T], error) {
-	return initS3[T](cfg, newS3FilesystemJSON)
+func InitJSONS3[T db.Entry](cfg *db.Config, level int) (db.Filesystem[T], error) {
+	return initS3[T](cfg, level, newS3FilesystemJSON)
 }
 
-type s3JSONFs[T streedb.Entry] struct {
-	cfg    *streedb.Config
-	s3cfg  s3config.Config
-	client *s3.Client
+type s3JSONFs[T db.Entry] struct {
+	cfg      *db.Config
+	s3cfg    s3config.Config
+	client   *s3.Client
+	rootPath string
 }
 
-func (s *s3JSONFs[T]) Open(p string) (*streedb.MetaFile[T], error) {
+func (s *s3JSONFs[T]) Open(p string) (*db.MetaFile[T], error) {
 	return openS3[T](s.client, s.cfg, p)
 }
 
-func (f *s3JSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+func (f *s3JSONFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	m := b.Metadata()
 	log.WithField("data_filepath", m.DataFilepath).Debug("Loading data from S3")
 
@@ -41,7 +42,7 @@ func (f *s3JSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
 	}
 
 	log.WithFields(log.Fields{"items": m.ItemCount, "min": m.Min, "max": m.Max}).Debugf("Opened data file '%s'", m.DataFilepath)
-	entries := make(streedb.Entries[T], 0, m.ItemCount)
+	entries := make(db.Entries[T], 0, m.ItemCount)
 	if err = json.NewDecoder(out.Body).Decode(&entries); err != nil {
 		return nil, errors.Join(errors.New("Load error decoding entries"), err)
 	}
@@ -49,30 +50,13 @@ func (f *s3JSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
 	return entries, nil
 }
 
-func (f *s3JSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := streedb.Merge(a, b)
-	if err != nil {
-		return nil, err
-	}
-	return f.Create(f.cfg, newEntries, a.Metadata().Level)
-}
-
-func (f *s3JSONFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
+func (f *s3JSONFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
 	return updateMetadataS3(f.cfg, f.client, f, b.Metadata())
 }
 
-func (f *s3JSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+func (f *s3JSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
-	}
-
-	meta, err := streedb.NewMetadataBuilder[T]("").
-		WithEntries(entries).
-		WithLevel(level).
-		WithExtension(".jsondata").
-		Build()
-	if err != nil {
-		return nil, errors.Join(errors.New("error creating metadata"), err)
 	}
 
 	byt, err := json.Marshal(entries)
@@ -121,30 +105,18 @@ func (f *s3JSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], le
 	return NewS3Fileblock[T](cfg, meta, f), nil
 }
 
-func (f *s3JSONFs[T]) Remove(b streedb.Fileblock[T]) error {
+func (f *s3JSONFs[T]) Remove(b db.Fileblock[T]) error {
 	return removeS3(f.client, f.cfg, b.Metadata())
 }
 
-func (f *s3JSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	return openAllMetadataFilesInS3(f.cfg, f.client, f)
+func (f *s3JSONFs[T]) OpenAllMetaFiles() (db.Levels[T], error) {
+	return openAllMetadataFilesInS3(f.cfg, f.client, f, f.rootPath)
 }
 
-// newJSONFileblock is used to create new JSON files.
-// `entries` must contain the data to be written to the file.
-// `level` is the destination level for the filebeock.
-func newJSONS3Fileblock[T streedb.Entry](entries streedb.Entries[T], cfg *streedb.Config, level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
-	if entries.Len() == 0 {
-		return nil, errors.New("empty data")
-	}
+func (f *s3JSONFs[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, level)
+}
 
-	meta, err := streedb.NewMetadataBuilder[T]("").
-		WithEntries(entries).
-		WithLevel(level).
-		WithExtension(".jsondata").
-		Build()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewS3Fileblock[T](cfg, meta, fs), nil
+func (f *s3JSONFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
+	return meta.WithRootPath(f.rootPath).WithExtension(".jsondata")
 }

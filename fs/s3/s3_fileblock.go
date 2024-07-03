@@ -1,55 +1,38 @@
 package fss3
 
 import (
-	"errors"
-
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 )
 
-func NewS3Fileblock[T streedb.Entry](cfg *streedb.Config, meta *streedb.MetaFile[T], fs streedb.Filesystem[T]) streedb.Fileblock[T] {
+func NewS3Fileblock[T db.Entry](cfg *db.Config, meta *db.MetaFile[T], filesystem db.Filesystem[T]) db.Fileblock[T] {
 	return &s3Fileblock[T]{
 		cfg:      cfg,
-		fs:       fs,
 		MetaFile: *meta,
+		fs:       filesystem,
 	}
 }
 
-type s3Fileblock[T streedb.Entry] struct {
-	streedb.MetaFile[T]
+type s3Fileblock[T db.Entry] struct {
+	db.MetaFile[T]
 
-	cfg *streedb.Config
-	fs  streedb.Filesystem[T]
+	cfg *db.Config
+	fs  db.Filesystem[T]
 }
 
 func (l *s3Fileblock[T]) Close() error {
 	return nil
 }
 
-func (l *s3Fileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) {
-	if !streedb.EntryFallsInsideMinMax(l.Min, l.Max, v) {
-		return nil, false, nil
-	}
-
-	entries, err := l.Load()
-	if err != nil {
-		return nil, false, errors.Join(errors.New("error loading block"), err)
-	}
-
-	entry, found := entries.Find(v)
-
-	return entry, found, nil
+func (l *s3Fileblock[T]) Find(v db.Entry) bool {
+	return !db.EntryFallsInsideMinMax(l.Min, l.Max, v)
 }
 
-func (l *s3Fileblock[T]) Load() (streedb.Entries[T], error) {
+func (l *s3Fileblock[T]) Load() (db.Entries[T], error) {
 	return l.fs.Load(l)
 }
 
-func (l *s3Fileblock[T]) Metadata() *streedb.MetaFile[T] {
+func (l *s3Fileblock[T]) Metadata() *db.MetaFile[T] {
 	return &l.MetaFile
-}
-
-func (l *s3Fileblock[T]) SetFilesystem(fs streedb.Filesystem[T]) {
-	l.fs = fs
 }
 
 func (l *s3Fileblock[T]) UUID() string {

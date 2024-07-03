@@ -8,10 +8,9 @@ import (
 
 type Fileblock[T Entry] interface {
 	Close() error
-	Find(v Entry) (Entry, bool, error)
+	Find(v Entry) bool
 	Load() (Entries[T], error)
 	Metadata() *MetaFile[T]
-	SetFilesystem(fs Filesystem[T])
 	UUID() string
 }
 

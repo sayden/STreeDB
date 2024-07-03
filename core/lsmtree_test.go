@@ -21,11 +21,12 @@ func TestDev(t *testing.T) {
 	cfgs := []*streedb.Config{
 		{
 			WalMaxItems:           5,
-			Filesystem:            streedb.FILESYSTEM_LOCAL,
-			Format:                streedb.FILE_FORMAT_JSON,
+			Filesystem:            streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:                streedb.FormatMap[streedb.FILE_FORMAT_JSON],
 			MaxLevels:             5,
 			DbPath:                "/tmp/kv/json",
 			CompactionExtraPasses: 1,
+			LevelFilesystems:      []string{"local", "local", "local", "local", "local"},
 		},
 	}
 
@@ -47,7 +48,7 @@ func TestDev(t *testing.T) {
 			20, 21, 22, 23, 24,
 			25, 26, 16, 27, 28,
 			29, 44, 45, 36, 59,
-			60, 61,
+			60, 61, 62,
 		}
 		totalKeys := int32(len(keys))
 
@@ -67,7 +68,8 @@ func TestDev(t *testing.T) {
 		entry := streedb.NewKv("hello 07", 0)
 		val, found, err := lsmtree.Find(entry)
 		assert.NoError(t, err)
-		assert.True(t, found, "value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
+		assert.True(t, found, "value not found in '%s' using '%s'",
+			streedb.FilesystemTypeReverseMap[cfg.Filesystem], streedb.ReverseFormatMap[cfg.Format])
 		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val <= totalKeys)
 	}
 
@@ -88,8 +90,8 @@ func TestDBs(t *testing.T) {
 	cfgs := []*streedb.Config{
 		{
 			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_S3,
-			Format:      streedb.FILE_FORMAT_PARQUET,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
 			MaxLevels:   5,
 			S3Config: streedb.S3Config{
 				Bucket: "parquet",
@@ -98,8 +100,8 @@ func TestDBs(t *testing.T) {
 		},
 		{
 			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_S3,
-			Format:      streedb.FILE_FORMAT_JSON,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
 			MaxLevels:   5,
 			S3Config: streedb.S3Config{
 				Bucket: "json",
@@ -108,15 +110,15 @@ func TestDBs(t *testing.T) {
 		},
 		{
 			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_LOCAL,
-			Format:      streedb.FILE_FORMAT_JSON,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
 			MaxLevels:   5,
 			DbPath:      tmpDir + "/json",
 		},
 		{
 			WalMaxItems: 5,
-			Filesystem:  streedb.FILESYSTEM_LOCAL,
-			Format:      streedb.FILE_FORMAT_PARQUET,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
 			MaxLevels:   5,
 			DbPath:      tmpDir + "/parquet",
 		},
@@ -150,7 +152,8 @@ func TestDBs(t *testing.T) {
 		entry := streedb.NewKv("hello 15", 0)
 		val, found, err := lsmtree.Find(entry)
 		assert.NoError(t, err)
-		assert.True(t, found, "value not found in '%s' using '%s'", streedb.FilesystemMap[cfg.Filesystem], streedb.FormatMap[cfg.Format])
+		assert.True(t, found, "value not found in '%s' using '%s'",
+			streedb.FilesystemTypeReverseMap[cfg.Filesystem], streedb.ReverseFormatMap[cfg.Format])
 		assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val <= total)
 	}
 

@@ -1,19 +1,10 @@
 package streedb
 
 type FILE_FORMAT int
-type FILESYSTEM int
 
 const (
-	FILE_FORMAT_JSON = iota
+	FILE_FORMAT_JSON FILE_FORMAT = iota
 	FILE_FORMAT_PARQUET
-
-	FILESYSTEM_LOCAL = iota
-	FILESYSTEM_S3
-)
-
-const (
-	CURRENT_FILE_FORMAT = FILE_FORMAT_JSON
-	CURRENT_FILESYSTEM  = FILESYSTEM_LOCAL
 )
 
 const (
@@ -24,11 +15,12 @@ type Config struct {
 	CompactionExtraPasses int
 	MaxLevels             int
 	DbPath                string
-	Filesystem            FILESYSTEM
-	Format                FILE_FORMAT
+	Filesystem            string
+	Format                string
 	WalMaxItems           int
 	S3Config              S3Config
 	LevelPromoter         LevelPromoterCfg
+	LevelFilesystems      []string
 }
 
 type LevelPromoterCfg struct {
@@ -44,11 +36,11 @@ type S3Config struct {
 }
 
 var FormatMap = map[FILE_FORMAT]string{
-	FILE_FORMAT_JSON:    "JSON",
-	FILE_FORMAT_PARQUET: "PARQUET",
+	FILE_FORMAT_JSON:    "json",
+	FILE_FORMAT_PARQUET: "parquet",
 }
 
-var FilesystemMap = map[FILESYSTEM]string{
-	FILESYSTEM_LOCAL: "LOCAL",
-	FILESYSTEM_S3:    "S3",
+var ReverseFormatMap = map[string]FILE_FORMAT{
+	"json":    FILE_FORMAT_JSON,
+	"parquet": FILE_FORMAT_PARQUET,
 }

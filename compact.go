@@ -36,13 +36,9 @@ const (
 )
 
 type Compactor[T Entry] interface {
-	Compact() ([]Fileblock[T], error)
-}
-
-type MultiLevelCompactor[T Entry] interface {
-	Compact() (Levels[T], error)
+	Compact(block []Fileblock[T]) error
 }
 
 type LevelPromoter[T Entry] interface {
-	Promote(blocks []Fileblock[T]) ([]Fileblock[T], error)
+	Promote(metaBuilder *MetadataBuilder[T]) error
 }

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/fs"
 	"github.com/thehivecorporation/log"
 )
@@ -44,75 +44,91 @@ const (
 	MAX_LEVEL_4_BLOCK_AGE    = 24 * 30 * time.Hour
 )
 
-func NewLsmTree[T streedb.Entry](c *streedb.Config) (*LsmTree[T], error) {
-	filesystem, levels, err := fs.NewFilesystem[T](c)
-	if err != nil {
-		panic(err)
+func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
+	// filesystem, levels, err := fs.NewFilesystem[T](cfg)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	var filesystem db.Filesystem[T]
+	var levels db.Levels[T]
+	var err error
+
+	promoter := NewItemLimitPromoter[T](7)
+	if cfg.LevelFilesystems != nil {
+		levels, err = fs.NewMultiFsLevels[T](cfg, promoter)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	l := &LsmTree[T]{
 		walPool: sync.Pool{
 			New: func() interface{} {
-				return newInMemoryWal[T](c)
+				return newInMemoryWal[T](cfg)
 			},
 		},
-		levelZeroFilesystem: filesystem,
-		levels:              levels,
-		cfg:                 c,
+		levels: levels,
+		cfg:    cfg,
 	}
 
-	l.wal = l.walPool.Get().(streedb.Wal[T])
+	l.wal = l.walPool.Get().(db.Wal[T])
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Passing the levels here feels a bit hacky
-	promoter := NewItemLimitPromoter(c, filesystem, 7)
-	l.compactor = NewTieredCompactor(c, filesystem, levels, promoter)
+	l.compactor = NewTieredSingleFsCompactor(cfg, filesystem, levels, promoter)
+	if cfg.LevelFilesystems != nil {
+		l.compactor, err = NewTieredMultiFsCompactor(cfg, levels)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	return l, nil
 }
 
-type LsmTree[T streedb.Entry] struct {
-	compactor streedb.MultiLevelCompactor[T]
+type LsmTree[T db.Entry] struct {
+	compactor db.Compactor[T]
 
-	walPool             sync.Pool
-	wal                 streedb.Wal[T]
-	levelZeroFilesystem streedb.Filesystem[T]
-	levels              streedb.Levels[T]
-	cfg                 *streedb.Config
+	walPool sync.Pool
+	wal     db.Wal[T]
+	levels  db.Levels[T]
+	cfg     *db.Config
 }
 
 func (l *LsmTree[T]) Append(d T) {
 	if l.wal.Append(d) {
 		// WAL is full, write a new block
-		newBlock, err := l.WriteBlock()
+		err := l.WriteBlock()
 		if err != nil {
 			log.Errorf("Error writing block: %v", err)
 			return
 		}
-		l.levels.AppendFile(newBlock)
 
 		l.wal = newInMemoryWal[T](l.cfg)
 	}
 }
 
-func (l *LsmTree[T]) WriteBlock() (streedb.Fileblock[T], error) {
+func (l *LsmTree[T]) WriteBlock() (err error) {
 	entries := l.wal.GetData()
+	if len(entries) == 0 {
+		return
+	}
+
 	sort.Sort(entries)
 
-	block, err := l.levelZeroFilesystem.Create(l.cfg, entries, 0)
-	if err != nil {
-		return nil, err
+	if err = l.levels.Create(entries, 0); err != nil {
+		return err
 	}
 
 	// reset the wal
-	l.wal = l.walPool.Get().(streedb.Wal[T])
+	l.wal = l.walPool.Get().(db.Wal[T])
 
-	return block, nil
+	return
 }
 
-func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
+func (l *LsmTree[T]) Find(d T) (db.Entry, bool, error) {
 	log.WithField("key", d).Debugf("Looking for key in LSM tree")
 
 	// Look in the WAL
@@ -121,56 +137,55 @@ func (l *LsmTree[T]) Find(d T) (streedb.Entry, bool, error) {
 	}
 
 	// Look in the meta, to open the files
-	for i := 0; i <= l.cfg.MaxLevels; i++ {
-		for _, fileblock := range l.levels.GetLevel(i).Fileblocks() {
-			if v, found, err := fileblock.Find(d); found {
-				return v, true, nil
-			} else if err != nil {
-				return nil, false, err
-			}
+	for i := 0; i < l.cfg.MaxLevels; i++ {
+		level := l.levels.GetLevel(i)
+		if v, found, err := level.Find(d); found {
+			return v, true, nil
+		} else if err != nil {
+			return nil, false, err
 		}
 	}
 
 	return nil, false, nil
 }
 
-func (l *LsmTree[T]) Close() error {
+func (l *LsmTree[T]) Close() (err error) {
 	// Close the wal and write whatever is left in it
 	errs := make([]error, 0)
 
-	_, err := l.wal.Close()
-	if err != nil {
+	if err = l.wal.Close(); err != nil {
 		errs = append(errs, err)
 	}
 
-	fileblock, err := l.WriteBlock()
-	if err != nil {
+	if err = l.WriteBlock(); err != nil {
 		errs = append(errs, err)
-	} else {
-		l.levels.AppendFile(fileblock)
-	}
-	if len(errs) > 0 {
-		return errors.Join(errs...)
 	}
 
-	return l.levels.Close()
+	if err = l.levels.Close(); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errors.Join(errs...)
 }
 
-func (l *LsmTree[T]) AppendFile(b streedb.Fileblock[T]) {
-	l.levels.AppendFile(b)
+func (l *LsmTree[T]) AppendFile(b db.Fileblock[T]) {
+	l.levels.AppendFileblock(b)
 }
 
-func (l *LsmTree[T]) RemoveFile(b streedb.Fileblock[T]) error {
+func (l *LsmTree[T]) RemoveFile(b db.Fileblock[T]) error {
 	return l.levels.RemoveFile(b)
 }
 
 func (l *LsmTree[T]) Compact() error {
-	levels, err := l.compactor.Compact()
-	if err != nil || levels == nil {
-		return err
+	return l.compactor.Compact(getBlocksFromLevels(l.cfg.MaxLevels, l.levels))
+}
+
+func getBlocksFromLevels[T db.Entry](maxLevels int, levels db.Levels[T]) []db.Fileblock[T] {
+	var blocks []db.Fileblock[T]
+	for i := 0; i < maxLevels; i++ {
+		level := levels.GetLevel(i)
+		blocks = append(blocks, level.Fileblocks()...)
 	}
 
-	l.levels = levels
-
-	return nil
+	return blocks
 }

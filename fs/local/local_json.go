@@ -6,42 +6,32 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 )
 
-// InitJSONLocal initializes a local filesystem destination. Writes the folder structure if required
-// and then read the medatada files that are already there.
-func InitJSONLocal[T streedb.Entry](cfg *streedb.Config) (streedb.Filesystem[T], streedb.Levels[T], error) {
-	return initLocal[T](cfg, jSONFsBuilder)
+func InitJSONLocal[T db.Entry](cfg *db.Config, level int) (db.Filesystem[T], error) {
+	return initLocal[T](cfg, level, jSONFsBuilder)
 }
 
-type localJSONFs[T streedb.Entry] struct {
-	streedb.Filesystem[T] // Implements
+type localJSONFs[T db.Entry] struct {
+	rootPath string
 
-	cfg *streedb.Config
+	cfg *db.Config
 }
 
-func (f *localJSONFs[T]) Open(p string) (meta *streedb.MetaFile[T], err error) {
+func (f *localJSONFs[T]) Open(p string) (meta *db.MetaFile[T], err error) {
 	return open[T](p)
 }
 
-func (f *localJSONFs[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	newEntries, err := streedb.Merge(a, b)
-	if err != nil {
-		return nil, err
-	}
-	return f.Create(f.cfg, newEntries, a.Metadata().Level)
-}
-
-func (f *localJSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+func (f *localJSONFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	file, err := os.Open(b.Metadata().DataFilepath)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	entries := make(streedb.Entries[T], 0)
+	entries := make(db.Entries[T], 0)
 	if err = json.NewDecoder(file).Decode(&entries); err != nil {
 		return nil, err
 	}
@@ -49,18 +39,9 @@ func (f *localJSONFs[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error
 	return entries, nil
 }
 
-func (f *localJSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
+func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
-	}
-
-	meta, err := streedb.NewMetadataBuilder[T](f.cfg.DbPath).
-		WithEntries(entries).
-		WithLevel(level).
-		WithExtension(".jsondata").
-		Build()
-	if err != nil {
-		return nil, errors.Join(errors.New("error creating metadata: "), err)
 	}
 
 	dataFile, err := os.Create(meta.DataFilepath)
@@ -102,44 +83,25 @@ func (f *localJSONFs[T]) Create(cfg *streedb.Config, entries streedb.Entries[T],
 	return NewLocalFileblock(f.cfg, meta, f), nil
 }
 
-func (f *localJSONFs[T]) MoveToLevel(m *streedb.MetaFile[T]) error {
-	return moveToNewLocalLevel(f.cfg, m)
-}
-
-func (f *localJSONFs[T]) UpdateMetadata(b streedb.Fileblock[T]) error {
+func (f *localJSONFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
 	return updateMetadata(b.Metadata())
 }
 
-func (f *localJSONFs[T]) Remove(b streedb.Fileblock[T]) error {
+func (f *localJSONFs[T]) Remove(b db.Fileblock[T]) error {
 	return remove(b.Metadata())
 }
 
-func (f *localJSONFs[T]) OpenAllMetaFiles() (streedb.Levels[T], error) {
-	filesystem := streedb.Filesystem[T](f)
-
-	levels := streedb.NewLevels(f.cfg, filesystem)
-
-	initialSearchPath := f.cfg.DbPath
-
-	return levels, metaFilesInDir(f.cfg, filesystem, initialSearchPath, &levels)
+func (f *localJSONFs[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+	return metaFilesInDir(f.cfg, f.rootPath, f, level)
 }
 
-// newJSONLocalFileblock is used to create new JSON files.
-// `entries` must contain the data to be written to the file.
-// `level` is the destination level for the filebeock.
-func newJSONLocalFileblock[T streedb.Entry](cfg *streedb.Config, entries streedb.Entries[T], level int, fs streedb.Filesystem[T]) (streedb.Fileblock[T], error) {
-	if entries.Len() == 0 {
-		return nil, errors.New("empty data")
-	}
+func (f *localJSONFs[T]) OpenAllMetaFiles() (db.Levels[T], error) {
+	// filesystem := db.Filesystem[T](f)
+	// levels := db.NewLevels(f.cfg, filesystem)
+	// return levels, metaFilesInFolders(f.cfg, filesystem, f.rootPath, levels)
+	panic("not implemented")
+}
 
-	meta, err := streedb.NewMetadataBuilder[T](cfg.DbPath).
-		WithEntries(entries).
-		WithLevel(level).
-		WithExtension(".jsondata").
-		Build()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewLocalFileblock(cfg, meta, fs), nil
+func (f *localJSONFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
+	return meta.WithRootPath(f.rootPath).WithExtension(".jsondata")
 }

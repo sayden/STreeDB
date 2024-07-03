@@ -1,70 +1,52 @@
 package fslocal
 
-import "github.com/sayden/streedb"
+import db "github.com/sayden/streedb"
 
-func InitMemoryFilesystem[T streedb.Entry](cfg *streedb.Config) (streedb.Filesystem[T], streedb.Levels[T], error) {
-	fs := NewMemoryFilesystem[T](cfg)
-	return fs, streedb.NewBasicLevels(cfg, fs), nil
+func InitMemoryFilesystem[T db.Entry](cfg *db.Config) (db.Filesystem[T], db.Levels[T], error) {
+	panic("not implemented")
+	// fs := NewMemoryFilesystem[T](cfg)
+	// return fs, db.NewSingleFsLevels(cfg, fs), nil
 }
 
-func NewMemoryFilesystem[T streedb.Entry](cfg *streedb.Config) streedb.Filesystem[T] {
-	return &MemFilesystem[T]{cfg: cfg}
+func NewMemoryFilesystem[T db.Entry](cfg *db.Config) db.Filesystem[T] {
+	panic("not implemented")
+	// return &MemFilesystem[T]{cfg: cfg}
 }
 
-type MemFilesystem[T streedb.Entry] struct {
-	cfg *streedb.Config
+type MemFilesystem[T db.Entry] struct {
+	cfg *db.Config
 }
 
-func (m *MemFilesystem[T]) Create(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-	meta, err := streedb.NewMetadataBuilder[T]("").
-		WithEntries(entries).
-		WithLevel(level).
-		Build()
-	if err != nil {
-		return nil, err
-	}
-	return NewMemFileblock(entries, level, meta), nil
+func (m *MemFilesystem[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
+	return NewMemFileblock(entries, meta, m), nil
+}
+func (m *MemFilesystem[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
+	return nil
 }
 
-func (m *MemFilesystem[T]) Open(p string) (*streedb.MetaFile[T], error) { return nil, nil }
-func (m *MemFilesystem[T]) Load(b streedb.Fileblock[T]) (streedb.Entries[T], error) {
+func (m *MemFilesystem[T]) Open(p string) (*db.MetaFile[T], error) { return nil, nil }
+func (m *MemFilesystem[T]) Load(fb db.Fileblock[T]) (db.Entries[T], error) {
 	return nil, nil
 }
-func (m *MemFilesystem[T]) Remove(meta streedb.Fileblock[T]) error { return nil }
-func (m *MemFilesystem[T]) Merge(a, b streedb.Fileblock[T]) (streedb.Fileblock[T], error) {
-	entries, err := streedb.Merge(a, b)
-	if err != nil {
-		return nil, err
-	}
-
-	return m.Create(m.cfg, entries, a.Metadata().Level)
-}
-func (m *MemFilesystem[T]) UpdateMetadata(meta streedb.Fileblock[T]) error { return nil }
-func (m *MemFilesystem[T]) OpenAllMetaFiles() (streedb.Levels[T], error)   { return nil, nil }
-
-func NewMemoryFileblockBuilder[T streedb.Entry]() streedb.FileblockBuilder[T] {
-	return func(cfg *streedb.Config, entries streedb.Entries[T], level int) (streedb.Fileblock[T], error) {
-		meta, err := streedb.NewMetadataBuilder[T]("").
-			WithEntries(entries).
-			WithLevel(level).
-			Build()
-		if err != nil {
-			return nil, err
-		}
-		return NewMemFileblock(entries, level, meta), nil
-	}
+func (m *MemFilesystem[T]) Remove(meta db.Fileblock[T]) error         { return nil }
+func (m *MemFilesystem[T]) UpdateMetadata(meta db.Fileblock[T]) error { return nil }
+func (m *MemFilesystem[T]) OpenAllMetaFiles() (db.Levels[T], error)   { return nil, nil }
+func (f *MemFilesystem[T]) OpenMetaFileInLevel(level db.Level[T]) error {
+	return nil
 }
 
-func NewMemFileblock[T streedb.Entry](entries streedb.Entries[T], level int, meta *streedb.MetaFile[T]) *MemFileblock[T] {
-	return &MemFileblock[T]{Entries: entries, MetaFile: *meta}
+func NewMemFileblock[T db.Entry](entries db.Entries[T], meta *db.MetaFile[T], f db.Filesystem[T]) *MemFileblock[T] {
+	return &MemFileblock[T]{Entries: entries, MetaFile: *meta, Filesystem: f}
 }
 
-type MemFileblock[T streedb.Entry] struct {
-	Entries streedb.Entries[T]
-	streedb.MetaFile[T]
+type MemFileblock[T db.Entry] struct {
+	Entries db.Entries[T]
+	db.MetaFile[T]
+	db.Filesystem[T]
 }
 
-func (m *MemFileblock[T]) Load() (streedb.Entries[T], error)                 { return m.Entries, nil }
-func (m *MemFileblock[T]) Find(v streedb.Entry) (streedb.Entry, bool, error) { return nil, false, nil }
-func (m *MemFileblock[T]) Close() error                                      { return nil }
-func (m *MemFileblock[T]) SetFilesystem(fs streedb.Filesystem[T])            {}
+func (m *MemFileblock[T]) Load() (db.Entries[T], error)      { return m.Entries, nil }
+func (m *MemFileblock[T]) Find(v db.Entry) bool              { return false }
+func (m *MemFileblock[T]) Close() error                      { return nil }
+func (m *MemFileblock[T]) SetFilesystem(fs db.Filesystem[T]) {}
+func (m *MemFileblock[T]) RootPath() string                  { return "" }

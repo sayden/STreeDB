@@ -2,45 +2,52 @@ package streedb
 
 import (
 	"path"
+	"time"
 
 	"github.com/thehivecorporation/log"
 )
 
-type MetadataBuilder[T Entry] interface {
-	WithExtension(string) MetadataBuilder[T]
-	WithEntries(Entries[T]) MetadataBuilder[T]
-	WithFilenamePrefix(string) MetadataBuilder[T]
-	WithLevel(int) MetadataBuilder[T]
-	WithFilename(string) MetadataBuilder[T]
-	WithFullFilepath(string) MetadataBuilder[T]
-	Build() (*MetaFile[T], error)
+func NewMetadataBuilder[T Entry]() *MetadataBuilder[T] {
+	return &MetadataBuilder[T]{
+		MetaFile: MetaFile[T]{
+			CreatedAt: time.Now(),
+		}}
 }
 
-type metadataBuilder[T Entry] struct {
+type MetadataBuilder[T Entry] struct {
 	fileExtension  string
 	filenamePrefix string
 	fullFilepath   string
 	rootPath       string
 
-	metaFile MetaFile[T]
+	MetaFile[T]
 }
 
-func (b *metadataBuilder[T]) WithFilepath(p string) MetadataBuilder[T] {
-	b.metaFile.MetaFilepath = p
+func (b *MetadataBuilder[T]) GetLevel() int {
+	return b.Level
+}
+
+func (b *MetadataBuilder[T]) WithRootPath(p string) *MetadataBuilder[T] {
+	b.rootPath = p
 	return b
 }
 
-func (b *metadataBuilder[T]) WithFullFilepath(p string) MetadataBuilder[T] {
-	b.metaFile.MetaFilepath = p
+func (b *MetadataBuilder[T]) WithFilepath(p string) *MetadataBuilder[T] {
+	b.MetaFilepath = p
 	return b
 }
 
-func (b *metadataBuilder[T]) WithExtension(e string) MetadataBuilder[T] {
+func (b *MetadataBuilder[T]) WithFullFilepath(p string) *MetadataBuilder[T] {
+	b.MetaFilepath = p
+	return b
+}
+
+func (b *MetadataBuilder[T]) WithExtension(e string) *MetadataBuilder[T] {
 	b.fileExtension = e
 	return b
 }
 
-func (b *metadataBuilder[T]) WithEntries(es Entries[T]) MetadataBuilder[T] {
+func (b *MetadataBuilder[T]) WithEntries(es Entries[T]) *MetadataBuilder[T] {
 	var min, max Entry
 
 	if es.Len() > 1 {
@@ -51,61 +58,61 @@ func (b *metadataBuilder[T]) WithEntries(es Entries[T]) MetadataBuilder[T] {
 		max = es[0]
 	}
 
-	b.metaFile.ItemCount = len(es)
-	b.metaFile.Min = min.(T)
-	b.metaFile.Max = max.(T)
+	b.ItemCount = len(es)
+	b.Min = min.(T)
+	b.Max = max.(T)
 
 	return b
 }
 
-func (b *metadataBuilder[T]) WithFilename(s string) MetadataBuilder[T] {
-	if b.metaFile.Uuid != "" {
-		log.WithFields(log.Fields{"old_uuid": b.metaFile.Uuid, "new_uuid": s}).Warn("Overwriting UUID with filename")
+func (b *MetadataBuilder[T]) WithFilename(s string) *MetadataBuilder[T] {
+	if b.Uuid != "" {
+		log.WithFields(log.Fields{"old_uuid": b.Uuid, "new_uuid": s}).Warn("Overwriting UUID with filename")
 	}
-	b.metaFile.Uuid = s
+	b.Uuid = s
 	return b
 }
 
-func (b *metadataBuilder[T]) WithFilenamePrefix(prefix string) MetadataBuilder[T] {
+func (b *MetadataBuilder[T]) WithFilenamePrefix(prefix string) *MetadataBuilder[T] {
 	b.filenamePrefix = prefix
 	return b
 }
 
-func (b *metadataBuilder[T]) WithLevel(l int) MetadataBuilder[T] {
-	b.metaFile.Level = l
+func (b *MetadataBuilder[T]) WithLevel(l int) *MetadataBuilder[T] {
+	b.Level = l
 	return b
 }
 
-func (b *metadataBuilder[T]) Build() (*MetaFile[T], error) {
-	if b.metaFile.Uuid == "" {
-		b.metaFile.Uuid = NewUUID()
+func (b *MetadataBuilder[T]) Build() (*MetaFile[T], error) {
+	if b.Uuid == "" {
+		b.Uuid = NewUUID()
 	}
 
-	if b.metaFile.MetaFilepath != "" {
-		return &b.metaFile, nil
+	if b.MetaFilepath != "" {
+		return &b.MetaFile, nil
 	}
 
 	if b.fileExtension == "" {
 		if b.filenamePrefix == "" {
-			// no extension
-			b.metaFile.MetaFilepath = path.Join(b.rootPath, "meta_"+b.metaFile.Uuid+".json")
-			b.metaFile.DataFilepath = path.Join(b.rootPath, b.metaFile.Uuid)
+			// no extension, no prefix
+			b.MetaFilepath = path.Join(b.rootPath, "meta_"+b.Uuid+".json")
+			b.DataFilepath = path.Join(b.rootPath, b.Uuid)
 		} else {
-			// no extension
-			b.metaFile.MetaFilepath = path.Join(b.rootPath, b.filenamePrefix, b.filenamePrefix+"meta_"+b.metaFile.Uuid+".json")
-			b.metaFile.DataFilepath = path.Join(b.rootPath, b.filenamePrefix+b.metaFile.Uuid)
+			// no extension, prefix
+			b.MetaFilepath = path.Join(b.rootPath, b.filenamePrefix, b.filenamePrefix+"meta_"+b.Uuid+".json")
+			b.DataFilepath = path.Join(b.rootPath, b.filenamePrefix, b.Uuid)
 		}
 	} else {
 		if b.filenamePrefix == "" {
-			// with extension
-			b.metaFile.MetaFilepath = path.Join(b.rootPath, "meta_"+b.metaFile.Uuid+".json")
-			b.metaFile.DataFilepath = path.Join(b.rootPath, b.metaFile.Uuid+b.fileExtension)
+			// with extension, no prefix
+			b.MetaFilepath = path.Join(b.rootPath, "meta_"+b.Uuid+".json")
+			b.DataFilepath = path.Join(b.rootPath, b.Uuid+b.fileExtension)
 		} else {
-			// with extension
-			b.metaFile.MetaFilepath = path.Join(b.rootPath, b.filenamePrefix+"meta_"+b.metaFile.Uuid+".json")
-			b.metaFile.DataFilepath = path.Join(b.rootPath, b.filenamePrefix+b.metaFile.Uuid+b.fileExtension)
+			// with extension, prefix
+			b.MetaFilepath = path.Join(b.rootPath, b.filenamePrefix+"meta_"+b.Uuid+".json")
+			b.DataFilepath = path.Join(b.rootPath, b.filenamePrefix, b.Uuid+b.fileExtension)
 		}
 	}
 
-	return &b.metaFile, nil
+	return &b.MetaFile, nil
 }

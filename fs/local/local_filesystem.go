@@ -2,51 +2,49 @@ package fslocal
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 
-	"github.com/sayden/streedb"
+	db "github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
 )
 
-type localFilesystemBuilder[T streedb.Entry] func(c *streedb.Config) streedb.Filesystem[T]
+type localFilesystemBuilder[T db.Entry] func(c *db.Config, rootPath string) db.Filesystem[T]
 
-func jSONFsBuilder[T streedb.Entry](c *streedb.Config) streedb.Filesystem[T] {
-	return &localJSONFs[T]{cfg: c}
+func jSONFsBuilder[T db.Entry](c *db.Config, rootPath string) db.Filesystem[T] {
+	return &localJSONFs[T]{cfg: c, rootPath: rootPath}
 }
 
-func parquetFsBuilder[T streedb.Entry](c *streedb.Config) streedb.Filesystem[T] {
-	return &localParquetFs[T]{cfg: c}
+func parquetFsBuilder[T db.Entry](c *db.Config, rootPath string) db.Filesystem[T] {
+	return &localParquetFs[T]{cfg: c, rootPath: rootPath}
 }
 
-func initLocal[T streedb.Entry](c *streedb.Config, fsBuilder localFilesystemBuilder[T]) (streedb.Filesystem[T], streedb.Levels[T], error) {
-	if !path.IsAbs(c.DbPath) {
+func initLocal[T db.Entry](c *db.Config, level int, fsBuilder localFilesystemBuilder[T]) (db.Filesystem[T], error) {
+	rootPath := path.Join(c.DbPath, fmt.Sprintf("%02d", level))
+	if !path.IsAbs(rootPath) {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		c.DbPath = path.Join(cwd, c.DbPath)
+		rootPath = path.Join(cwd, c.DbPath)
 	}
 
-	os.MkdirAll(c.DbPath, 0755)
+	os.MkdirAll(rootPath, 0755)
 
-	fs := fsBuilder(c)
-	meta, err := fs.OpenAllMetaFiles()
-	if err != nil {
-		return nil, nil, err
-	}
+	fs := fsBuilder(c, rootPath)
 
-	return fs, meta, nil
+	return fs, nil
 }
 
-func open[T streedb.Entry](p string) (meta *streedb.MetaFile[T], err error) {
+func open[T db.Entry](p string) (meta *db.MetaFile[T], err error) {
 	var file *os.File
 	if file, err = os.Open(p); err != nil {
 		return
 	}
 	defer file.Close()
 
-	meta = &streedb.MetaFile[T]{
+	meta = &db.MetaFile[T]{
 		MetaFilepath: p,
 	}
 
@@ -57,7 +55,7 @@ func open[T streedb.Entry](p string) (meta *streedb.MetaFile[T], err error) {
 	return meta, nil
 }
 
-func metaFilesInDir[T streedb.Entry](cfg *streedb.Config, f streedb.Filesystem[T], folder string, levels *streedb.Levels[T]) error {
+func metaFilesInFolders[T db.Entry](cfg *db.Config, f db.Filesystem[T], folder string, levels db.Levels[T]) error {
 	files, err := os.ReadDir(folder)
 	if err != nil {
 		return err
@@ -65,7 +63,7 @@ func metaFilesInDir[T streedb.Entry](cfg *streedb.Config, f streedb.Filesystem[T
 
 	for _, file := range files {
 		if file.IsDir() {
-			err2 := metaFilesInDir(cfg, f, path.Join(folder, file.Name()), levels)
+			err2 := metaFilesInFolders(cfg, f, path.Join(folder, file.Name()), levels)
 			if err2 != nil {
 				return err2
 			}
@@ -80,53 +78,80 @@ func metaFilesInDir[T streedb.Entry](cfg *streedb.Config, f streedb.Filesystem[T
 			return err
 		}
 		lb := NewLocalFileblock(cfg, meta, f)
-		(*levels).AppendFile(lb)
+		levels.AppendFileblock(lb)
 	}
 
 	return nil
 }
 
-func moveToNewLocalLevel[T streedb.Entry](cfg *streedb.Config, oldMeta *streedb.MetaFile[T]) error {
-	// move the data file to its new location
-	ext := path.Ext(oldMeta.DataFilepath)
-	meta, err := streedb.NewMetadataBuilder[T](cfg.DbPath).
-		WithLevel(oldMeta.Level).
-		WithExtension("." + ext).
-		Build()
+func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T], level db.Level[T]) error {
+	files, err := os.ReadDir(folder)
 	if err != nil {
 		return err
 	}
 
-	if err = os.Rename(oldMeta.DataFilepath, meta.DataFilepath); err != nil {
-		return err
-	}
+	for _, file := range files {
+		if file.IsDir() {
+			panic("folder not expected")
+		}
 
-	// update the metadata with the new locations
-	oldMeta.DataFilepath = meta.DataFilepath
-	oldPath := oldMeta.MetaFilepath
-	oldMeta.MetaFilepath = meta.MetaFilepath
-	if err = os.Rename(oldPath, meta.MetaFilepath); err != nil {
-		return err
-	}
+		if path.Ext(file.Name()) != ".json" {
+			continue
+		}
 
-	// move the metadata file to its new location
-	file, err := os.Create(meta.MetaFilepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	if err = file.Truncate(0); err != nil {
-		return err
-	}
+		meta, err := level.Open(path.Join(folder, file.Name()))
+		if err != nil {
+			return err
+		}
 
-	if err = json.NewEncoder(file).Encode(oldMeta); err != nil {
-		return err
+		lb := NewLocalFileblock(cfg, meta, f)
+		level.AppendFileblock(lb)
 	}
 
 	return nil
 }
 
-func remove[T streedb.Entry](m *streedb.MetaFile[T]) error {
+// func moveToNewLocalLevel[T db.Entry](cfg *db.Config, oldMeta *db.MetaFile[T]) error {
+// 	// move the data file to its new location
+// 	ext := path.Ext(oldMeta.DataFilepath)
+// 	meta, err := db.NewMetadataBuilder[T](cfg.DbPath).
+// 		WithLevel(oldMeta.Level).
+// 		WithExtension("." + ext).
+// 		Build()
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	if err = os.Rename(oldMeta.DataFilepath, meta.DataFilepath); err != nil {
+// 		return err
+// 	}
+//
+// 	// update the metadata with the new locations
+// 	oldMeta.DataFilepath = meta.DataFilepath
+// 	oldPath := oldMeta.MetaFilepath
+// 	oldMeta.MetaFilepath = meta.MetaFilepath
+// 	if err = os.Rename(oldPath, meta.MetaFilepath); err != nil {
+// 		return err
+// 	}
+//
+// 	// move the metadata file to its new location
+// 	file, err := os.Create(meta.MetaFilepath)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer file.Close()
+// 	if err = file.Truncate(0); err != nil {
+// 		return err
+// 	}
+//
+// 	if err = json.NewEncoder(file).Encode(oldMeta); err != nil {
+// 		return err
+// 	}
+//
+// 	return nil
+// }
+
+func remove[T db.Entry](m *db.MetaFile[T]) error {
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
 	if err := os.Remove(m.DataFilepath); err != nil {
 		return err
@@ -140,7 +165,7 @@ func remove[T streedb.Entry](m *streedb.MetaFile[T]) error {
 	return nil
 }
 
-func updateMetadata[T streedb.Entry](meta *streedb.MetaFile[T]) error {
+func updateMetadata[T db.Entry](meta *db.MetaFile[T]) error {
 	file, err := os.Create(meta.MetaFilepath)
 	if err != nil {
 		return err
