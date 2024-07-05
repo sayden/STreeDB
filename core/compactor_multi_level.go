@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/emirpasic/gods/v2/sets/treeset"
@@ -92,6 +93,8 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 		}
 		i++
 	}
+
+	fmt.Println("Total blocks to remove: ", blocksToRemove.Size())
 
 	// Remove flagged blocks
 	for i := 0; i < len(fileblocks); i++ {

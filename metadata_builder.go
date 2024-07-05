@@ -3,12 +3,10 @@ package streedb
 import (
 	"path"
 	"time"
-
-	"github.com/thehivecorporation/log"
 )
 
 func NewMetadataBuilder[T Entry]() *MetadataBuilder[T] {
-	return &MetadataBuilder[T]{MetaFile: MetaFile[T]{CreatedAt: time.Now()}}
+	return &MetadataBuilder[T]{MetaFile: MetaFile[T]{Uuid: NewUUID(), CreatedAt: time.Now()}}
 }
 
 type MetadataBuilder[T Entry] struct {
@@ -63,9 +61,6 @@ func (b *MetadataBuilder[T]) WithEntries(es Entries[T]) *MetadataBuilder[T] {
 }
 
 func (b *MetadataBuilder[T]) WithFilename(s string) *MetadataBuilder[T] {
-	if b.Uuid != "" {
-		log.WithFields(log.Fields{"old_uuid": b.Uuid, "new_uuid": s}).Warn("Overwriting UUID with filename")
-	}
 	b.Uuid = s
 	return b
 }

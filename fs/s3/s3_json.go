@@ -79,11 +79,19 @@ func (f *s3JSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.Met
 		Key:    aws.String(meta.DataFilepath),
 	})
 	if err != nil {
+		f.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+			Bucket: aws.String(f.cfg.S3Config.Bucket),
+			Key:    aws.String(meta.DataFilepath),
+		})
 		return nil, errors.Join(errors.New("error getting obj size from S3"), err)
 	}
 	meta.Size = *stat.ContentLength
 
 	if byt, err = json.Marshal(meta); err != nil {
+		f.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+			Bucket: aws.String(f.cfg.S3Config.Bucket),
+			Key:    aws.String(meta.DataFilepath),
+		})
 		return nil, errors.Join(errors.New("error encoding metadata"), err)
 	}
 

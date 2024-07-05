@@ -18,6 +18,8 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] 
 		cfg:        cfg,
 		Filesystem: fs,
 		fileblocks: make([]db.Fileblock[T], 0, 10),
+		min:        db.DoublyLinkedList[T]{},
+		max:        db.DoublyLinkedList[T]{},
 	}
 	fs.OpenMetaFilesInLevel(level)
 
@@ -27,8 +29,9 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] 
 type BasicLevel[T db.Entry] struct {
 	db.Filesystem[T]
 
-	min db.Entry
-	max db.Entry
+	min db.DoublyLinkedList[T]
+	max db.DoublyLinkedList[T]
+
 	cfg *db.Config
 
 	// TODO: Use a Btree instead of a slice
@@ -38,17 +41,7 @@ type BasicLevel[T db.Entry] struct {
 func (b *BasicLevel[T]) AppendFileblock(f db.Fileblock[T]) error {
 	// when appending a block, we need to update the min and max
 	meta := f.Metadata()
-	if b.min == nil || b.max == nil {
-		b.min = meta.Min
-		b.max = meta.Max
-	}
-
-	if meta.Min.LessThan(b.min) {
-		b.min = meta.Min
-	}
-	if b.max.LessThan(meta.Max) {
-		b.max = meta.Max
-	}
+	b.updateMinMax(meta)
 
 	b.fileblocks = append(b.fileblocks, f)
 
@@ -56,19 +49,6 @@ func (b *BasicLevel[T]) AppendFileblock(f db.Fileblock[T]) error {
 }
 
 func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) error {
-	// when appending a block, we need to update the min and max
-	if b.min == nil || b.max == nil {
-		b.min = meta.Min
-		b.max = meta.Max
-	}
-
-	if meta.Min.LessThan(b.min) {
-		b.min = meta.Min
-	}
-	if b.max.LessThan(meta.Max) {
-		b.max = meta.Max
-	}
-
 	// Add filesystem related information to the metadata
 	metadata, err := b.Filesystem.FillMetadataBuilder(meta).Build()
 	if err != nil {
@@ -79,6 +59,9 @@ func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) er
 	if err != nil {
 		return err
 	}
+
+	// when appending a block, we need to update the min and max
+	b.updateMinMax(&meta.MetaFile)
 
 	b.fileblocks = append(b.fileblocks, fileblock)
 
@@ -96,6 +79,7 @@ func (b *BasicLevel[T]) RemoveFile(f db.Fileblock[T]) error {
 			if err := b.Remove(block); err != nil {
 				return err
 			}
+			b.removeMinMax(block.Metadata())
 			idx = i
 			break
 		}
@@ -107,8 +91,24 @@ func (b *BasicLevel[T]) RemoveFile(f db.Fileblock[T]) error {
 	return nil
 }
 
+func (b *BasicLevel[T]) entryFallsInside(d T) bool {
+	if minV, found := b.min.Head(); !found {
+		return false
+	} else if d.LessThan(minV) {
+		return false
+	}
+
+	if maxV, foundMax := b.max.Head(); !foundMax {
+		return false
+	} else if !d.LessThan(maxV) {
+		return false
+	}
+
+	return true
+}
+
 func (b *BasicLevel[T]) Find(d T) (db.Entry, bool, error) {
-	if !db.EntryFallsInsideMinMax(b.min, b.max, d) {
+	if !b.entryFallsInside(d) {
 		return nil, false, nil
 	}
 
@@ -121,7 +121,9 @@ func (b *BasicLevel[T]) Find(d T) (db.Entry, bool, error) {
 			}
 
 			entry, found := entries.Find(d)
-			return entry, found, nil
+			if found {
+				return entry, found, nil
+			}
 		}
 	}
 
@@ -138,6 +140,26 @@ func (b *BasicLevel[T]) Close() error {
 
 func (b *BasicLevel[T]) Fileblocks() []db.Fileblock[T] {
 	return b.fileblocks
+}
+
+func (b *BasicLevel[T]) updateMinMax(in *db.MetaFile[T]) {
+	if minV, found := b.min.Head(); !found {
+		b.min.SetMin(in.Min)
+	} else if in.Min.LessThan(minV) {
+		b.min.SetMin(in.Min)
+	}
+
+	if maxV, found := b.max.Head(); !found {
+		b.max.SetMax(in.Max)
+	} else if maxV.LessThan(in.Max) {
+		b.max.SetMax(in.Max)
+	}
+
+}
+
+func (b *BasicLevel[T]) removeMinMax(meta *db.MetaFile[T]) {
+	b.min.Remove(meta.Min)
+	b.max.Remove(meta.Max)
 }
 
 // Deprecated: Only useful with single filesystems

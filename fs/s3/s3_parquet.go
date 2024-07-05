@@ -58,7 +58,12 @@ func (f *s3ParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	if _, err = bufio.NewReader(out.Body).WriteTo(file); err != nil {
 		return nil, errors.Join(errors.New("error writing to temp file"), err)
 	}
-	_ = file.Sync()
+	if _, err = file.Seek(0, 0); err != nil {
+		return nil, errors.Join(errors.New("error seeking temp file"), err)
+	}
+	if err = file.Sync(); err != nil {
+		return nil, errors.Join(errors.New("error syncing temp file"), err)
+	}
 
 	pf, err := local.NewLocalFileReader(file.Name())
 	if err != nil {
@@ -95,7 +100,7 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 	if err != nil {
 		return nil, err
 	}
-	defer fw.Close()
+	// closed 10 lines below
 
 	pw, err := writer.NewParquetWriter(fw, new(T), 4)
 	if err != nil {
@@ -108,7 +113,9 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 	if err = pw.WriteStop(); err != nil {
 		return nil, err
 	}
-	fw.Close()
+	if err = fw.Close(); err != nil {
+		return nil, err
+	}
 
 	// get size
 	stat, err := f.client.HeadObject(context.TODO(), &s3.HeadObjectInput{
