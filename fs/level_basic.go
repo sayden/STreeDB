@@ -12,8 +12,8 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] 
 		cfg:        cfg,
 		Filesystem: fs,
 		fileblocks: make([]db.Fileblock[T], 0, 10),
-		min:        db.DoublyLinkedList[T]{},
-		max:        db.DoublyLinkedList[T]{},
+		min:        db.LinkedList[T]{},
+		max:        db.LinkedList[T]{},
 	}
 	fs.OpenMetaFilesInLevel(level)
 
@@ -23,8 +23,8 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] 
 type BasicLevel[T db.Entry] struct {
 	db.Filesystem[T]
 
-	min db.DoublyLinkedList[T]
-	max db.DoublyLinkedList[T]
+	min db.LinkedList[T]
+	max db.LinkedList[T]
 
 	cfg *db.Config
 

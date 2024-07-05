@@ -15,9 +15,8 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func TestDev(t *testing.T) {
+func TestS3(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
-	createBuckets(t)
 
 	testCfgs := []*streedb.Config{
 		{
@@ -47,11 +46,13 @@ func TestDev(t *testing.T) {
 	}
 
 	for _, cfg := range testCfgs {
-		t.Run(fmt.Sprintf("TestDev__%s__%s___INSERT(NO COMPACT)", cfg.Filesystem, cfg.Format), func(t *testing.T) {
+		createBuckets(t)
+
+		t.Run(fmt.Sprintf("%s___INSERT(NO COMPACT)", cfg.Format), func(t *testing.T) {
 			launchTestWithConfig(t, cfg, true)
 		})
 
-		t.Run("NO_INSERT(COMPACT)", func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s___NO_INSERT(COMPACT)", cfg.Format), func(t *testing.T) {
 			t.Cleanup(func() {
 				deleteBuckets()
 				os.RemoveAll("/tmp/db")
@@ -198,7 +199,7 @@ func createBuckets(t *testing.T) {
 
 	log.Debug("Buckets:")
 	for _, bucket := range listResult.Buckets {
-		t.Fatalf("* %s found on %s\n", aws.ToString(bucket.Name), bucket.CreationDate)
+		t.Logf("* %s found on %s\n", aws.ToString(bucket.Name), bucket.CreationDate)
 	}
 }
 
@@ -225,11 +226,8 @@ func DeleteObjects(client *s3.Client, bucketName string) error {
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(context.TODO())
 		if err != nil {
-			log.Errorf("error getting paginator to list objects in S3: %v\n", err)
+			// log.Errorf("error getting paginator to list objects in S3: %v\n", err)
 			break
-		}
-		if page.KeyCount != nil {
-			log.WithField("items", *page.KeyCount).Debug("Iterating page")
 		}
 
 		for _, object := range page.Contents {
@@ -238,7 +236,7 @@ func DeleteObjects(client *s3.Client, bucketName string) error {
 				Key:    object.Key,
 			})
 			if err != nil {
-				log.Errorf("Couldn't delete object %v. Here's why: %v\n", *object.Key, err)
+				// log.Errorf("Couldn't delete object %v. Here's why: %v\n", *object.Key, err)
 				return err
 			}
 		}

@@ -15,15 +15,9 @@ func TestDLLMax(t *testing.T) {
 	dll.SetMax(Integer{N: 0})
 	dll.SetMax(Integer{N: 3})
 
-	fmt.Println("Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
-
 	// Remove a node and traverse again
 	fmt.Println("Removing second node 1")
 	dll.Remove(Integer{N: 1}) // Remove the second node
-
-	fmt.Println("After Removal Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
 
 	assert.Equal(t, int32(3), dll.head.value.N)
 	assert.Equal(t, int32(2), dll.head.next.value.N)
@@ -35,18 +29,12 @@ func TestDLLMax(t *testing.T) {
 	dll.SetMax(Integer{N: 1})
 	dll.SetMax(Integer{N: 3})
 
-	fmt.Println("Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
-
 	// Remove fist and last
 	fmt.Println("Removing first (0) and last (5)")
 	dll.Remove(Integer{N: 0})
 	dll.Remove(Integer{N: 5})
 
 	assert.Equal(t, int32(4), dll.head.value.N)
-
-	fmt.Println("Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
 }
 
 func traverse(dll *LinkedList[Integer]) {
@@ -63,13 +51,9 @@ func TestDLLMin(t *testing.T) {
 	dll.SetMin(Integer{N: 0})
 	dll.SetMin(Integer{N: 3})
 
-	traverse(dll)
-
 	// Remove a node and traverse again
 	fmt.Println("Removing second node 1")
 	dll.Remove(Integer{N: 1}) // Remove the second node
-
-	traverse(dll)
 
 	assert.Equal(t, int32(0), dll.head.value.N)
 	assert.Equal(t, int32(2), dll.head.next.value.N)
@@ -81,14 +65,10 @@ func TestDLLMin(t *testing.T) {
 	dll.SetMin(Integer{N: 1})
 	dll.SetMin(Integer{N: 3})
 
-	traverse(dll)
-
 	// Remove fist and last
 	fmt.Println("Removing first (0) and last (5)")
 	dll.Remove(Integer{N: 0})
 	dll.Remove(Integer{N: 5})
 
 	assert.Equal(t, int32(1), dll.head.value.N)
-
-	traverse(dll)
 }
