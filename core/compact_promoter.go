@@ -5,6 +5,7 @@ import db "github.com/sayden/streedb"
 func NewItemLimitPromoter[T db.Entry](maxItems, maxLevels int) db.LevelPromoter[T] {
 	return &ItemLimitPromoter[T]{
 		maxItems: maxItems,
+		maxLevel: maxLevels,
 	}
 }
 
