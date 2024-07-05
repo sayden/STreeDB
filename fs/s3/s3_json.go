@@ -117,10 +117,6 @@ func (f *s3JSONFs[T]) Remove(b db.Fileblock[T]) error {
 	return removeS3(f.client, f.cfg, b.Metadata())
 }
 
-func (f *s3JSONFs[T]) OpenAllMetaFiles() (db.Levels[T], error) {
-	return openAllMetadataFilesInS3(f.cfg, f.client, f, f.rootPath)
-}
-
 func (f *s3JSONFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
 	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, level)
 }

@@ -2,12 +2,6 @@ package fslocal
 
 import db "github.com/sayden/streedb"
 
-func InitMemoryFilesystem[T db.Entry](cfg *db.Config) (db.Filesystem[T], db.Levels[T], error) {
-	panic("not implemented")
-	// fs := NewMemoryFilesystem[T](cfg)
-	// return fs, db.NewSingleFsLevels(cfg, fs), nil
-}
-
 func NewMemoryFilesystem[T db.Entry](cfg *db.Config) db.Filesystem[T] {
 	return &MemFilesystem[T]{cfg: cfg}
 }

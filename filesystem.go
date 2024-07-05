@@ -29,7 +29,6 @@ type Filesystem[T Entry] interface {
 	Create(cfg *Config, entries Entries[T], metadata *MetaFile[T]) (Fileblock[T], error)
 	Load(Fileblock[T]) (Entries[T], error)
 	Open(p string) (*MetaFile[T], error)
-	OpenAllMetaFiles() (Levels[T], error)
 	OpenMetaFilesInLevel(level Level[T]) error
 	Remove(Fileblock[T]) error
 	UpdateMetadata(Fileblock[T]) error

@@ -136,45 +136,6 @@ func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Clien
 	return nil
 }
 
-func openAllMetadataFilesInS3[T db.Entry](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[T], rootPath string) (db.Levels[T], error) {
-	panic("not implemented")
-	// levels := fs.NewLevels(cfg, filesystem)
-
-	listInput := &s3.ListObjectsV2Input{
-		Bucket: aws.String(cfg.S3Config.Bucket),
-		Prefix: aws.String(rootPath + "/meta_"),
-	}
-
-	paginator := s3.NewListObjectsV2Paginator(client, listInput)
-
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.TODO())
-		if err != nil {
-			log.Errorf("error getting paginator to list objects in S3: %v\n", err)
-			break
-		}
-		if page.KeyCount != nil {
-			log.WithField("items", *page.KeyCount).Debug("Iterating page")
-		}
-
-		for _, object := range page.Contents {
-			meta, err := filesystem.Open(*object.Key)
-			if err != nil {
-				return nil, errors.Join(errors.New("error opening meta file"), err)
-			}
-
-			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
-
-			fileblock := db.NewFileblock(cfg, meta, filesystem)
-			_ = fileblock
-			// levels.AppendFile(fileblock)
-		}
-	}
-
-	// return levels, nil
-	return nil, nil
-}
-
 func updateMetadataS3[T db.Entry](cfg *db.Config, client *s3.Client, fs db.Filesystem[T], m *db.MetaFile[T]) error {
 	byt, err := json.Marshal(m)
 	if err != nil {

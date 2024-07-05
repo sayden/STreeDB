@@ -95,13 +95,6 @@ func (f *localJSONFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
 	return metaFilesInDir(f.cfg, f.rootPath, f, level)
 }
 
-func (f *localJSONFs[T]) OpenAllMetaFiles() (db.Levels[T], error) {
-	// filesystem := db.Filesystem[T](f)
-	// levels := db.NewLevels(f.cfg, filesystem)
-	// return levels, metaFilesInFolders(f.cfg, filesystem, f.rootPath, levels)
-	panic("not implemented")
-}
-
 func (f *localJSONFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
 	return meta.WithRootPath(f.rootPath).WithExtension(".jsondata")
 }
