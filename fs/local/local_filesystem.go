@@ -37,16 +37,14 @@ func initLocal[T db.Entry](c *db.Config, level int, fsBuilder localFilesystemBui
 	return fs, nil
 }
 
-func open[T db.Entry](p string) (meta *db.MetaFile[T], err error) {
-	var file *os.File
-	if file, err = os.Open(p); err != nil {
-		return
+func open[T db.Entry](p string) (*db.MetaFile[T], error) {
+	file, err := os.Open(p)
+	if err != nil {
+		return nil, err
 	}
 	defer file.Close()
 
-	meta = &db.MetaFile[T]{
-		MetaFilepath: p,
-	}
+	meta := &db.MetaFile[T]{MetaFilepath: p}
 
 	if err = json.NewDecoder(file).Decode(&meta); err != nil {
 		return nil, err
@@ -76,7 +74,9 @@ func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T
 		}
 
 		lb := db.NewFileblock(cfg, meta, f)
-		level.AppendFileblock(lb)
+		if err = level.AppendFileblock(lb); err != nil {
+			return err
+		}
 	}
 
 	return nil

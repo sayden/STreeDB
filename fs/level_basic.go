@@ -15,7 +15,10 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] 
 		min:        db.LinkedList[T]{},
 		max:        db.LinkedList[T]{},
 	}
-	fs.OpenMetaFilesInLevel(level)
+	err := fs.OpenMetaFilesInLevel(level)
+	if err != nil {
+		panic(err)
+	}
 
 	return level
 }
