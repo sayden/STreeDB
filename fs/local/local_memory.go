@@ -14,12 +14,12 @@ func (m *MemFilesystem[T]) Create(cfg *db.Config, entries db.Entries[T], meta *d
 	return NewMemFileblock(entries, meta, m), nil
 }
 func (m *MemFilesystem[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
-	return nil
+	return meta
 }
 
 func (m *MemFilesystem[T]) Open(p string) (*db.MetaFile[T], error) { return nil, nil }
 func (m *MemFilesystem[T]) Load(fb db.Fileblock[T]) (db.Entries[T], error) {
-	return nil, nil
+	return fb.(*MemFileblock[T]).Entries, nil
 }
 func (m *MemFilesystem[T]) Remove(meta db.Fileblock[T]) error         { return nil }
 func (m *MemFilesystem[T]) UpdateMetadata(meta db.Fileblock[T]) error { return nil }
@@ -38,8 +38,7 @@ type MemFileblock[T db.Entry] struct {
 	db.Filesystem[T]
 }
 
-func (m *MemFileblock[T]) Load() (db.Entries[T], error)      { return m.Entries, nil }
-func (m *MemFileblock[T]) Find(v db.Entry) bool              { return false }
-func (m *MemFileblock[T]) Close() error                      { return nil }
-func (m *MemFileblock[T]) SetFilesystem(fs db.Filesystem[T]) {}
-func (m *MemFileblock[T]) RootPath() string                  { return "" }
+func (m *MemFileblock[T]) Load() (db.Entries[T], error) { return m.Entries, nil }
+func (m *MemFileblock[T]) Find(v db.Entry) bool         { return false }
+func (m *MemFileblock[T]) Close() error                 { return nil }
+func (m *MemFileblock[T]) RootPath() string             { return "" }

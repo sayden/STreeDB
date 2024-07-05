@@ -23,6 +23,14 @@ func NewLeveledFilesystem[T db.Entry](cfg *db.Config) (map[int]db.Level[T], erro
 		var fs db.Filesystem[T]
 
 		switch db.FilesystemTypeReverseMap[level] {
+		case db.FILESYSTEM_TYPE_MEMORY:
+			switch db.ReverseFormatMap[cfg.Format] {
+			case db.FILE_FORMAT_JSON:
+				fs = local.NewMemoryFilesystem[T](cfg)
+				result[levelIdx] = NewBasicLevel(cfg, fs)
+			default:
+				return nil, db.ErrUnknownFortmaType
+			}
 		case db.FILESYSTEM_TYPE_LOCAL:
 			switch db.ReverseFormatMap[cfg.Format] {
 			case db.FILE_FORMAT_PARQUET:
@@ -91,7 +99,7 @@ func (b *MultiFsLevels[T]) AppendFileblock(a db.Fileblock[T]) error {
 }
 
 func (b *MultiFsLevels[T]) Create(es db.Entries[T], initialLevel int) error {
-	meta := db.NewMetadataBuilder[T]().WithEntries(es)
+	meta := db.NewMetadataBuilder[T]().WithEntries(es).WithLevel(initialLevel)
 
 	for _, promoter := range b.promoters {
 		if err := promoter.Promote(meta); err != nil {
