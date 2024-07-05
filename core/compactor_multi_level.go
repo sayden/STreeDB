@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math"
 
-	"github.com/emirpasic/gods/v2/sets/treeset"
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/fs"
 )
@@ -31,10 +30,6 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 	}
 
 	var (
-		blocksToRemove = treeset.New[string]()
-	)
-
-	var (
 		i       = 0
 		j       = 1
 		err     error
@@ -44,12 +39,9 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 	)
 
 	initialLen := len(fileblocks)
-	for i < initialLen {
+loopStart:
+	for i < len(fileblocks) {
 		a = fileblocks[i]
-		if blocksToRemove.Contains(a.UUID()) {
-			i++
-			continue
-		}
 		j = i + 1
 
 		for j < initialLen {
@@ -58,7 +50,7 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 			// don't try to merge level 5 with level 1 blocks to reduce write amplification
 			areNonAdjacentLevels := math.Abs(float64(a.Metadata().Level-b.Metadata().Level)) > 1
 
-			if blocksToRemove.Contains(b.UUID()) || areNonAdjacentLevels {
+			if areNonAdjacentLevels {
 				j++
 				continue
 			}
@@ -78,34 +70,22 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 					return errors.Join(errors.New("failed to create new fileblock"), err)
 				}
 
-				blocksToRemove.Add(a.UUID())
-				blocksToRemove.Add(b.UUID())
+				if err = mf.levels.RemoveFile(a); err != nil {
+					return errors.Join(errors.New("error deleting block during compaction"), err)
+				}
+				if err = mf.levels.RemoveFile(b); err != nil {
+					return errors.Join(errors.New("error deleting block during compaction"), err)
+				}
 
-				// current i,j pair have been merged, so we can skip the next i and trust
-				// blocksToRemove to skip j in a future iteration
-				break
+				fileblocks = append(fileblocks[:i], fileblocks[i+1:]...)
+				fileblocks = append(fileblocks[:j-1], fileblocks[j:]...)
+
+				break loopStart
 			}
 			j++
 		}
 		i++
 	}
 
-	// Remove flagged blocks
-	for i := 0; i < len(fileblocks); i++ {
-		block := fileblocks[i]
-
-		if blocksToRemove.Contains(block.UUID()) {
-			if err = mf.levels.RemoveFile(block); err != nil {
-				return errors.Join(errors.New("error deleting block during compaction"), err)
-			}
-			continue
-		}
-	}
-
 	return nil
-}
-
-func (mf *TieredMultiFsCompactor[T]) getFsFromLevel(level int) db.Filesystem[T] {
-	fs := mf.levels.GetLevel(level).(*fs.BasicLevel[T])
-	return fs.Filesystem
 }
