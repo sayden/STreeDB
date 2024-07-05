@@ -8,7 +8,7 @@ import (
 )
 
 func TestDLLMax(t *testing.T) {
-	dll := &DoublyLinkedList[Integer]{}
+	dll := &LinkedList[Integer]{}
 
 	dll.SetMax(Integer{N: 1})
 	dll.SetMax(Integer{N: 2})
@@ -49,14 +49,14 @@ func TestDLLMax(t *testing.T) {
 	dll.Each(func(i int, v Integer) { fmt.Println(v) })
 }
 
-func traverse(dll *DoublyLinkedList[Integer]) {
+func traverse(dll *LinkedList[Integer]) {
 	fmt.Println("Traverse Forward:")
 	dll.Each(func(i int, v Integer) { fmt.Printf("%v ", v) })
 	fmt.Println()
 }
 
 func TestDLLMin(t *testing.T) {
-	dll := &DoublyLinkedList[Integer]{}
+	dll := &LinkedList[Integer]{}
 
 	dll.SetMin(Integer{N: 1})
 	dll.SetMin(Integer{N: 2})

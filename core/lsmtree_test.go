@@ -17,7 +17,7 @@ import (
 
 func TestDev(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
-	createBuckets()
+	createBuckets(t)
 
 	testCfgs := []*streedb.Config{
 		{
@@ -168,14 +168,14 @@ func deleteBuckets() {
 	}
 }
 
-func createBuckets() {
+func createBuckets(t *testing.T) {
 	// Load the default AWS configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion("us-east-1"),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "")),
 	)
 	if err != nil {
-		log.Fatalf("Unable to load SDK config, %v", err)
+		t.Fatalf("Unable to load SDK config, %v", err)
 	}
 
 	// Create an S3 client with custom endpoint
@@ -193,12 +193,12 @@ func createBuckets() {
 	// Use the client to interact with S3ninja
 	listResult, err := client.ListBuckets(context.TODO(), &s3.ListBucketsInput{})
 	if err != nil {
-		log.Fatalf("Unable to list buckets, %v", err)
+		t.Fatalf("Unable to list buckets, %v", err)
 	}
 
 	log.Debug("Buckets:")
 	for _, bucket := range listResult.Buckets {
-		log.Debugf("* %s found on %s\n", aws.ToString(bucket.Name), bucket.CreationDate)
+		t.Fatalf("* %s found on %s\n", aws.ToString(bucket.Name), bucket.CreationDate)
 	}
 }
 
