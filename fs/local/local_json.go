@@ -44,6 +44,12 @@ func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 		return nil, errors.New("empty data")
 	}
 
+	removeFunc := func() {
+		log.WithFields(log.Fields{"meta_file": meta.MetaFilepath, "data_file": meta.DataFilepath}).Warn("error happened during creating of fileblock, removing files")
+		os.Remove(meta.DataFilepath)
+		os.Remove(meta.MetaFilepath)
+	}
+
 	dataFile, err := os.Create(meta.DataFilepath)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("error creating data file '%s' on local FS: ", meta.DataFilepath), err)
@@ -51,32 +57,24 @@ func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 	defer dataFile.Close()
 
 	if err = json.NewEncoder(dataFile).Encode(entries); err != nil {
-		log.WithFields(log.Fields{"meta_file": meta.MetaFilepath, "data_file": meta.DataFilepath}).Warn("error happened during creating of fileblock, removing files")
-		os.Remove(meta.DataFilepath)
-		os.Remove(meta.MetaFilepath)
+		removeFunc()
 		return nil, err
 	}
 	stat, err := dataFile.Stat()
 	if err != nil {
-		log.WithFields(log.Fields{"meta_file": meta.MetaFilepath, "data_file": meta.DataFilepath}).Warn("error happened during creating of fileblock, removing files")
-		os.Remove(meta.DataFilepath)
-		os.Remove(meta.MetaFilepath)
+		removeFunc()
 		return nil, err
 	}
 	meta.Size = stat.Size()
 
 	metaFile, err := os.Create(meta.MetaFilepath)
 	if err != nil {
-		log.WithFields(log.Fields{"meta_file": meta.MetaFilepath, "data_file": meta.DataFilepath}).Warn("error happened during creating of fileblock, removing files")
-		os.Remove(meta.DataFilepath)
-		os.Remove(meta.MetaFilepath)
+		removeFunc()
 		return nil, errors.Join(errors.New("error creating meta file: "), err)
 	}
 	defer metaFile.Close()
 	if err = json.NewEncoder(metaFile).Encode(meta); err != nil {
-		log.WithFields(log.Fields{"meta_file": meta.MetaFilepath, "data_file": meta.DataFilepath}).Warn("error happened during creating of fileblock, removing files")
-		os.Remove(meta.DataFilepath)
-		os.Remove(meta.MetaFilepath)
+		removeFunc()
 		return nil, err
 	}
 
