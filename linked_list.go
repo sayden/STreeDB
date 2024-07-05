@@ -1,8 +1,8 @@
 package streedb
 
-// DoublyLinkedList is a DLL with specific methods to order in ascending or descending order
+// LinkedList is a LL with specific methods to order in ascending or descending order
 // it allows also duplicate values
-type DoublyLinkedList[T Entry] struct {
+type LinkedList[T Entry] struct {
 	head *node[T]
 }
 
@@ -12,14 +12,14 @@ type node[T Entry] struct {
 	next  *node[T]
 }
 
-func (dll *DoublyLinkedList[T]) Head() (T, bool) {
+func (dll *LinkedList[T]) Head() (T, bool) {
 	if dll.head == nil {
 		return *(new(T)), false
 	}
 	return dll.head.value, true
 }
 
-func (dll *DoublyLinkedList[T]) Last() (T, bool) {
+func (dll *LinkedList[T]) Last() (T, bool) {
 	if dll.head == nil {
 		return *(new(T)), false
 	}
@@ -32,7 +32,7 @@ func (dll *DoublyLinkedList[T]) Last() (T, bool) {
 	return current.value, true
 }
 
-func (dll *DoublyLinkedList[T]) SetMax(value T) {
+func (dll *LinkedList[T]) SetMax(value T) {
 	newNode := &node[T]{value: value}
 
 	if dll.head == nil {
@@ -60,7 +60,7 @@ func (dll *DoublyLinkedList[T]) SetMax(value T) {
 	last.next = newNode
 }
 
-func (dll *DoublyLinkedList[T]) SetMin(value T) {
+func (dll *LinkedList[T]) SetMin(value T) {
 	newNode := &node[T]{value: value}
 
 	if dll.head == nil {
@@ -93,7 +93,7 @@ func (dll *DoublyLinkedList[T]) SetMin(value T) {
 }
 
 // Remove removes a node from the list
-func (dll *DoublyLinkedList[T]) Remove(value T) {
+func (dll *LinkedList[T]) Remove(value T) {
 	var last *node[T]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if value.Equals(current.value) {
@@ -118,7 +118,7 @@ func (dll *DoublyLinkedList[T]) Remove(value T) {
 }
 
 // TraverseForward traverses the list from head to tail
-func (dll *DoublyLinkedList[T]) Each(f func(int, T)) {
+func (dll *LinkedList[T]) Each(f func(int, T)) {
 	i := 0
 	for current := dll.head; current != nil; current, i = current.next, i+1 {
 		f(i, current.value)
