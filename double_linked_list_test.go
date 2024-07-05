@@ -49,6 +49,12 @@ func TestDLLMax(t *testing.T) {
 	dll.Each(func(i int, v Integer) { fmt.Println(v) })
 }
 
+func traverse(dll *DoublyLinkedList[Integer]) {
+	fmt.Println("Traverse Forward:")
+	dll.Each(func(i int, v Integer) { fmt.Printf("%v ", v) })
+	fmt.Println()
+}
+
 func TestDLLMin(t *testing.T) {
 	dll := &DoublyLinkedList[Integer]{}
 
@@ -57,15 +63,13 @@ func TestDLLMin(t *testing.T) {
 	dll.SetMin(Integer{N: 0})
 	dll.SetMin(Integer{N: 3})
 
-	fmt.Println("Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
+	traverse(dll)
 
 	// Remove a node and traverse again
 	fmt.Println("Removing second node 1")
 	dll.Remove(Integer{N: 1}) // Remove the second node
 
-	fmt.Println("After Removal Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
+	traverse(dll)
 
 	assert.Equal(t, int32(0), dll.head.value.N)
 	assert.Equal(t, int32(2), dll.head.next.value.N)
@@ -77,8 +81,7 @@ func TestDLLMin(t *testing.T) {
 	dll.SetMin(Integer{N: 1})
 	dll.SetMin(Integer{N: 3})
 
-	fmt.Println("Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
+	traverse(dll)
 
 	// Remove fist and last
 	fmt.Println("Removing first (0) and last (5)")
@@ -87,6 +90,5 @@ func TestDLLMin(t *testing.T) {
 
 	assert.Equal(t, int32(1), dll.head.value.N)
 
-	fmt.Println("Traverse Forward:")
-	dll.Each(func(i int, v Integer) { fmt.Println(v) })
+	traverse(dll)
 }

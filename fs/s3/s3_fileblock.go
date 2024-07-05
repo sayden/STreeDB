@@ -24,7 +24,7 @@ func (l *s3Fileblock[T]) Close() error {
 }
 
 func (l *s3Fileblock[T]) Find(v db.Entry) bool {
-	return !db.EntryFallsInsideMinMax(l.Min, l.Max, v)
+	return db.EntryFallsInsideMinMax(l.Min, l.Max, v)
 }
 
 func (l *s3Fileblock[T]) Load() (db.Entries[T], error) {

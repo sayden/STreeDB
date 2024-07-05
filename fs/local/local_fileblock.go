@@ -23,7 +23,7 @@ func (l *localFileblock[T]) Load() (db.Entries[T], error) {
 }
 
 func (l *localFileblock[T]) Find(v db.Entry) bool {
-	return db.EntryFallsInsideMinMax(l.Metadata().Min, l.Metadata().Max, v)
+	return db.EntryFallsInsideMinMax(l.Min, l.Max, v)
 }
 
 func (l *localFileblock[T]) Metadata() *db.MetaFile[T] {

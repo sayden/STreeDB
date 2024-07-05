@@ -104,6 +104,7 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 
 	pw, err := writer.NewParquetWriter(fw, new(T), 4)
 	if err != nil {
+		fw.Close()
 		return nil, err
 	}
 	for _, entry := range entries {
@@ -111,6 +112,7 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 	}
 
 	if err = pw.WriteStop(); err != nil {
+		fw.Close()
 		return nil, err
 	}
 	if err = fw.Close(); err != nil {

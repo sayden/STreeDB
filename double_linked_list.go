@@ -4,14 +4,11 @@ package streedb
 // it allows also duplicate values
 type DoublyLinkedList[T Entry] struct {
 	head *node[T]
-	last *node[T]
-	len  int
 }
 
 // node represents a node in the doubly linked list
 type node[T Entry] struct {
 	value T
-	prev  *node[T]
 	next  *node[T]
 }
 
@@ -31,110 +28,89 @@ func (dll *DoublyLinkedList[T]) Last() (T, bool) {
 	for current.next != nil {
 		current = current.next
 	}
+
 	return current.value, true
 }
 
-func (dll *DoublyLinkedList[T]) Len() int {
-	return dll.len
-}
-
 func (dll *DoublyLinkedList[T]) SetMax(value T) {
-	dll.len++
 	newNode := &node[T]{value: value}
 
 	if dll.head == nil {
 		dll.head = newNode
-		dll.last = newNode
 		return
 	}
 
 	var last *node[T]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if current.value.LessThan(value) {
-			if current.prev == nil {
+			// less than head value
+			if last == nil {
 				newNode.next = current
-				current.prev = newNode
 				dll.head = newNode
 				return
 			}
 
-			current.prev.next = newNode
-			current.prev = newNode
-			newNode.prev = current.prev
 			newNode.next = current
+			last.next = newNode
 
 			return
 		}
 	}
 
 	last.next = newNode
-	newNode.prev = last
-	dll.last = newNode
 }
 
 func (dll *DoublyLinkedList[T]) SetMin(value T) {
-	dll.len++
 	newNode := &node[T]{value: value}
 
 	if dll.head == nil {
 		dll.head = newNode
-		dll.last = newNode
 		return
 	}
 
 	var last *node[T]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if value.LessThan(current.value) {
-			if current.prev == nil {
+			// less than head value
+			if last == nil {
 				newNode.next = current
-				current.prev = newNode
 				dll.head = newNode
 				return
 			}
 
-			current.prev.next = newNode
-			current.prev = newNode
-			newNode.prev = current.prev
 			newNode.next = current
+			last.next = newNode
 
 			return
 		}
 	}
 
-	last.next = newNode
-	newNode.prev = last
-	dll.last = newNode
+	if last != nil {
+		last.next = newNode
+	} else {
+		dll.head = newNode
+	}
 }
 
 // Remove removes a node from the list
 func (dll *DoublyLinkedList[T]) Remove(value T) {
-	dll.len--
-
-	for current := dll.head; current != nil; current = current.next {
+	var last *node[T]
+	for current := dll.head; current != nil; current, last = current.next, current {
 		if value.Equals(current.value) {
-			// in-between
-			if current.prev != nil && current.next != nil {
-				current.prev.next = current.next
-				current.next.prev = current.prev
-				return
-			}
-
-			// head
-			if current.prev == nil && current.next != nil {
+			// remove the head
+			if last == nil {
 				dll.head = current.next
-				current.next.prev = nil
 				return
 			}
 
-			// last
-			if current.next == nil && current.prev != nil {
-				current.prev.next = nil
-				dll.last = current.prev
-			} else if current.next == nil && current.prev == nil {
-				dll.last = nil
-			} else {
-				panic("unreachable")
+			// remove the last node
+			if current.next == nil {
+				last.next = nil
+				return
 			}
+
+			// remove a node in the middle
+			last.next = current.next
 
 			return
 		}

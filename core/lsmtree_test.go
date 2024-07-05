@@ -18,25 +18,20 @@ import (
 func TestDev(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 	createBuckets()
-	defer deleteBuckets()
 
 	testCfgs := []*streedb.Config{
-
-		// {
-		// 	cfg: &streedb.Config{
-		// 		WalMaxItems:      5,
-		// 		Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
-		// 		Format:           streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
-		// 		MaxLevels:        5,
-		// 		DbPath:           "/tmp/db/s3/parquet",
-		// 		LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
-		// 		S3Config: streedb.S3Config{
-		// 			Bucket: "parquet",
-		// 			Region: "us-east-1",
-		// 		},
-		// 	},
-		// 	insertOrCompact: true,
-		// },
+		{
+			WalMaxItems:      5,
+			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
+			Format:           streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
+			MaxLevels:        5,
+			DbPath:           "/tmp/db/s3/parquet",
+			LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
+			S3Config: streedb.S3Config{
+				Bucket: "parquet",
+				Region: "us-east-1",
+			},
+		},
 		{
 			WalMaxItems:      5,
 			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
@@ -49,43 +44,58 @@ func TestDev(t *testing.T) {
 				Region: "us-east-1",
 			},
 		},
-		// {
-		// 	cfg: &streedb.Config{
-		// 		WalMaxItems: 5,
-		// 		Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-		// 		Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
-		// 		MaxLevels:   5,
-		// 		DbPath:      "/tmp/db/json",
-		// 	},
-		// 	insertOrCompact: true,
-		// },
-		// {
-		// 	cfg: &streedb.Config{
-		// 		WalMaxItems: 5,
-		// 		Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-		// 		Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
-		// 		MaxLevels:   5,
-		// 		DbPath:      "/tmp/db/parquet",
-		// 	},
-		// 	insertOrCompact: true,
-		// },
 	}
 
 	for _, cfg := range testCfgs {
 		t.Run(fmt.Sprintf("TestDev__%s__%s___INSERT(NO COMPACT)", cfg.Filesystem, cfg.Format), func(t *testing.T) {
 			launchTestWithConfig(t, cfg, true)
-			t.Run("NO_INSERT(COMPACT)", func(t *testing.T) {
-				launchTestWithConfig(t, cfg, false)
+		})
+
+		t.Run("NO_INSERT(COMPACT)", func(t *testing.T) {
+			t.Cleanup(func() {
+				deleteBuckets()
+				os.RemoveAll("/tmp/db")
 			})
+			launchTestWithConfig(t, cfg, false)
+		})
+	}
+}
+
+func TestDBLocal(t *testing.T) {
+	log.SetLevel(log.LevelInfo)
+
+	testCfgs := []*streedb.Config{
+		{
+			WalMaxItems: 5,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
+			MaxLevels:   5,
+			DbPath:      "/tmp/db/json",
+		},
+		{
+			WalMaxItems: 5,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
+			MaxLevels:   5,
+			DbPath:      "/tmp/db/parquet",
+		},
+	}
+
+	for _, cfg := range testCfgs {
+		t.Run(fmt.Sprintf("TestDev__%s__%s___INSERT(NO COMPACT)", cfg.Filesystem, cfg.Format), func(t *testing.T) {
+			launchTestWithConfig(t, cfg, true)
+		})
+
+		t.Run("NO_INSERT(COMPACT)", func(t *testing.T) {
+			t.Cleanup(func() {
+				os.RemoveAll("/tmp/db")
+			})
+			launchTestWithConfig(t, cfg, false)
 		})
 	}
 }
 
 func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact bool) {
-	if !insertOrCompact {
-		defer os.RemoveAll(cfg.DbPath)
-	}
-
 	lsmtree, err := NewLsmTree[streedb.Kv](cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +110,7 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		20, 21, 22, 23, 24,
 		25, 26, 16, 27, 28,
 		29, 44, 45, 36, 59,
-		60, 61, 62,
+		60, 61, 62, 63,
 	}
 
 	total := int32(len(keys))

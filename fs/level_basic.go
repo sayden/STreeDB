@@ -7,12 +7,6 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-// NewLevels is redundant atm because there is only one implementation of Levels, but facilitates
-// refactor
-func NewLevels[T db.Entry](c *db.Config, fs db.Filesystem[T]) db.Levels[T] {
-	return NewSingleFsLevels(c, fs)
-}
-
 func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T]) db.Level[T] {
 	level := &BasicLevel[T]{
 		cfg:        cfg,
@@ -113,15 +107,21 @@ func (b *BasicLevel[T]) Find(d T) (db.Entry, bool, error) {
 	}
 
 	// iterate through each block
-	for _, fileblock := range b.fileblocks {
-		if found := fileblock.Find(d); found {
-			entries, err := fileblock.Load()
-			if err != nil {
+	var (
+		entry     db.Entry
+		fileblock db.Fileblock[T]
+		entries   db.Entries[T]
+		err       error
+		found     bool
+	)
+
+	for _, fileblock = range b.fileblocks {
+		if found = fileblock.Find(d); found {
+			if entries, err = fileblock.Load(); err != nil {
 				return nil, false, errors.Join(fmt.Errorf("error finding value %v in block: ", d), err)
 			}
 
-			entry, found := entries.Find(d)
-			if found {
+			if entry, found = entries.Find(d); found {
 				return entry, found, nil
 			}
 		}
@@ -143,71 +143,11 @@ func (b *BasicLevel[T]) Fileblocks() []db.Fileblock[T] {
 }
 
 func (b *BasicLevel[T]) updateMinMax(in *db.MetaFile[T]) {
-	if minV, found := b.min.Head(); !found {
-		b.min.SetMin(in.Min)
-	} else if in.Min.LessThan(minV) {
-		b.min.SetMin(in.Min)
-	}
-
-	if maxV, found := b.max.Head(); !found {
-		b.max.SetMax(in.Max)
-	} else if maxV.LessThan(in.Max) {
-		b.max.SetMax(in.Max)
-	}
-
+	b.min.SetMin(in.Min)
+	b.max.SetMax(in.Max)
 }
 
 func (b *BasicLevel[T]) removeMinMax(meta *db.MetaFile[T]) {
 	b.min.Remove(meta.Min)
 	b.max.Remove(meta.Max)
-}
-
-// Deprecated: Only useful with single filesystems
-func NewSingleFsLevels[T db.Entry](c *db.Config, fs db.Filesystem[T]) db.Levels[T] {
-	l := &BasicLevels[T]{
-		levels: make(map[int]db.Level[T]),
-		fs:     fs,
-	}
-
-	for i := 0; i < c.MaxLevels+1; i++ {
-		l.levels[i] = NewBasicLevel(c, fs)
-	}
-
-	return l
-}
-
-// BasicLevels is a simple implementation of a list of Levels
-type BasicLevels[T db.Entry] struct {
-	levels map[int]db.Level[T]
-	fs     db.Filesystem[T]
-}
-
-func (b *BasicLevels[T]) Create(es db.Entries[T], initialLevel int) error {
-	panic("implement me")
-}
-
-func (b *BasicLevels[T]) GetLevel(i int) db.Level[T] {
-	return b.levels[i]
-}
-
-func (b *BasicLevels[T]) RemoveFile(a db.Fileblock[T]) error {
-	meta := a.Metadata()
-	level := meta.Level
-	return b.levels[level].RemoveFile(a)
-}
-
-func (b *BasicLevels[T]) Close() error {
-	for _, level := range b.levels {
-		if err := level.Close(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (b *BasicLevels[T]) AppendFileblock(a db.Fileblock[T]) error {
-	meta := a.Metadata()
-	level := meta.Level
-	return b.levels[level].AppendFileblock(a)
 }

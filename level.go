@@ -11,7 +11,6 @@ type Level[T Entry] interface {
 }
 
 type Levels[T Entry] interface {
-	AppendFileblock(b Fileblock[T]) error
 	Close() error
 	Create(es Entries[T], initialLevel int) error
 	GetLevel(i int) Level[T]

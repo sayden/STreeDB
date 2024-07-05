@@ -52,7 +52,7 @@ func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
 		}
 	}
 
-	promoter := NewItemLimitPromoter[T](7)
+	promoter := NewItemLimitPromoter[T](7, cfg.MaxLevels)
 	levels, err := fs.NewMultiFsLevels(cfg, promoter)
 	if err != nil {
 		panic(err)
@@ -156,10 +156,6 @@ func (l *LsmTree[T]) Close() (err error) {
 	}
 
 	return errors.Join(errs...)
-}
-
-func (l *LsmTree[T]) AppendFile(b db.Fileblock[T]) {
-	l.levels.AppendFileblock(b)
 }
 
 func (l *LsmTree[T]) RemoveFile(b db.Fileblock[T]) error {

@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"math"
 
 	"github.com/emirpasic/gods/v2/sets/treeset"
@@ -22,7 +21,6 @@ func NewTieredMultiFsCompactor[T db.Entry](cfg *db.Config, levels db.Levels[T]) 
 type TieredMultiFsCompactor[T db.Entry] struct {
 	cfg    *db.Config
 	levels *fs.MultiFsLevels[T]
-	blocks []db.Fileblock[T]
 }
 
 var ErrNoBlocksFound = errors.New("no blocks found")
@@ -85,16 +83,12 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 
 				// current i,j pair have been merged, so we can skip the next i and trust
 				// blocksToRemove to skip j in a future iteration
-				i++
-
 				break
 			}
 			j++
 		}
 		i++
 	}
-
-	fmt.Println("Total blocks to remove: ", blocksToRemove.Size())
 
 	// Remove flagged blocks
 	for i := 0; i < len(fileblocks); i++ {
