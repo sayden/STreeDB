@@ -75,7 +75,7 @@ func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T
 			return err
 		}
 
-		lb := NewLocalFileblock(cfg, meta, f)
+		lb := db.NewFileblock(cfg, meta, f)
 		level.AppendFileblock(lb)
 	}
 

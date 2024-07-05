@@ -80,7 +80,7 @@ func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 		return nil, err
 	}
 
-	return NewLocalFileblock(f.cfg, meta, f), nil
+	return db.NewFileblock(f.cfg, meta, f), nil
 }
 
 func (f *localJSONFs[T]) UpdateMetadata(b db.Fileblock[T]) error {

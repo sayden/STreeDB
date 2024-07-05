@@ -6,6 +6,41 @@ import (
 	"sort"
 )
 
+func NewFileblock[T Entry](cfg *Config, meta *MetaFile[T], filesystem Filesystem[T]) Fileblock[T] {
+	return &fileblock[T]{
+		MetaFile:   *meta,
+		cfg:        cfg,
+		filesystem: filesystem,
+	}
+}
+
+type fileblock[T Entry] struct {
+	MetaFile[T]
+
+	cfg        *Config
+	filesystem Filesystem[T]
+}
+
+func (l *fileblock[T]) Load() (Entries[T], error) {
+	return l.filesystem.Load(l)
+}
+
+func (l *fileblock[T]) Find(v Entry) bool {
+	return EntryFallsInsideMinMax(l.Min, l.Max, v)
+}
+
+func (l *fileblock[T]) Metadata() *MetaFile[T] {
+	return &l.MetaFile
+}
+
+func (l *fileblock[T]) Close() error {
+	return nil
+}
+
+func (l *fileblock[T]) UUID() string {
+	return l.Uuid
+}
+
 type Fileblock[T Entry] interface {
 	Close() error
 	Find(v Entry) bool

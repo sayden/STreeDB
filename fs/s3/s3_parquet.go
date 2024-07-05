@@ -147,7 +147,7 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 		return nil, errors.Join(errors.New("error putting obj to S3"), err)
 	}
 
-	return NewS3Fileblock(cfg, meta, f), nil
+	return db.NewFileblock(cfg, meta, f), nil
 }
 
 func (f *s3ParquetFs[T]) Remove(b db.Fileblock[T]) error {

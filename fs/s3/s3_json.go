@@ -110,7 +110,7 @@ func (f *s3JSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.Met
 
 	log.Debug("Created new JSON fileblock in S3")
 
-	return NewS3Fileblock(cfg, meta, f), nil
+	return db.NewFileblock(cfg, meta, f), nil
 }
 
 func (f *s3JSONFs[T]) Remove(b db.Fileblock[T]) error {

@@ -128,7 +128,7 @@ func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Clien
 
 			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
 
-			lb := NewS3Fileblock(cfg, meta, filesystem)
+			lb := db.NewFileblock(cfg, meta, filesystem)
 			level.AppendFileblock(lb)
 		}
 	}
@@ -165,7 +165,7 @@ func openAllMetadataFilesInS3[T db.Entry](cfg *db.Config, client *s3.Client, fil
 
 			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
 
-			fileblock := NewS3Fileblock(cfg, meta, filesystem)
+			fileblock := db.NewFileblock(cfg, meta, filesystem)
 			_ = fileblock
 			// levels.AppendFile(fileblock)
 		}
