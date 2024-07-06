@@ -1,6 +1,7 @@
 package streedb
 
 type Entry interface {
+	Cmp(a, b Entry) int
 	LessThan(Entry) bool
 	Equals(Entry) bool
 	Adjacent(Entry) bool
@@ -46,4 +47,16 @@ func (t Entries[T]) Max() Entry {
 
 func EntryFallsInsideMinMax(min, max, t Entry) bool {
 	return (min.LessThan(t) || min.Equals(t)) && (t.LessThan(max) || t.Equals(max))
+}
+
+func EntryCmp[T Entry](a, b T) int {
+	if a.Equals(b) {
+		return 0
+	}
+
+	if a.LessThan(b) {
+		return -1
+	}
+
+	return 1
 }

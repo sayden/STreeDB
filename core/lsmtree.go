@@ -53,7 +53,7 @@ func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
 	}
 
 	promoter := NewItemLimitPromoter[T](7, cfg.MaxLevels)
-	levels, err := fs.NewMultiFsLevels(cfg, promoter)
+	levels, err := fs.NewLeveledFilesystem(cfg, promoter)
 	if err != nil {
 		panic(err)
 	}
@@ -79,12 +79,12 @@ func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
 }
 
 type LsmTree[T db.Entry] struct {
-	compactor db.Compactor[T]
+	cfg *db.Config
 
-	walPool sync.Pool
-	wal     db.Wal[T]
-	levels  db.Levels[T]
-	cfg     *db.Config
+	compactor db.Compactor[T]
+	walPool   sync.Pool
+	wal       db.Wal[T]
+	levels    db.Levels[T]
 }
 
 func (l *LsmTree[T]) Append(d T) {
@@ -108,7 +108,7 @@ func (l *LsmTree[T]) WriteBlock() (err error) {
 
 	sort.Sort(entries)
 
-	if err = l.levels.Create(entries, 0); err != nil {
+	if err = l.levels.NewFileblock(entries, 0); err != nil {
 		return err
 	}
 
@@ -118,25 +118,21 @@ func (l *LsmTree[T]) WriteBlock() (err error) {
 	return
 }
 
-func (l *LsmTree[T]) Find(d T) (db.Entry, bool, error) {
-	log.WithField("key", d).Debugf("Looking for key in LSM tree")
+func (l *LsmTree[T]) RangeIterator(begin, end T) (db.EntryIterator[T], bool, error) {
+	return l.levels.RangeIterator(begin, end)
+}
 
+func (l *LsmTree[T]) ForwardIterator(d T) (db.EntryIterator[T], bool, error) {
+	return l.levels.ForwardIterator(d)
+}
+
+func (l *LsmTree[T]) Find(d T) (db.Entry, bool, error) {
 	// Look in the WAL
 	if v, found := l.wal.Find(d); found {
 		return v, true, nil
 	}
 
-	// Look in the meta, to open the files
-	for i := 0; i < l.cfg.MaxLevels; i++ {
-		level := l.levels.GetLevel(i)
-		if v, found, err := level.Find(d); found {
-			return v, true, nil
-		} else if err != nil {
-			return nil, false, err
-		}
-	}
-
-	return nil, false, nil
+	return l.levels.Find(d)
 }
 
 func (l *LsmTree[T]) Close() (err error) {
@@ -158,10 +154,6 @@ func (l *LsmTree[T]) Close() (err error) {
 	return errors.Join(errs...)
 }
 
-func (l *LsmTree[T]) RemoveFile(b db.Fileblock[T]) error {
-	return l.levels.RemoveFile(b)
-}
-
 func (l *LsmTree[T]) Compact() error {
 	return l.compactor.Compact(getBlocksFromLevels(l.cfg.MaxLevels, l.levels))
 }
@@ -169,7 +161,7 @@ func (l *LsmTree[T]) Compact() error {
 func getBlocksFromLevels[T db.Entry](maxLevels int, levels db.Levels[T]) []db.Fileblock[T] {
 	var blocks []db.Fileblock[T]
 	for i := 0; i < maxLevels; i++ {
-		level := levels.GetLevel(i)
+		level := levels.Level(i)
 		blocks = append(blocks, level.Fileblocks()...)
 	}
 

@@ -25,7 +25,7 @@ func TestInitJSONLocal(t *testing.T) {
 			meta, err := db.NewMetadataBuilder[db.Integer]().Build()
 			assert.NoError(t, err)
 			es := db.Entries[db.Integer]{}
-			fileblock, err := fs.Create(cfg, es, meta)
+			fileblock, err := fs.Create(cfg, es, meta, nil)
 			assert.Error(t, err)
 			assert.Nil(t, fileblock)
 		})
@@ -36,7 +36,7 @@ func TestInitJSONLocal(t *testing.T) {
 
 			meta, err := db.NewMetadataBuilder[db.Integer]().WithEntries(es).Build()
 			assert.NoError(t, err)
-			fileblock, err := fs.Create(cfg, es, meta)
+			fileblock, err := fs.Create(cfg, es, meta, nil)
 			assert.NoError(t, err)
 			assert.NotNil(t, fileblock)
 
@@ -73,7 +73,7 @@ func TestInitJSONLocal(t *testing.T) {
 			})
 
 			t.Run("remove the fileblock", func(t *testing.T) {
-				err := fs.Remove(fileblock)
+				err := fs.Remove(fileblock, nil)
 				assert.NoError(t, err)
 				_, err = os.Open(meta.MetaFilepath)
 				assert.Error(t, err)

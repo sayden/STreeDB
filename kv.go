@@ -64,3 +64,18 @@ func abs(n int) int {
 func (l Kv) String() string {
 	return fmt.Sprintf("'%s'", l.Key)
 }
+
+func (l Kv) Cmp(a, b Entry) int {
+	a_ := a.(Kv)
+	b_ := b.(Kv)
+
+	if a_.Equals(b) {
+		return 0
+	}
+
+	if a_.LessThan(b_) {
+		return -1
+	}
+
+	return 1
+}

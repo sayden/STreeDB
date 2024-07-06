@@ -29,10 +29,6 @@ type s3ParquetFs[T db.Entry] struct {
 	rootPath string
 }
 
-func (s *s3ParquetFs[T]) Open(p string) (*db.MetaFile[T], error) {
-	return openS3[T](s.client, s.cfg, p)
-}
-
 func (f *s3ParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	out, err := f.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(f.cfg.S3Config.Bucket),
@@ -87,10 +83,10 @@ func (f *s3ParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 }
 
 func (f *s3ParquetFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
-	return updateMetadataS3(f.cfg, f.client, f, b.Metadata())
+	return updateMetadataS3(f.cfg, f.client, b.Metadata())
 }
 
-func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
+func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -146,16 +142,20 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 		})
 		return nil, errors.Join(errors.New("error putting obj to S3"), err)
 	}
+	block := db.NewFileblock(cfg, meta, f)
+	for _, l := range ls {
+		l.OnNewFileblock(block)
+	}
 
-	return db.NewFileblock(cfg, meta, f), nil
+	return block, nil
 }
 
-func (f *s3ParquetFs[T]) Remove(b db.Fileblock[T]) error {
-	return removeS3(f.client, f.cfg, b.Metadata())
+func (f *s3ParquetFs[T]) Remove(b db.Fileblock[T], listeners []db.FileblockListener[T]) error {
+	return removeS3(f.client, f.cfg, b, listeners...)
 }
 
-func (f *s3ParquetFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
-	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, level)
+func (f *s3ParquetFs[T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[T]) error {
+	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, listeners...)
 }
 
 func (f *s3ParquetFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {

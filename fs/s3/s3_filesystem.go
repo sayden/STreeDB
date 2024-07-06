@@ -61,25 +61,31 @@ func initS3[T db.Entry](cfg *db.Config, level int, builder s3FilesystemBuilder[T
 	return s3fs, nil
 }
 
-func openS3[T db.Entry](client *s3.Client, cfg *db.Config, p string) (*db.MetaFile[T], error) {
+func openS3[T db.Entry](client *s3.Client, cfg *db.Config, p string, f db.Filesystem[T], listeners []db.FileblockListener[T]) (db.Fileblock[T], error) {
 	out, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Key:    aws.String(p),
 	})
 	if err != nil {
-		return nil, errors.Join(errors.New("Open error getting obj from S3"), err)
+		return nil, errors.Join(errors.New("open error getting obj from S3"), err)
 	}
 	defer out.Body.Close()
 
 	meta := &db.MetaFile[T]{}
 	if err = json.NewDecoder(out.Body).Decode(&meta); err != nil {
-		return nil, errors.Join(errors.New("Open error decoding metadata"), err)
+		return nil, errors.Join(errors.New("open error decoding metadata"), err)
+	}
+	block := db.NewFileblock(cfg, meta, f)
+
+	for _, listener := range listeners {
+		listener.OnNewFileblock(block)
 	}
 
-	return meta, nil
+	return db.NewFileblock(cfg, meta, f), nil
 }
 
-func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, m *db.MetaFile[T]) error {
+func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, fb db.Fileblock[T], listeners ...db.FileblockListener[T]) error {
+	m := fb.Metadata()
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
 
 	_, err := client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
@@ -99,10 +105,14 @@ func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, m *db.MetaFile[T]) 
 		log.WithError(err).Error("error deleting meta file")
 	}
 
+	for _, listener := range listeners {
+		listener.OnFileblockRemoved(fb)
+	}
+
 	return nil
 }
 
-func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[T], rootPath string, level db.Level[T]) error {
+func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[T], rootPath string, listeners ...db.FileblockListener[T]) error {
 	listInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Prefix: aws.String(rootPath + "/meta_"),
@@ -121,22 +131,16 @@ func openAllMetadataFilesInS3Folder[T db.Entry](cfg *db.Config, client *s3.Clien
 		}
 
 		for _, object := range page.Contents {
-			meta, err := level.Open(*object.Key)
-			if err != nil {
+			if _, err = openS3(client, cfg, *object.Key, filesystem, listeners); err != nil {
 				return err
 			}
-
-			log.WithFields(log.Fields{"items": meta.ItemCount, "min": meta.Min, "max": meta.Max}).Debugf("Opened meta file '%s'", *object.Key)
-
-			lb := db.NewFileblock(cfg, meta, filesystem)
-			level.AppendFileblock(lb)
 		}
 	}
 
 	return nil
 }
 
-func updateMetadataS3[T db.Entry](cfg *db.Config, client *s3.Client, fs db.Filesystem[T], m *db.MetaFile[T]) error {
+func updateMetadataS3[T db.Entry](cfg *db.Config, client *s3.Client, m *db.MetaFile[T]) error {
 	byt, err := json.Marshal(m)
 	if err != nil {
 		return errors.Join(errors.New("error encoding entries"), err)

@@ -49,4 +49,5 @@ require (
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	modernc.org/b v1.1.0 // indirect
 )

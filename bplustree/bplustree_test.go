@@ -4,15 +4,14 @@ import (
 	"io"
 	"testing"
 
-	db "github.com/sayden/streedb"
 	"github.com/stretchr/testify/assert"
 )
 
-func IntegerCmp(a, b db.Integer) int {
-	if a.N < b.N {
+func IntCmp(a, b int) int {
+	if a < b {
 		return -1
 	}
-	if a.N > b.N {
+	if a > b {
 		return 1
 	}
 
@@ -20,25 +19,21 @@ func IntegerCmp(a, b db.Integer) int {
 }
 
 func TestBPlusTree(t *testing.T) {
-	btree := NewTree[db.Entry, db.Entry](db.EntryCmp)
+	btree := NewTree[int, int](IntCmp)
 	defer btree.Close()
 
-	val1 := db.NewInteger(1)
-	val2 := db.NewInteger(2)
-	val3 := db.NewInteger(3)
-
-	btree.Set(val1, val1)
-	btree.Set(val2, val2)
-	btree.Set(val3, val3)
+	btree.Set(1, 1)
+	btree.Set(2, 2)
+	btree.Set(3, 3)
 
 	var (
-		iter       *Enumerator[db.Entry, db.Entry]
-		key, value db.Entry
+		iter       *Enumerator[int, int]
+		key, value int
 		err        error
 		found      bool
 	)
 
-	iter, found = btree.Seek(val2)
+	iter, found = btree.Seek(2)
 	assert.True(t, found)
 
 	for key, value, err = iter.Next(); err == nil; key, value, err = iter.Next() {
@@ -66,9 +61,9 @@ func TestBPlusTree(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	ok := btree.Delete(val2)
+	ok := btree.Delete(2)
 	assert.True(t, ok)
 
-	_, found = btree.Get(val2)
+	_, found = btree.Get(2)
 	assert.False(t, found)
 }

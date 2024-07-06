@@ -16,12 +16,7 @@ func InitJSONLocal[T db.Entry](cfg *db.Config, level int) (db.Filesystem[T], err
 
 type localJSONFs[T db.Entry] struct {
 	rootPath string
-
-	cfg *db.Config
-}
-
-func (f *localJSONFs[T]) Open(p string) (meta *db.MetaFile[T], err error) {
-	return open[T](p)
+	cfg      *db.Config
 }
 
 func (f *localJSONFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
@@ -39,7 +34,7 @@ func (f *localJSONFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	return entries, nil
 }
 
-func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
+func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -60,6 +55,7 @@ func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 		removeFunc()
 		return nil, err
 	}
+
 	stat, err := dataFile.Stat()
 	if err != nil {
 		removeFunc()
@@ -73,24 +69,30 @@ func (f *localJSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 		return nil, errors.Join(errors.New("error creating meta file: "), err)
 	}
 	defer metaFile.Close()
+
 	if err = json.NewEncoder(metaFile).Encode(meta); err != nil {
 		removeFunc()
 		return nil, err
 	}
 
-	return db.NewFileblock(f.cfg, meta, f), nil
+	block := db.NewFileblock(cfg, meta, f)
+	for _, l := range ls {
+		l.OnNewFileblock(block)
+	}
+
+	return block, nil
 }
 
 func (f *localJSONFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
 	return updateMetadata(b.Metadata())
 }
 
-func (f *localJSONFs[T]) Remove(b db.Fileblock[T]) error {
-	return remove(b.Metadata())
+func (f *localJSONFs[T]) Remove(b db.Fileblock[T], ls []db.FileblockListener[T]) error {
+	return remove(b, ls...)
 }
 
-func (f *localJSONFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
-	return metaFilesInDir(f.cfg, f.rootPath, f, level)
+func (f *localJSONFs[T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[T]) error {
+	return metaFilesInDir(f.cfg, f.rootPath, f, listeners...)
 }
 
 func (f *localJSONFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {

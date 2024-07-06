@@ -5,21 +5,18 @@ import (
 	"math"
 
 	db "github.com/sayden/streedb"
-	"github.com/sayden/streedb/fs"
 )
 
 func NewTieredMultiFsCompactor[T db.Entry](cfg *db.Config, levels db.Levels[T]) (db.Compactor[T], error) {
-	levels_ := levels.(*fs.MultiFsLevels[T])
-
 	return &TieredMultiFsCompactor[T]{
 		cfg:    cfg,
-		levels: levels_,
+		levels: levels,
 	}, nil
 }
 
 type TieredMultiFsCompactor[T db.Entry] struct {
 	cfg    *db.Config
-	levels *fs.MultiFsLevels[T]
+	levels db.Levels[T]
 }
 
 var ErrNoBlocksFound = errors.New("no blocks found")
@@ -30,22 +27,29 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 	}
 
 	var (
-		i       = 0
-		j       = 1
-		err     error
-		a       db.Fileblock[T]
-		b       db.Fileblock[T]
-		entries db.Entries[T]
+		i            = 0
+		j            = 1
+		err          error
+		a            db.Fileblock[T]
+		b            db.Fileblock[T]
+		entries      db.Entries[T]
+		blocksToSkip = make(map[string]struct{})
 	)
 
-	initialLen := len(fileblocks)
-loopStart:
 	for i < len(fileblocks) {
 		a = fileblocks[i]
+		if _, ok := blocksToSkip[a.Metadata().UUID()]; ok {
+			i++
+			continue
+		}
 		j = i + 1
 
-		for j < initialLen {
+		for j < len(fileblocks) {
 			b = fileblocks[j]
+			if _, ok := blocksToSkip[b.Metadata().UUID()]; ok {
+				j++
+				continue
+			}
 
 			// don't try to merge level 5 with level 1 blocks to reduce write amplification
 			areNonAdjacentLevels := math.Abs(float64(a.Metadata().Level-b.Metadata().Level)) > 1
@@ -66,7 +70,7 @@ loopStart:
 				}
 
 				// Write the new block to its new storage directly
-				if err = mf.levels.Create(entries, higherLevel); err != nil {
+				if err = mf.levels.NewFileblock(entries, higherLevel); err != nil {
 					return errors.Join(errors.New("failed to create new fileblock"), err)
 				}
 
@@ -77,10 +81,10 @@ loopStart:
 					return errors.Join(errors.New("error deleting block during compaction"), err)
 				}
 
-				fileblocks = append(fileblocks[:i], fileblocks[i+1:]...)
-				fileblocks = append(fileblocks[:j-1], fileblocks[j:]...)
+				blocksToSkip[a.Metadata().UUID()] = struct{}{}
+				blocksToSkip[b.Metadata().UUID()] = struct{}{}
 
-				break loopStart
+				break
 			}
 			j++
 		}

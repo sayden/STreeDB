@@ -37,7 +37,7 @@ func initLocal[T db.Entry](c *db.Config, level int, fsBuilder localFilesystemBui
 	return fs, nil
 }
 
-func open[T db.Entry](p string) (*db.MetaFile[T], error) {
+func open[T db.Entry](cfg *db.Config, f db.Filesystem[T], p string, listeners ...db.FileblockListener[T]) (db.Fileblock[T], error) {
 	file, err := os.Open(p)
 	if err != nil {
 		return nil, err
@@ -50,10 +50,15 @@ func open[T db.Entry](p string) (*db.MetaFile[T], error) {
 		return nil, err
 	}
 
-	return meta, nil
+	block := db.NewFileblock(cfg, meta, f)
+	for _, listener := range listeners {
+		listener.OnNewFileblock(block)
+	}
+
+	return block, nil
 }
 
-func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T], level db.Level[T]) error {
+func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T], listeners ...db.FileblockListener[T]) error {
 	files, err := os.ReadDir(folder)
 	if err != nil {
 		return err
@@ -68,21 +73,19 @@ func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T
 			continue
 		}
 
-		meta, err := level.Open(path.Join(folder, file.Name()))
+		_, err = open(cfg, f, path.Join(folder, file.Name()), listeners...)
 		if err != nil {
 			return err
 		}
 
-		lb := db.NewFileblock(cfg, meta, f)
-		if err = level.AppendFileblock(lb); err != nil {
-			return err
-		}
 	}
 
 	return nil
 }
 
-func remove[T db.Entry](m *db.MetaFile[T]) error {
+func remove[T db.Entry](fb db.Fileblock[T], ls ...db.FileblockListener[T]) error {
+	m := fb.Metadata()
+
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
 	if err := os.Remove(m.DataFilepath); err != nil {
 		return err
@@ -91,6 +94,10 @@ func remove[T db.Entry](m *db.MetaFile[T]) error {
 	log.Debugf("Removing parquet block's meta in '%s'", m.MetaFilepath)
 	if err := os.Remove(m.MetaFilepath); err != nil {
 		return err
+	}
+
+	for _, listener := range ls {
+		listener.OnFileblockRemoved(fb)
 	}
 
 	return nil

@@ -6,6 +6,19 @@ import (
 	"sort"
 )
 
+type Fileblock[T Entry] interface {
+	Close() error
+	Find(v Entry) bool
+	Load() (Entries[T], error)
+	Metadata() *MetaFile[T]
+	UUID() string
+}
+
+type FileblockListener[T Entry] interface {
+	OnNewFileblock(Fileblock[T])
+	OnFileblockRemoved(Fileblock[T])
+}
+
 func NewFileblock[T Entry](cfg *Config, meta *MetaFile[T], filesystem Filesystem[T]) Fileblock[T] {
 	return &fileblock[T]{
 		MetaFile:   *meta,
@@ -39,14 +52,6 @@ func (l *fileblock[T]) Close() error {
 
 func (l *fileblock[T]) UUID() string {
 	return l.Uuid
-}
-
-type Fileblock[T Entry] interface {
-	Close() error
-	Find(v Entry) bool
-	Load() (Entries[T], error)
-	Metadata() *MetaFile[T]
-	UUID() string
 }
 
 func Merge[T Entry](a Fileblock[T], b Fileblock[T]) (Entries[T], error) {

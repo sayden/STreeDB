@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -15,8 +16,14 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
+func cleanAll() {
+	deleteBuckets()
+	os.RemoveAll("/tmp/db")
+}
+
 func TestS3(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
+	t.Cleanup(cleanAll)
 
 	testCfgs := []*streedb.Config{
 		{
@@ -48,15 +55,12 @@ func TestS3(t *testing.T) {
 	for _, cfg := range testCfgs {
 		createBuckets(t)
 
-		t.Run(fmt.Sprintf("%s___INSERT(NO COMPACT)", cfg.Format), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Insert:%s", cfg.Format), func(t *testing.T) {
 			launchTestWithConfig(t, cfg, true)
 		})
 
-		t.Run(fmt.Sprintf("%s___NO_INSERT(COMPACT)", cfg.Format), func(t *testing.T) {
-			t.Cleanup(func() {
-				deleteBuckets()
-				os.RemoveAll("/tmp/db")
-			})
+		t.Run(fmt.Sprintf("Compact:%s", cfg.Format), func(t *testing.T) {
+			t.Cleanup(cleanAll)
 			launchTestWithConfig(t, cfg, false)
 		})
 	}
@@ -64,6 +68,7 @@ func TestS3(t *testing.T) {
 
 func TestDBLocal(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
+	t.Cleanup(cleanAll)
 
 	testCfgs := []*streedb.Config{
 		{
@@ -83,15 +88,13 @@ func TestDBLocal(t *testing.T) {
 	}
 
 	for _, cfg := range testCfgs {
-		t.Run(fmt.Sprintf("TestDev__%s__%s___INSERT(NO COMPACT)", cfg.Filesystem, cfg.Format), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Insert:%s", cfg.Format), func(t *testing.T) {
 			launchTestWithConfig(t, cfg, true)
 		})
 
-		t.Run("NO_INSERT(COMPACT)", func(t *testing.T) {
-			t.Cleanup(func() {
-				os.RemoveAll("/tmp/db")
-			})
+		t.Run(fmt.Sprintf("Compaction:%s", cfg.Format), func(t *testing.T) {
 			launchTestWithConfig(t, cfg, false)
+			t.Cleanup(cleanAll)
 		})
 	}
 }
@@ -136,6 +139,42 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		t.Fatalf("value not found in '%s' using '%s'", cfg.Filesystem, cfg.Format)
 	}
 	assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val <= total)
+
+	t.Run("Iterators", func(t *testing.T) {
+		begin := streedb.NewKv("hello 27", 0)
+
+		t.Run("ForwardIterator", func(t *testing.T) {
+			iter, found, err := lsmtree.ForwardIterator(begin)
+			assert.NoError(t, err)
+			if !found {
+				t.Fatalf("(ForwardIterator) value '%s' not found in '%s' using '%s'", begin.Key, cfg.Filesystem, cfg.Format)
+			}
+
+			for val, found, err = iter.Next(); err == nil && found; val, found, err = iter.Next() {
+				t.Logf("val: %v", val)
+			}
+			if err != io.EOF {
+				t.Fatalf("error iterating over values: %v", err)
+			}
+		})
+
+		t.Run("RangeIterators", func(t *testing.T) {
+			end := streedb.NewKv("hello 39", 0)
+			iter, found, err := lsmtree.RangeIterator(begin, end)
+			assert.NoError(t, err)
+			if !found {
+				t.Fatalf("(RangeIterator) value '%s' not found in '%s' using '%s'", begin.Key, cfg.Filesystem, cfg.Format)
+			}
+
+			for val, found, err = iter.Next(); err == nil && found; val, found, err = iter.Next() {
+				t.Logf("val: %v", val)
+			}
+			if err != io.EOF {
+				t.Fatalf("error iterating over values: %v", err)
+			}
+		})
+	})
+
 }
 
 func deleteBuckets() {

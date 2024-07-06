@@ -23,10 +23,6 @@ type localParquetFs[T db.Entry] struct {
 	rootPath string
 }
 
-func (f *localParquetFs[T]) Open(p string) (meta *db.MetaFile[T], err error) {
-	return open[T](p)
-}
-
 func (f *localParquetFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
 	return updateMetadata(b.Metadata())
 }
@@ -51,12 +47,10 @@ func (f *localParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 		return nil, err
 	}
 
-	log.Debugf("Reading parquet file %s with %d rows", b.Metadata().DataFilepath, numRows)
-
 	return entries, nil
 }
 
-func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T]) (db.Fileblock[T], error) {
+func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -104,29 +98,20 @@ func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *
 		return nil, err
 	}
 
-	return db.NewFileblock(f.cfg, meta, f), nil
+	block := db.NewFileblock(f.cfg, meta, f)
+	for _, listener := range ls {
+		listener.OnNewFileblock(block)
+	}
+
+	return block, nil
 }
 
-func (f *localParquetFs[T]) Remove(b db.Fileblock[T]) error {
-	return remove(b.Metadata())
+func (f *localParquetFs[T]) Remove(b db.Fileblock[T], ls []db.FileblockListener[T]) error {
+	return remove(b, ls...)
 }
 
-func (f *localParquetFs[T]) OpenMetaFilesInLevel(level db.Level[T]) error {
-	return metaFilesInDir(f.cfg, f.rootPath, f, level)
-}
-
-func (f *localParquetFs[T]) OpenAllMetaFiles() (db.Levels[T], error) {
-	panic("not implemented")
-
-	// filesystem := db.Filesystem[T](f)
-	//
-	// levels := db.NewLevels(f.cfg, filesystem)
-	//
-	// return levels, metaFilesInFolders(f.cfg, filesystem, f.rootPath, levels)
-}
-
-func (f *localParquetFs[T]) RootPath() string {
-	return f.rootPath
+func (f *localParquetFs[T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[T]) error {
+	return metaFilesInDir(f.cfg, f.rootPath, f, listeners...)
 }
 
 func (f *localParquetFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
