@@ -4,13 +4,13 @@ type EntryIterator[T Entry] interface {
 	Next() (Entry, bool, error)
 }
 
-func NewForwardIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblock[T], k T) (EntryIterator[T], bool) {
+func NewForwardIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Fileblock[T], k T) (EntryIterator[T], bool) {
 	var (
 		entries Entries[T]
 		index   int
 		found   bool
-		node    *kvNode[T, Fileblock[T]]
-		err error
+		node    *kvDLLNode[T, Fileblock[T]]
+		err     error
 	)
 
 	for node, found = list.Head(); node != nil && found; node = node.next {
@@ -25,7 +25,6 @@ func NewForwardIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblo
 	if entries, err = node.value.Load(); err != nil {
 		return nil, false
 	}
-	
 
 	return &entryForwardIterator[T]{
 			searchEntry: k,
@@ -38,7 +37,7 @@ func NewForwardIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblo
 
 type entryForwardIterator[T Entry] struct {
 	searchEntry T
-	list        *kvNode[T, Fileblock[T]]
+	list        *kvDLLNode[T, Fileblock[T]]
 	entries     Entries[T]
 	index       int
 }
@@ -79,13 +78,13 @@ func (e *entryForwardIterator[T]) Next() (Entry, bool, error) {
 	return current, true, nil
 }
 
-func NewRangeIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblock[T], min, max T) (EntryIterator[T], bool) {
+func NewRangeIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Fileblock[T], min, max T) (EntryIterator[T], bool) {
 	var (
 		entries Entries[T]
 		index   int
 		found   bool
-		node    *kvNode[T, Fileblock[T]]
-		err error
+		node    *kvDLLNode[T, Fileblock[T]]
+		err     error
 	)
 
 	for node, found = list.Head(); node != nil && found; node = node.next {
@@ -114,7 +113,7 @@ func NewRangeIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblock
 type entryRangeIterator[T Entry] struct {
 	min          T
 	max          T
-	list         *kvNode[T, Fileblock[T]]
+	list         *kvDLLNode[T, Fileblock[T]]
 	entries      Entries[T]
 	currentBlock Fileblock[T]
 	index        int
