@@ -6,33 +6,29 @@ import (
 	"slices"
 )
 
-const (
-	maxKeys = 3 // Maximum number of keys in a node
-	minKeys = maxKeys / 2
-)
-
-type BPlusTree[C cmp.Ordered] struct {
-	root *Node[C]
+type BPlusTreeWithValues[C cmp.Ordered, E Entry] struct {
+	root *NodeWV[C, E]
 }
 
-type Node[C cmp.Ordered] struct {
+type NodeWV[C cmp.Ordered, E Entry] struct {
 	keys     []C
-	children []*Node[C]
+	children []*NodeWV[C, E]
 	isLeaf   bool
-	next     *Node[C] // For leaf nodes, points to the next leaf
+	next     *NodeWV[C, E] // For leaf nodes, points to the next leaf
+	value    E
 }
 
-func NewBPlusTree[C cmp.Ordered]() *BPlusTree[C] {
-	return &BPlusTree[C]{root: &Node[C]{isLeaf: true}}
+func NewBPlusTreeWithValues[C cmp.Ordered, E Entry]() *BPlusTreeWithValues[C, E] {
+	return &BPlusTreeWithValues[C, E]{root: &NodeWV[C, E]{isLeaf: true}}
 }
 
-func (t *BPlusTree[C]) Insert(key C) {
+func (t *BPlusTreeWithValues[C, E]) Insert(key C, value E) {
 	if t.root == nil {
-		t.root = &Node[C]{isLeaf: true}
+		t.root = &NodeWV[C, E]{isLeaf: true, value: value}
 	}
 
 	if len(t.root.keys) == maxKeys {
-		newRoot := &Node[C]{isLeaf: false}
+		newRoot := &NodeWV[C, E]{isLeaf: false}
 		newRoot.children = append(newRoot.children, t.root)
 		t.splitChild(newRoot, 0)
 		t.root = newRoot
@@ -41,7 +37,7 @@ func (t *BPlusTree[C]) Insert(key C) {
 	t.insertNonFull(t.root, key)
 }
 
-func (t *BPlusTree[C]) insertNonFull(n *Node[C], key C) {
+func (t *BPlusTreeWithValues[C, E]) insertNonFull(n *NodeWV[C, E], key C) {
 	if n.isLeaf {
 		i, _ := slices.BinarySearch(n.keys, key)
 		n.keys = append(n.keys, (*new(C)))
@@ -66,9 +62,9 @@ func (t *BPlusTree[C]) insertNonFull(n *Node[C], key C) {
 	}
 }
 
-func (t *BPlusTree[C]) splitChild(parent *Node[C], i int) {
+func (t *BPlusTreeWithValues[C, E]) splitChild(parent *NodeWV[C, E], i int) {
 	child := parent.children[i]
-	newChild := &Node[C]{isLeaf: child.isLeaf}
+	newChild := &NodeWV[C, E]{isLeaf: child.isLeaf}
 	parent.keys = append(parent.keys, (*new(C)))
 	copy(parent.keys[i+1:], parent.keys[i:])
 	parent.keys[i] = child.keys[maxKeys/2]
@@ -87,16 +83,16 @@ func (t *BPlusTree[C]) splitChild(parent *Node[C], i int) {
 	}
 }
 
-func (t *BPlusTree[C]) Search(key C) bool {
+func (t *BPlusTreeWithValues[C, E]) Search(key C) bool {
 	return t.searchNode(t.root, key)
 }
 
-func (t *BPlusTree[C]) SearchClosest(key C) (*Node[C], bool) {
+func (t *BPlusTreeWithValues[C, E]) SearchClosest(key C) (*NodeWV[C, E], bool) {
 	found, node := t.searchClosest(t.root, nil, key)
 	return node, found
 }
 
-func (t *BPlusTree[C]) Delete(key C) {
+func (t *BPlusTreeWithValues[C, E]) Delete(key C) {
 	if t.root == nil {
 		return
 	}
@@ -106,7 +102,7 @@ func (t *BPlusTree[C]) Delete(key C) {
 	}
 }
 
-func (t *BPlusTree[C]) delete(n *Node[C], key C) {
+func (t *BPlusTreeWithValues[C, E]) delete(n *NodeWV[C, E], key C) {
 	if n.isLeaf {
 		t.deleteFromLeaf(n, key)
 	} else {
@@ -114,7 +110,7 @@ func (t *BPlusTree[C]) delete(n *Node[C], key C) {
 	}
 }
 
-func (t *BPlusTree[C]) deleteFromLeaf(n *Node[C], key C) {
+func (t *BPlusTreeWithValues[C, E]) deleteFromLeaf(n *NodeWV[C, E], key C) {
 	i, _ := slices.BinarySearch(n.keys, key)
 
 	if i < len(n.keys) && n.keys[i] == key {
@@ -122,7 +118,7 @@ func (t *BPlusTree[C]) deleteFromLeaf(n *Node[C], key C) {
 	}
 }
 
-func (t *BPlusTree[C]) deleteFromInternal(n *Node[C], key C) {
+func (t *BPlusTreeWithValues[C, E]) deleteFromInternal(n *NodeWV[C, E], key C) {
 	i, _ := slices.BinarySearch(n.keys, key)
 
 	if i < len(n.keys) && n.keys[i] == key {
@@ -155,7 +151,7 @@ func (t *BPlusTree[C]) deleteFromInternal(n *Node[C], key C) {
 	}
 }
 
-func (t *BPlusTree[C]) getPredecessor(n *Node[C], index int) C {
+func (t *BPlusTreeWithValues[C, E]) getPredecessor(n *NodeWV[C, E], index int) C {
 	current := n.children[index]
 
 	for !current.isLeaf {
@@ -165,7 +161,7 @@ func (t *BPlusTree[C]) getPredecessor(n *Node[C], index int) C {
 	return current.keys[len(current.keys)-1]
 }
 
-func (t *BPlusTree[C]) getSuccessor(n *Node[C], index int) C {
+func (t *BPlusTreeWithValues[C, E]) getSuccessor(n *NodeWV[C, E], index int) C {
 	current := n.children[index+1]
 
 	for !current.isLeaf {
@@ -175,7 +171,7 @@ func (t *BPlusTree[C]) getSuccessor(n *Node[C], index int) C {
 	return current.keys[0]
 }
 
-func (t *BPlusTree[C]) fillChild(n *Node[C], index int) {
+func (t *BPlusTreeWithValues[C, E]) fillChild(n *NodeWV[C, E], index int) {
 	if index != 0 && len(n.children[index-1].keys) >= minKeys+1 {
 		t.borrowFromPrev(n, index)
 	} else if index != len(n.keys) && len(n.children[index+1].keys) >= minKeys+1 {
@@ -189,13 +185,13 @@ func (t *BPlusTree[C]) fillChild(n *Node[C], index int) {
 	}
 }
 
-func (t *BPlusTree[C]) borrowFromPrev(n *Node[C], index int) {
+func (t *BPlusTreeWithValues[C, E]) borrowFromPrev(n *NodeWV[C, E], index int) {
 	child := n.children[index]
 	sibling := n.children[index-1]
 
 	child.keys = append([]C{n.keys[index-1]}, child.keys...)
 	if !child.isLeaf {
-		child.children = append([]*Node[C]{sibling.children[len(sibling.children)-1]}, child.children...)
+		child.children = append([]*NodeWV[C, E]{sibling.children[len(sibling.children)-1]}, child.children...)
 	}
 
 	n.keys[index-1] = sibling.keys[len(sibling.keys)-1]
@@ -206,7 +202,7 @@ func (t *BPlusTree[C]) borrowFromPrev(n *Node[C], index int) {
 	}
 }
 
-func (t *BPlusTree[C]) borrowFromNext(n *Node[C], index int) {
+func (t *BPlusTreeWithValues[C, E]) borrowFromNext(n *NodeWV[C, E], index int) {
 	child := n.children[index]
 	sibling := n.children[index+1]
 
@@ -223,7 +219,7 @@ func (t *BPlusTree[C]) borrowFromNext(n *Node[C], index int) {
 	}
 }
 
-func (t *BPlusTree[C]) mergeChildren(n *Node[C], index int) {
+func (t *BPlusTreeWithValues[C, E]) mergeChildren(n *NodeWV[C, E], index int) {
 	child := n.children[index]
 	sibling := n.children[index+1]
 
@@ -239,7 +235,7 @@ func (t *BPlusTree[C]) mergeChildren(n *Node[C], index int) {
 	n.children = append(n.children[:index+1], n.children[index+2:]...)
 }
 
-func (t *BPlusTree[C]) searchClosest(n, prev *Node[C], key C) (bool, *Node[C]) {
+func (t *BPlusTreeWithValues[C, E]) searchClosest(n, prev *NodeWV[C, E], key C) (bool, *NodeWV[C, E]) {
 	if n == nil {
 		return false, prev
 	}
@@ -257,7 +253,7 @@ func (t *BPlusTree[C]) searchClosest(n, prev *Node[C], key C) (bool, *Node[C]) {
 	return t.searchClosest(n.children[i], n, key)
 }
 
-func (t *BPlusTree[C]) searchNode(n *Node[C], key C) bool {
+func (t *BPlusTreeWithValues[C, E]) searchNode(n *NodeWV[C, E], key C) bool {
 	if n == nil {
 		return false
 	}
@@ -272,11 +268,11 @@ func (t *BPlusTree[C]) searchNode(n *Node[C], key C) bool {
 	return t.searchNode(n.children[i], key)
 }
 
-func (t *BPlusTree[C]) Print() {
+func (t *BPlusTreeWithValues[C, E]) Print() {
 	t.printNode(t.root, 0)
 }
 
-func (t *BPlusTree[C]) printNode(n *Node[C], level int) {
+func (t *BPlusTreeWithValues[C, E]) printNode(n *NodeWV[C, E], level int) {
 	if n == nil {
 		return
 	}
@@ -286,12 +282,4 @@ func (t *BPlusTree[C]) printNode(n *Node[C], level int) {
 			t.printNode(child, level+1)
 		}
 	}
-}
-
-func getString(level int) string {
-	s := ""
-	for i := 0; i < level; i++ {
-		s += "  "
-	}
-	return s
 }

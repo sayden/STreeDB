@@ -94,7 +94,7 @@ func (dll *MapLL[T, V]) SetMin(key T, value V) {
 }
 
 // Remove removes a kvNode from the list
-func (dll *MapLL[T, V]) Remove(key V) {
+func (dll *MapLL[T, V]) Remove(key T) {
 	var last *kvNode[T, V]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if current.value.UUID() == key.UUID() {

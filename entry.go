@@ -1,7 +1,8 @@
 package streedb
 
 type Entry interface {
-	Cmp(a, b Entry) int
+	UUIdentifiable
+
 	LessThan(Entry) bool
 	Equals(Entry) bool
 	Adjacent(Entry) bool

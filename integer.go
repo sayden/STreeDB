@@ -1,6 +1,9 @@
 package streedb
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 func NewInteger(n int32) Integer {
 	return Integer{N: n}
@@ -49,5 +52,5 @@ func (i Integer) Cmp(a, b Entry) int {
 }
 
 func (i Integer) UUID() string {
-	return string(i.N)
+	return fmt.Sprintf("%02d", i.N)
 }

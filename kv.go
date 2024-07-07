@@ -79,3 +79,7 @@ func (l Kv) Cmp(a, b Entry) int {
 
 	return 1
 }
+
+func (l Kv) UUID() string {
+	return l.Key
+}

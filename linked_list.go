@@ -93,10 +93,10 @@ func (dll *LinkedList[T]) SetMin(value T) {
 }
 
 // Remove removes a node from the list
-func (dll *LinkedList[T]) Remove(value T) {
+func (dll *LinkedList[T]) Remove(key T) {
 	var last *node[T]
 	for current := dll.head; current != nil; current, last = current.next, current {
-		if value.Equals(current.value) {
+		if key.Equals(current.value) {
 			// remove the head
 			if last == nil {
 				dll.head = current.next
@@ -117,7 +117,7 @@ func (dll *LinkedList[T]) Remove(value T) {
 	}
 }
 
-// TraverseForward traverses the list from head to tail
+// Each traverses the list from head to tail
 func (dll *LinkedList[T]) Each(f func(int, T)) {
 	i := 0
 	for current := dll.head; current != nil; current, i = current.next, i+1 {
