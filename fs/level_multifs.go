@@ -13,7 +13,7 @@ func NewLeveledFilesystem[T db.Entry](cfg *db.Config, promoter ...db.LevelPromot
 		cfg:                cfg,
 		promoters:          promoter,
 		fileblockListeners: make([]db.FileblockListener[T], 0, 10),
-		list:               db.MapDLL[T, db.Fileblock[T]]{},
+		list:               db.MapDLL[T, *db.Fileblock[T]]{},
 	}
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
@@ -85,15 +85,15 @@ type MultiFsLevels[T db.Entry] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[T]
 	levels             map[int]db.Level[T]
-	list               db.MapDLL[T, db.Fileblock[T]]
+	list               db.MapDLL[T, *db.Fileblock[T]]
 	fileblockListeners []db.FileblockListener[T]
 }
 
-func (b *MultiFsLevels[T]) OnNewFileblock(block db.Fileblock[T]) {
+func (b *MultiFsLevels[T]) OnNewFileblock(block *db.Fileblock[T]) {
 	b.list.SetMin(block.Metadata().Min, block)
 }
 
-func (b *MultiFsLevels[T]) OnFileblockRemoved(block db.Fileblock[T]) {
+func (b *MultiFsLevels[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
 	b.list.Remove(block)
 }
 
@@ -114,17 +114,17 @@ func (b *MultiFsLevels[T]) NewFileblock(es db.Entries[T], initialLevel int) erro
 	return nil
 }
 
-func (b *MultiFsLevels[T]) RemoveFile(a db.Fileblock[T]) error {
+func (b *MultiFsLevels[T]) RemoveFile(a *db.Fileblock[T]) error {
 	meta := a.Metadata()
 	level := meta.Level
 	return b.levels[level].RemoveFile(a)
 }
 
-func (b *MultiFsLevels[T]) Open(p string) (db.Fileblock[T], error) {
+func (b *MultiFsLevels[T]) Open(p string) (*db.Fileblock[T], error) {
 	return nil, errors.New("unreachable")
 }
 
-func (b *MultiFsLevels[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (db.Fileblock[T], error) {
+func (b *MultiFsLevels[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (*db.Fileblock[T], error) {
 	return nil, errors.New("unreachable")
 }
 
@@ -142,7 +142,7 @@ func (b *MultiFsLevels[T]) Find(d T) (db.Entry, bool, error) {
 	return nil, false, nil
 }
 
-func (b *MultiFsLevels[T]) FindFileblock(d T) (db.Fileblock[T], bool, error) {
+func (b *MultiFsLevels[T]) FindFileblock(d T) (*db.Fileblock[T], bool, error) {
 	for i := 0; i < b.cfg.MaxLevels; i++ {
 		level := b.levels[i]
 		if v, found, err := level.FindFileblock(d); found {
@@ -156,47 +156,47 @@ func (b *MultiFsLevels[T]) FindFileblock(d T) (db.Fileblock[T], bool, error) {
 }
 
 func (b *MultiFsLevels[T]) RangeIterator(begin, end T) (db.EntryIterator[T], bool, error) {
-	var (
-		fileblock db.Fileblock[T]
-		found     bool
-		err       error
-	)
+	// var (
+	// fileblock *db.Fileblock[T]
+	// found bool
+	// err       error
+	// )
 
-	for i := 0; i < b.cfg.MaxLevels; i++ {
-		level := b.levels[i]
-		if fileblock, found, err = level.FindFileblock(begin); found {
-			break
-		} else if err != nil {
-			return nil, false, err
-		}
-	}
+	// for i := 0; i < b.cfg.MaxLevels; i++ {
+	// 	level := b.levels[i]
+	// 	if fileblock, found, err = level.FindFileblock(begin); found {
+	// 		break
+	// 	} else if err != nil {
+	// 		return nil, false, err
+	// 	}
+	// }
 
-	iter, found := db.NewRangeIterator(&b.list, fileblock, begin, end)
+	iter, found := db.NewRangeIterator(&b.list, begin, end)
 	return iter, found, nil
 }
 
 func (b *MultiFsLevels[T]) ForwardIterator(d T) (db.EntryIterator[T], bool, error) {
-	var (
-		fileblock db.Fileblock[T]
-		found     bool
-		err       error
-	)
+	// var (
+	// 	fileblock *db.Fileblock[T]
+	// 	found     bool
+	// 	err       error
+	// )
+	//
+	// for i := 0; i < b.cfg.MaxLevels; i++ {
+	// 	level := b.levels[i]
+	// 	if fileblock, found, err = level.FindFileblock(d); found {
+	// 		break
+	// 	} else if err != nil {
+	// 		return nil, false, err
+	// 	}
+	// }
 
-	for i := 0; i < b.cfg.MaxLevels; i++ {
-		level := b.levels[i]
-		if fileblock, found, err = level.FindFileblock(d); found {
-			break
-		} else if err != nil {
-			return nil, false, err
-		}
-	}
-
-	iter, found := db.NewForwardIterator(&b.list, fileblock, d)
+	iter, found := db.NewForwardIterator(&b.list, d)
 	return iter, found, nil
 }
 
-func (b *MultiFsLevels[T]) Fileblocks() []db.Fileblock[T] {
-	var blocks []db.Fileblock[T]
+func (b *MultiFsLevels[T]) Fileblocks() []*db.Fileblock[T] {
+	var blocks []*db.Fileblock[T]
 	for i := 0; i < b.cfg.MaxLevels; i++ {
 		level := b.levels[i]
 		blocks = append(blocks, level.Fileblocks()...)

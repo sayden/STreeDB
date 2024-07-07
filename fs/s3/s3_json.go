@@ -24,7 +24,7 @@ type s3JSONFs[T db.Entry] struct {
 	rootPath string
 }
 
-func (f *s3JSONFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
+func (f *s3JSONFs[T]) Load(b *db.Fileblock[T]) (db.Entries[T], error) {
 	m := b.Metadata()
 	log.WithField("data_filepath", m.DataFilepath).Debug("Loading data from S3")
 
@@ -46,11 +46,11 @@ func (f *s3JSONFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	return entries, nil
 }
 
-func (f *s3JSONFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
+func (f *s3JSONFs[T]) UpdateMetadata(b *db.Fileblock[T]) error {
 	return updateMetadataS3(f.cfg, f.client, b.Metadata())
 }
 
-func (f *s3JSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (db.Fileblock[T], error) {
+func (f *s3JSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (*db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -113,7 +113,7 @@ func (f *s3JSONFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.Met
 	return block, nil
 }
 
-func (f *s3JSONFs[T]) Remove(b db.Fileblock[T], listeners []db.FileblockListener[T]) error {
+func (f *s3JSONFs[T]) Remove(b *db.Fileblock[T], listeners []db.FileblockListener[T]) error {
 	return removeS3(f.client, f.cfg, b, listeners...)
 }
 

@@ -37,7 +37,7 @@ func initLocal[T db.Entry](c *db.Config, level int, fsBuilder localFilesystemBui
 	return fs, nil
 }
 
-func open[T db.Entry](cfg *db.Config, f db.Filesystem[T], p string, listeners ...db.FileblockListener[T]) (db.Fileblock[T], error) {
+func open[T db.Entry](cfg *db.Config, f db.Filesystem[T], p string, listeners ...db.FileblockListener[T]) (*db.Fileblock[T], error) {
 	file, err := os.Open(p)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func metaFilesInDir[T db.Entry](cfg *db.Config, folder string, f db.Filesystem[T
 	return nil
 }
 
-func remove[T db.Entry](fb db.Fileblock[T], ls ...db.FileblockListener[T]) error {
+func remove[T db.Entry](fb *db.Fileblock[T], ls ...db.FileblockListener[T]) error {
 	m := fb.Metadata()
 
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)

@@ -4,11 +4,11 @@ type Level[T Entry] interface {
 	FileblockListener[T]
 
 	Close() error
-	Create(es Entries[T], meta *MetadataBuilder[T]) (Fileblock[T], error)
-	Fileblocks() []Fileblock[T]
+	Create(es Entries[T], meta *MetadataBuilder[T]) (*Fileblock[T], error)
+	Fileblocks() []*Fileblock[T]
 	Find(d T) (Entry, bool, error)
-	FindFileblock(d T) (Fileblock[T], bool, error)
-	RemoveFile(b Fileblock[T]) error
+	FindFileblock(d T) (*Fileblock[T], bool, error)
+	RemoveFile(b *Fileblock[T]) error
 }
 
 type Levels[T Entry] interface {

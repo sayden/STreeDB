@@ -61,7 +61,7 @@ func initS3[T db.Entry](cfg *db.Config, level int, builder s3FilesystemBuilder[T
 	return s3fs, nil
 }
 
-func openS3[T db.Entry](client *s3.Client, cfg *db.Config, p string, f db.Filesystem[T], listeners []db.FileblockListener[T]) (db.Fileblock[T], error) {
+func openS3[T db.Entry](client *s3.Client, cfg *db.Config, p string, f db.Filesystem[T], listeners []db.FileblockListener[T]) (*db.Fileblock[T], error) {
 	out, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Key:    aws.String(p),
@@ -84,7 +84,7 @@ func openS3[T db.Entry](client *s3.Client, cfg *db.Config, p string, f db.Filesy
 	return db.NewFileblock(cfg, meta, f), nil
 }
 
-func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, fb db.Fileblock[T], listeners ...db.FileblockListener[T]) error {
+func removeS3[T db.Entry](client *s3.Client, cfg *db.Config, fb *db.Fileblock[T], listeners ...db.FileblockListener[T]) error {
 	m := fb.Metadata()
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
 

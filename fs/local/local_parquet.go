@@ -23,12 +23,12 @@ type localParquetFs[T db.Entry] struct {
 	rootPath string
 }
 
-func (f *localParquetFs[T]) UpdateMetadata(b db.Fileblock[T]) error {
+func (f *localParquetFs[T]) UpdateMetadata(b *db.Fileblock[T]) error {
 	return updateMetadata(b.Metadata())
 }
 
 // Load the parquet file using the data stored in the metadata file
-func (f *localParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
+func (f *localParquetFs[T]) Load(b *db.Fileblock[T]) (db.Entries[T], error) {
 	pf, err := local.NewLocalFileReader(b.Metadata().DataFilepath)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (f *localParquetFs[T]) Load(b db.Fileblock[T]) (db.Entries[T], error) {
 	return entries, nil
 }
 
-func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (db.Fileblock[T], error) {
+func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (*db.Fileblock[T], error) {
 	if entries.Len() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -106,7 +106,7 @@ func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *
 	return block, nil
 }
 
-func (f *localParquetFs[T]) Remove(b db.Fileblock[T], ls []db.FileblockListener[T]) error {
+func (f *localParquetFs[T]) Remove(b *db.Fileblock[T], ls []db.FileblockListener[T]) error {
 	return remove(b, ls...)
 }
 

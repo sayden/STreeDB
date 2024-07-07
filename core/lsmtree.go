@@ -158,8 +158,8 @@ func (l *LsmTree[T]) Compact() error {
 	return l.compactor.Compact(getBlocksFromLevels(l.cfg.MaxLevels, l.levels))
 }
 
-func getBlocksFromLevels[T db.Entry](maxLevels int, levels db.Levels[T]) []db.Fileblock[T] {
-	var blocks []db.Fileblock[T]
+func getBlocksFromLevels[T db.Entry](maxLevels int, levels db.Levels[T]) []*db.Fileblock[T] {
+	var blocks []*db.Fileblock[T]
 	for i := 0; i < maxLevels; i++ {
 		level := levels.Level(i)
 		blocks = append(blocks, level.Fileblocks()...)

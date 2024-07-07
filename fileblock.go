@@ -10,56 +10,47 @@ type UUIdentifiable interface {
 	UUID() string
 }
 
-type Fileblock[T Entry] interface {
-	UUIdentifiable
-
-	Close() error
-	Find(v Entry) bool
-	Load() (Entries[T], error)
-	Metadata() *MetaFile[T]
-}
-
 type FileblockListener[T Entry] interface {
-	OnNewFileblock(Fileblock[T])
-	OnFileblockRemoved(Fileblock[T])
+	OnNewFileblock(*Fileblock[T])
+	OnFileblockRemoved(*Fileblock[T])
 }
 
-func NewFileblock[T Entry](cfg *Config, meta *MetaFile[T], filesystem Filesystem[T]) Fileblock[T] {
-	return &fileblock[T]{
+func NewFileblock[T Entry](cfg *Config, meta *MetaFile[T], filesystem Filesystem[T]) *Fileblock[T] {
+	return &Fileblock[T]{
 		MetaFile:   *meta,
 		cfg:        cfg,
 		filesystem: filesystem,
 	}
 }
 
-type fileblock[T Entry] struct {
+type Fileblock[T Entry] struct {
 	MetaFile[T]
 
 	cfg        *Config
 	filesystem Filesystem[T]
 }
 
-func (l *fileblock[T]) Load() (Entries[T], error) {
+func (l *Fileblock[T]) Load() (Entries[T], error) {
 	return l.filesystem.Load(l)
 }
 
-func (l *fileblock[T]) Find(v Entry) bool {
+func (l *Fileblock[T]) Find(v Entry) bool {
 	return EntryFallsInsideMinMax(l.Min, l.Max, v)
 }
 
-func (l *fileblock[T]) Metadata() *MetaFile[T] {
+func (l *Fileblock[T]) Metadata() *MetaFile[T] {
 	return &l.MetaFile
 }
 
-func (l *fileblock[T]) Close() error {
+func (l *Fileblock[T]) Close() error {
 	return nil
 }
 
-func (l *fileblock[T]) UUID() string {
+func (l *Fileblock[T]) UUID() string {
 	return l.Uuid
 }
 
-func Merge[T Entry](a Fileblock[T], b Fileblock[T]) (Entries[T], error) {
+func Merge[T Entry](a, b *Fileblock[T]) (Entries[T], error) {
 	entries, err := a.Load()
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)

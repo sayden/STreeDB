@@ -11,7 +11,7 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T], levels db.Le
 	level := &BasicLevel[T]{
 		cfg:                cfg,
 		filesystem:         fs,
-		fileblocks:         make([]db.Fileblock[T], 0, 10),
+		fileblocks:         make([]*db.Fileblock[T], 0, 10),
 		min:                db.LinkedList[T]{},
 		max:                db.LinkedList[T]{},
 		fileblockListeners: []db.FileblockListener[T]{levels},
@@ -37,10 +37,10 @@ type BasicLevel[T db.Entry] struct {
 	fileblockListeners []db.FileblockListener[T]
 
 	// TODO: Use a Btree instead of a slice
-	fileblocks []db.Fileblock[T]
+	fileblocks []*db.Fileblock[T]
 }
 
-func (b *BasicLevel[T]) OnFileblockRemoved(block db.Fileblock[T]) {
+func (b *BasicLevel[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
 	idx := 0
 
 	meta := block.Metadata()
@@ -58,14 +58,14 @@ func (b *BasicLevel[T]) OnFileblockRemoved(block db.Fileblock[T]) {
 	b.fileblocks = append(b.fileblocks[:idx], b.fileblocks[idx+1:]...)
 }
 
-func (b *BasicLevel[T]) OnNewFileblock(f db.Fileblock[T]) {
+func (b *BasicLevel[T]) OnNewFileblock(f *db.Fileblock[T]) {
 	meta := f.Metadata()
 	b.updateMinMax(meta)
 
 	b.fileblocks = append(b.fileblocks, f)
 }
 
-func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (db.Fileblock[T], error) {
+func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (*db.Fileblock[T], error) {
 	// Add filesystem related information to the metadata
 	metadata, err := b.filesystem.FillMetadataBuilder(meta).Build()
 	if err != nil {
@@ -80,11 +80,11 @@ func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (d
 	return fileblock, nil
 }
 
-func (b *BasicLevel[T]) RemoveFile(f db.Fileblock[T]) error {
+func (b *BasicLevel[T]) RemoveFile(f *db.Fileblock[T]) error {
 	return b.filesystem.Remove(f, b.fileblockListeners)
 }
 
-func (b *BasicLevel[T]) FindFileblock(d T) (db.Fileblock[T], bool, error) {
+func (b *BasicLevel[T]) FindFileblock(d T) (*db.Fileblock[T], bool, error) {
 	if !b.entryFallsInside(d) {
 		return nil, false, nil
 	}
@@ -106,7 +106,7 @@ func (b *BasicLevel[T]) Find(d T) (db.Entry, bool, error) {
 	// iterate through each block
 	var (
 		entry     db.Entry
-		fileblock db.Fileblock[T]
+		fileblock *db.Fileblock[T]
 		entries   db.Entries[T]
 		err       error
 		found     bool
@@ -135,7 +135,7 @@ func (b *BasicLevel[T]) Close() error {
 	return nil
 }
 
-func (b *BasicLevel[T]) Fileblocks() []db.Fileblock[T] {
+func (b *BasicLevel[T]) Fileblocks() []*db.Fileblock[T] {
 	return b.fileblocks
 }
 

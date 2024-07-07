@@ -21,7 +21,7 @@ type TieredMultiFsCompactor[T db.Entry] struct {
 
 var ErrNoBlocksFound = errors.New("no blocks found")
 
-func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error {
+func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) error {
 	if len(fileblocks) < 1 {
 		return ErrNoBlocksFound
 	}
@@ -30,8 +30,8 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []db.Fileblock[T]) error
 		i            = 0
 		j            = 1
 		err          error
-		a            db.Fileblock[T]
-		b            db.Fileblock[T]
+		a            *db.Fileblock[T]
+		b            *db.Fileblock[T]
 		entries      db.Entries[T]
 		blocksToSkip = make(map[string]struct{})
 	)

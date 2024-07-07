@@ -36,7 +36,7 @@ const (
 )
 
 type Compactor[T Entry] interface {
-	Compact(block []Fileblock[T]) error
+	Compact(block []*Fileblock[T]) error
 }
 
 type LevelPromoter[T Entry] interface {

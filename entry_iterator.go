@@ -4,12 +4,12 @@ type EntryIterator[T Entry] interface {
 	Next() (Entry, bool, error)
 }
 
-func NewForwardIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Fileblock[T], k T) (EntryIterator[T], bool) {
+func NewForwardIterator[T Entry](list *MapDLL[T, *Fileblock[T]], k T) (EntryIterator[T], bool) {
 	var (
 		entries Entries[T]
 		index   int
-		node    *kvDLLNode[T, Fileblock[T]]
-		last    *kvDLLNode[T, Fileblock[T]]
+		node    *kvDLLNode[T, *Fileblock[T]]
+		last    *kvDLLNode[T, *Fileblock[T]]
 		err     error
 		exit    bool
 		found   bool
@@ -43,7 +43,7 @@ func NewForwardIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Filebl
 
 type entryForwardIterator[T Entry] struct {
 	searchEntry T
-	list        *kvDLLNode[T, Fileblock[T]]
+	list        *kvDLLNode[T, *Fileblock[T]]
 	entries     Entries[T]
 	index       int
 }
@@ -84,15 +84,15 @@ func (e *entryForwardIterator[T]) Next() (Entry, bool, error) {
 	return current, true, nil
 }
 
-func NewRangeIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Fileblock[T], min, max T) (EntryIterator[T], bool) {
+func NewRangeIterator[T Entry](list *MapDLL[T, *Fileblock[T]], min, max T) (EntryIterator[T], bool) {
 	var (
 		entries Entries[T]
 		index   int
 		found   bool
-		node    *kvDLLNode[T, Fileblock[T]]
+		node    *kvDLLNode[T, *Fileblock[T]]
 		err     error
 		exit    bool
-		last    *kvDLLNode[T, Fileblock[T]]
+		last    *kvDLLNode[T, *Fileblock[T]]
 	)
 
 	for node, found = list.Tail(); node != nil && found; node, last = node.prev, node {
@@ -125,9 +125,9 @@ func NewRangeIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Filebloc
 type entryRangeIterator[T Entry] struct {
 	min          T
 	max          T
-	list         *kvDLLNode[T, Fileblock[T]]
+	list         *kvDLLNode[T, *Fileblock[T]]
 	entries      Entries[T]
-	currentBlock Fileblock[T]
+	currentBlock *Fileblock[T]
 	index        int
 	finished     bool
 }

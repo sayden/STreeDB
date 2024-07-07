@@ -1,6 +1,7 @@
 package core
 
 import (
+	"os"
 	"testing"
 
 	db "github.com/sayden/streedb"
@@ -8,13 +9,17 @@ import (
 )
 
 func TestCompactionMultiLevel(t *testing.T) {
+	t.Cleanup(func() {
+		os.RemoveAll("/tmp/db/compaction")
+	})
+
 	cfg := &db.Config{
 		WalMaxItems:      5,
 		Filesystem:       db.FilesystemTypeMap[db.FILESYSTEM_TYPE_MEMORY],
 		Format:           db.FormatMap[db.FILE_FORMAT_JSON],
 		MaxLevels:        2,
-		LevelFilesystems: []string{"memory", "memory"},
-		DbPath:           "/tmp/db/json",
+		LevelFilesystems: []string{"local", "local"},
+		DbPath:           "/tmp/db/compaction",
 	}
 
 	mlevel, err := NewLsmTree[db.Integer](cfg)

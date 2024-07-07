@@ -26,10 +26,10 @@ var FilesystemTypeReverseMap = map[string]FilesystemType{
 }
 
 type Filesystem[T Entry] interface {
-	Create(cfg *Config, entries Entries[T], metadata *MetaFile[T], listeners []FileblockListener[T]) (Fileblock[T], error)
+	Create(cfg *Config, entries Entries[T], metadata *MetaFile[T], listeners []FileblockListener[T]) (*Fileblock[T], error)
 	FillMetadataBuilder(meta *MetadataBuilder[T]) *MetadataBuilder[T]
-	Load(Fileblock[T]) (Entries[T], error)
+	Load(*Fileblock[T]) (Entries[T], error)
 	OpenMetaFilesInLevel([]FileblockListener[T]) error
-	Remove(Fileblock[T], []FileblockListener[T]) error
-	UpdateMetadata(Fileblock[T]) error
+	Remove(*Fileblock[T], []FileblockListener[T]) error
+	UpdateMetadata(*Fileblock[T]) error
 }
