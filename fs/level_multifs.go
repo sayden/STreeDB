@@ -15,6 +15,7 @@ func NewLeveledFilesystem[T db.Entry](cfg *db.Config, promoter ...db.LevelPromot
 		promoters:          promoter,
 		tree:               bplustree.NewTree[T, db.Fileblock[T]](db.EntryCmp),
 		fileblockListeners: make([]db.FileblockListener[T], 0, 10),
+		list:               db.MapLL[T, db.Fileblock[T]]{},
 	}
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
@@ -87,17 +88,16 @@ type MultiFsLevels[T db.Entry] struct {
 	promoters          []db.LevelPromoter[T]
 	levels             map[int]db.Level[T]
 	tree               *bplustree.Tree[T, db.Fileblock[T]]
+	list               db.MapLL[T, db.Fileblock[T]]
 	fileblockListeners []db.FileblockListener[T]
 }
 
 func (b *MultiFsLevels[T]) OnNewFileblock(block db.Fileblock[T]) {
-	b.tree.Set(block.Metadata().Min, block)
-	items := b.tree.Len()
-	_ = items
+	b.list.SetMin(block.Metadata().Min, block)
 }
 
 func (b *MultiFsLevels[T]) OnFileblockRemoved(block db.Fileblock[T]) {
-	b.tree.Delete(block.Metadata().Min)
+	b.list.Remove(block)
 }
 
 func (b *MultiFsLevels[T]) NewFileblock(es db.Entries[T], initialLevel int) error {
@@ -174,8 +174,8 @@ func (b *MultiFsLevels[T]) RangeIterator(begin, end T) (db.EntryIterator[T], boo
 		}
 	}
 
-	iter, found, err := db.NewRangeIterator(b.tree, fileblock, begin, end)
-	return iter, found, err
+	iter, found := db.NewRangeIterator(&b.list, fileblock, begin, end)
+	return iter, found, nil
 }
 
 func (b *MultiFsLevels[T]) ForwardIterator(d T) (db.EntryIterator[T], bool, error) {
@@ -194,7 +194,8 @@ func (b *MultiFsLevels[T]) ForwardIterator(d T) (db.EntryIterator[T], bool, erro
 		}
 	}
 
-	return db.NewForwardIterator(b.tree, fileblock, d)
+	iter, found := db.NewForwardIterator(&b.list, fileblock, d)
+	return iter, found, nil
 }
 
 func (b *MultiFsLevels[T]) Fileblocks() []db.Fileblock[T] {

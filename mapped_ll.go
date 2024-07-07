@@ -2,7 +2,7 @@ package streedb
 
 // MapLL is a LL with specific methods to order in ascending or descending order
 // it allows also duplicate values
-type MapLL[T Entry, V any] struct {
+type MapLL[T Entry, V UUIdentifiable] struct {
 	head *kvNode[T, V]
 }
 
@@ -13,11 +13,11 @@ type kvNode[T Entry, V any] struct {
 	next  *kvNode[T, V]
 }
 
-func (dll *MapLL[T, V]) Head() (V, bool) {
+func (dll *MapLL[T, V]) Head() (*kvNode[T, V], bool) {
 	if dll.head == nil {
-		return *(new(V)), false
+		return nil, false
 	}
-	return dll.head.value, true
+	return dll.head, true
 }
 
 func (dll *MapLL[T, V]) Last() (V, bool) {
@@ -94,10 +94,10 @@ func (dll *MapLL[T, V]) SetMin(key T, value V) {
 }
 
 // Remove removes a kvNode from the list
-func (dll *MapLL[T, V]) Remove(key T) {
+func (dll *MapLL[T, V]) Remove(key V) {
 	var last *kvNode[T, V]
 	for current := dll.head; current != nil; current, last = current.next, current {
-		if key.Equals(current.key) {
+		if current.value.UUID() == key.UUID() {
 			// remove the head
 			if last == nil {
 				dll.head = current.next

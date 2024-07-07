@@ -1,140 +1,120 @@
 package streedb
 
-import "github.com/sayden/streedb/bplustree"
-
 type EntryIterator[T Entry] interface {
 	Next() (Entry, bool, error)
 }
 
-func NewForwardIterator[T Entry](tree *bplustree.Tree[T, Fileblock[T]], fileblock Fileblock[T], k T) (EntryIterator[T], bool, error) {
-	iter, found := tree.Seek(fileblock.Metadata().Min)
-	if !found {
-		return nil, false, nil
-	}
-
+func NewForwardIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblock[T], k T) (EntryIterator[T], bool) {
 	var (
-		err          error
-		currentBlock Fileblock[T]
-		entries      Entries[T]
-		index        int
-		entry        Entry
+		entries Entries[T]
+		index   int
+		found   bool
+		node    *kvNode[T, Fileblock[T]]
+		err error
 	)
 
-searchLoop:
-	for {
-		if _, currentBlock, err = iter.Next(); err != nil {
-			return nil, false, err
+	for node, found = list.Head(); node != nil && found; node = node.next {
+		if EntryFallsInsideMinMax(node.value.Metadata().Min, node.value.Metadata().Max, k) {
+			break
 		}
-
-		if entries, err = currentBlock.Load(); err != nil {
-			return nil, false, err
-		}
-
-		for index, entry = range entries {
-			if entry.Equals(k) {
-				break searchLoop
-			}
-		}
-
-		index = 0
+	}
+	if !found || node == nil {
+		return nil, false
 	}
 
+	if entries, err = node.value.Load(); err != nil {
+		return nil, false
+	}
+	
+
 	return &entryForwardIterator[T]{
-			searchEntry:  k,
-			iter:         iter,
-			entries:      entries,
-			currentBlock: currentBlock,
-			index:        index,
+			searchEntry: k,
+			entries:     entries,
+			list:        node,
+			index:       index,
 		},
-		found, nil
+		true
 }
 
 type entryForwardIterator[T Entry] struct {
-	searchEntry  T
-	iter         *bplustree.Enumerator[T, Fileblock[T]]
-	entries      Entries[T]
-	currentBlock Fileblock[T]
-	index        int
+	searchEntry T
+	list        *kvNode[T, Fileblock[T]]
+	entries     Entries[T]
+	index       int
 }
 
 func (e *entryForwardIterator[T]) Next() (Entry, bool, error) {
 	var err error
 
-	if e.currentBlock == nil {
-		if _, e.currentBlock, err = e.iter.Next(); err != nil {
-			return nil, false, err
+	if e.entries == nil {
+		if e.list == nil {
+			return nil, false, nil
 		}
-		if e.entries, err = e.currentBlock.Load(); err != nil {
+
+		e.list = e.list.next
+		if e.list == nil {
+			return nil, false, nil
+		}
+
+		if e.entries, err = e.list.value.Load(); err != nil {
 			return nil, false, err
 		}
 	}
 
-	var val Entry
+	var current Entry
 	for {
 		if e.index >= len(e.entries) {
-			e.currentBlock = nil
+			e.entries = nil
 			e.index = 0
 			return e.Next()
 		}
 
-		val = e.entries[e.index]
+		current = e.entries[e.index]
 		e.index++
-		if e.searchEntry.LessThan(val) || e.searchEntry.Equals(val) {
+		if e.searchEntry.LessThan(current) || e.searchEntry.Equals(current) {
 			break
 		}
 	}
 
-	return val, true, nil
+	return current, true, nil
 }
 
-func NewRangeIterator[T Entry](tree *bplustree.Tree[T, Fileblock[T]], fileblock Fileblock[T], min, max T) (EntryIterator[T], bool, error) {
-	iter, found := tree.Seek(fileblock.Metadata().Min)
-	if !found {
-		return nil, false, nil
-	}
-
+func NewRangeIterator[T Entry](list *MapLL[T, Fileblock[T]], fileblock Fileblock[T], min, max T) (EntryIterator[T], bool) {
 	var (
-		err          error
-		currentBlock Fileblock[T]
-		entries      Entries[T]
-		index        int
-		entry        Entry
+		entries Entries[T]
+		index   int
+		found   bool
+		node    *kvNode[T, Fileblock[T]]
+		err error
 	)
 
-searchLoop:
-	for {
-		if _, currentBlock, err = iter.Next(); err != nil {
-			return nil, false, err
+	for node, found = list.Head(); node != nil && found; node = node.next {
+		if EntryFallsInsideMinMax(node.value.Metadata().Min, node.value.Metadata().Max, min) {
+			break
 		}
+	}
+	if !found {
+		return nil, false
+	}
 
-		if entries, err = currentBlock.Load(); err != nil {
-			return nil, false, err
-		}
-
-		for index, entry = range entries {
-			if entry.Equals(min) {
-				break searchLoop
-			}
-		}
-
-		index = 0
+	if entries, err = node.value.Load(); err != nil {
+		return nil, false
 	}
 
 	return &entryRangeIterator[T]{
-			min:          min,
-			max:          max,
-			iter:         iter,
-			entries:      entries,
-			currentBlock: currentBlock,
-			index:        index,
+			min:     min,
+			max:     max,
+			list:    node,
+			entries: entries,
+			index:   index,
 		},
-		found, nil
+		found
 }
 
 type entryRangeIterator[T Entry] struct {
 	min          T
 	max          T
-	iter         *bplustree.Enumerator[T, Fileblock[T]]
+	list         *kvNode[T, Fileblock[T]]
 	entries      Entries[T]
 	currentBlock Fileblock[T]
 	index        int
@@ -148,11 +128,17 @@ func (e *entryRangeIterator[T]) Next() (Entry, bool, error) {
 
 	var err error
 
-	if e.currentBlock == nil {
-		if _, e.currentBlock, err = e.iter.Next(); err != nil {
-			return nil, false, err
+	if e.entries == nil {
+		if e.list == nil {
+			return nil, false, nil
 		}
-		if e.entries, err = e.currentBlock.Load(); err != nil {
+
+		e.list = e.list.next
+		if e.list == nil {
+			return nil, false, nil
+		}
+
+		if e.entries, err = e.list.value.Load(); err != nil {
 			return nil, false, err
 		}
 	}
@@ -160,6 +146,7 @@ func (e *entryRangeIterator[T]) Next() (Entry, bool, error) {
 	var val Entry
 	for {
 		if e.index >= len(e.entries) {
+			e.entries = nil
 			e.currentBlock = nil
 			e.index = 0
 			return e.Next()
@@ -167,10 +154,6 @@ func (e *entryRangeIterator[T]) Next() (Entry, bool, error) {
 
 		val = e.entries[e.index]
 		e.index++
-		if e.min.LessThan(val) || e.min.Equals(val) {
-			break
-		}
-
 		if e.max.Equals(val) {
 			e.finished = true
 			break
@@ -179,6 +162,11 @@ func (e *entryRangeIterator[T]) Next() (Entry, bool, error) {
 		if e.max.LessThan(val) || e.max.Equals(val) {
 			return nil, false, nil
 		}
+
+		if e.min.LessThan(val) || e.min.Equals(val) {
+			break
+		}
+
 	}
 
 	return val, true, nil

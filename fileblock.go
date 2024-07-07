@@ -6,12 +6,17 @@ import (
 	"sort"
 )
 
+type UUIdentifiable interface {
+	UUID() string
+}
+
 type Fileblock[T Entry] interface {
+	UUIdentifiable
+
 	Close() error
 	Find(v Entry) bool
 	Load() (Entries[T], error)
 	Metadata() *MetaFile[T]
-	UUID() string
 }
 
 type FileblockListener[T Entry] interface {

@@ -153,8 +153,10 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 			for val, found, err = iter.Next(); err == nil && found; val, found, err = iter.Next() {
 				t.Logf("val: %v", val)
 			}
-			if err != io.EOF {
-				t.Fatalf("error iterating over values: %v", err)
+			if err != nil {
+				if err != io.EOF {
+					t.Fatalf("error iterating over values: %v", err)
+				}
 			}
 		})
 
@@ -169,8 +171,10 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 			for val, found, err = iter.Next(); err == nil && found; val, found, err = iter.Next() {
 				t.Logf("val: %v", val)
 			}
-			if err != io.EOF {
-				t.Fatalf("error iterating over values: %v", err)
+			if err != nil {
+				if err != io.EOF {
+					t.Fatalf("error iterating over values: %v", err)
+				}
 			}
 		})
 	})
