@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	db "github.com/sayden/streedb"
-	"github.com/sayden/streedb/bplustree"
 	local "github.com/sayden/streedb/fs/local"
 	fss3 "github.com/sayden/streedb/fs/s3"
 )
@@ -13,9 +12,8 @@ func NewLeveledFilesystem[T db.Entry](cfg *db.Config, promoter ...db.LevelPromot
 	levels := &MultiFsLevels[T]{
 		cfg:                cfg,
 		promoters:          promoter,
-		tree:               bplustree.NewTree[T, db.Fileblock[T]](db.EntryCmp),
 		fileblockListeners: make([]db.FileblockListener[T], 0, 10),
-		list:               db.MapLL[T, db.Fileblock[T]]{},
+		list:               db.MapDLL[T, db.Fileblock[T]]{},
 	}
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
@@ -87,8 +85,7 @@ type MultiFsLevels[T db.Entry] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[T]
 	levels             map[int]db.Level[T]
-	tree               *bplustree.Tree[T, db.Fileblock[T]]
-	list               db.MapLL[T, db.Fileblock[T]]
+	list               db.MapDLL[T, db.Fileblock[T]]
 	fileblockListeners []db.FileblockListener[T]
 }
 
@@ -218,7 +215,6 @@ func (b *MultiFsLevels[T]) Close() error {
 			return err
 		}
 	}
-	b.tree.Close()
 
 	return nil
 }

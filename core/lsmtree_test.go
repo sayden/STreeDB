@@ -113,6 +113,7 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		15, 11, 17, 18, 19,
 		20, 21, 22, 23, 24,
 		25, 26, 16, 27, 28,
+		25, 26, 16, 27, 28,
 		29, 44, 45, 36, 59,
 		60, 61, 62, 63,
 	}

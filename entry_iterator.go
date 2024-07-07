@@ -8,28 +8,34 @@ func NewForwardIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Filebl
 	var (
 		entries Entries[T]
 		index   int
-		found   bool
 		node    *kvDLLNode[T, Fileblock[T]]
+		last    *kvDLLNode[T, Fileblock[T]]
 		err     error
+		exit    bool
+		found   bool
 	)
 
-	for node, found = list.Head(); node != nil && found; node = node.next {
+	for node, found = list.Tail(); node != nil && found; node, last = node.prev, node {
 		if EntryFallsInsideMinMax(node.value.Metadata().Min, node.value.Metadata().Max, k) {
+			exit = true
+			continue
+		}
+		if exit {
 			break
 		}
 	}
-	if !found || node == nil {
+	if !found || last == nil {
 		return nil, false
 	}
 
-	if entries, err = node.value.Load(); err != nil {
+	if entries, err = last.value.Load(); err != nil {
 		return nil, false
 	}
 
 	return &entryForwardIterator[T]{
 			searchEntry: k,
 			entries:     entries,
-			list:        node,
+			list:        last,
 			index:       index,
 		},
 		true
@@ -85,25 +91,31 @@ func NewRangeIterator[T Entry](list *MapDLL[T, Fileblock[T]], fileblock Filebloc
 		found   bool
 		node    *kvDLLNode[T, Fileblock[T]]
 		err     error
+		exit    bool
+		last    *kvDLLNode[T, Fileblock[T]]
 	)
 
-	for node, found = list.Head(); node != nil && found; node = node.next {
+	for node, found = list.Tail(); node != nil && found; node, last = node.prev, node {
 		if EntryFallsInsideMinMax(node.value.Metadata().Min, node.value.Metadata().Max, min) {
+			exit = true
+			continue
+		}
+		if exit {
 			break
 		}
 	}
-	if !found {
+	if !found || last == nil {
 		return nil, false
 	}
 
-	if entries, err = node.value.Load(); err != nil {
+	if entries, err = last.value.Load(); err != nil {
 		return nil, false
 	}
 
 	return &entryRangeIterator[T]{
 			min:     min,
 			max:     max,
-			list:    node,
+			list:    last,
 			entries: entries,
 			index:   index,
 		},
