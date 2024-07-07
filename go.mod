@@ -8,11 +8,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.22
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.22
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.57.0
-	github.com/emirpasic/gods/v2 v2.0.0-alpha
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.9.0
 	github.com/thehivecorporation/log v1.8.5
-	github.com/tidwall/btree v1.7.0
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20240122235623-d6294584ab18
 )
@@ -49,5 +47,4 @@ require (
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/b v1.1.0 // indirect
 )

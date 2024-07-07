@@ -47,3 +47,7 @@ func (i Integer) Cmp(a, b Entry) int {
 	}
 	return 0
 }
+
+func (i Integer) UUID() string {
+	return string(i.N)
+}
