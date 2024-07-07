@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDLLMax(t *testing.T) {
+func TestLLMax(t *testing.T) {
 	dll := &LinkedList[Integer]{}
 
 	dll.SetMax(Integer{N: 1})
@@ -43,7 +43,7 @@ func traverse(dll *LinkedList[Integer]) {
 	fmt.Println()
 }
 
-func TestDLLMin(t *testing.T) {
+func TestLLMin(t *testing.T) {
 	dll := &LinkedList[Integer]{}
 
 	dll.SetMin(Integer{N: 1})
