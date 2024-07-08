@@ -5,13 +5,13 @@ import (
 )
 
 func NewKv(key string, val int32, primaryIdx string) Kv {
-	return Kv{Key: key, Val: val, primaryIndex: primaryIdx}
+	return Kv{Key: key, Val: val, PrimaryIdx: primaryIdx}
 }
 
 type Kv struct {
-	primaryIndex string
-	Key          string `parquet:"name=key, type=BYTE_ARRAY, encoding=DELTA_LENGTH_BYTE_ARRAY, repetitiontype=REQUIRED"`
-	Val          int32  `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REQUIRED"`
+	PrimaryIdx string
+	Key        string `parquet:"name=key, type=BYTE_ARRAY, encoding=DELTA_LENGTH_BYTE_ARRAY, repetitiontype=REQUIRED"`
+	Val        int32  `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REQUIRED"`
 }
 
 func (l Kv) LessThan(a Entry) bool {
@@ -27,7 +27,7 @@ func (l Kv) Equals(b Entry) bool {
 }
 
 func (l Kv) PrimaryIndex() string {
-	return l.primaryIndex
+	return l.PrimaryIdx
 }
 
 func (l Kv) SecondaryIndex() string {

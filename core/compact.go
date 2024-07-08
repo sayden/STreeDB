@@ -7,6 +7,10 @@ import (
 )
 
 func isAdjacent[T db.Entry](a, b *db.MetaFile[T]) bool {
+	if a.Min.PrimaryIndex() != "" && a.Min.PrimaryIndex() != b.Min.PrimaryIndex() {
+		return false
+	}
+
 	return a.Max.Adjacent(b.Min) || b.Max.Adjacent(a.Min)
 }
 
