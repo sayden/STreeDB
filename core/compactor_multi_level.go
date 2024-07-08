@@ -70,7 +70,11 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) erro
 				}
 
 				// Write the new block to its new storage directly
-				if err = mf.levels.NewFileblock(entries, higherLevel); err != nil {
+				builder := db.NewMetadataBuilder[T]().
+					WithLevel(higherLevel).
+					WithEntries(entries).
+					WithSize(a.Size + b.Size)
+				if err = mf.levels.NewFileblock(entries, builder); err != nil {
 					return errors.Join(errors.New("failed to create new fileblock"), err)
 				}
 

@@ -49,7 +49,7 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 		}
 	}
 
-	promoter := NewItemLimitPromoter[E](7, cfg.MaxLevels)
+	promoter := newItemLimitPromoter[E](7, cfg.MaxLevels)
 	levels, err := fs.NewLeveledFilesystem(cfg, promoter)
 	if err != nil {
 		panic(err)

@@ -7,7 +7,7 @@ import (
 )
 
 type FileblockCreator[T Entry] interface {
-	NewFileblock(es Entries[T], initialLevel int) error
+	NewFileblock(es Entries[T], builder *MetadataBuilder[T]) error
 }
 
 type FileblockListener[T Entry] interface {

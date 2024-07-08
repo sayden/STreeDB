@@ -2,6 +2,7 @@ package core
 
 import (
 	"sort"
+	"time"
 
 	db "github.com/sayden/streedb"
 )
@@ -42,7 +43,11 @@ func (w *nmMemoryWal[E]) Append(d E) bool {
 	isFull := entryList.totalItems == w.maxEntries
 	if isFull {
 		sort.Sort(entryList.entries)
-		w.fileblockCreator.NewFileblock(entryList.entries, 0)
+		builder := db.NewMetadataBuilder[E]().
+			WithLevel(0).
+			WithEntries(entryList.entries).
+			WithCreatedAt(time.Now())
+		w.fileblockCreator.NewFileblock(entryList.entries, builder)
 		delete(w.entries, d.PrimaryIndex())
 	}
 
@@ -63,7 +68,11 @@ func (w *nmMemoryWal[E]) Find(d E) (E, bool) {
 func (w *nmMemoryWal[E]) Close() error {
 	for _, es := range w.entries {
 		if len(es.entries) > 0 {
-			w.fileblockCreator.NewFileblock(es.entries, 0)
+			builder := db.NewMetadataBuilder[E]().
+				WithLevel(0).
+				WithEntries(es.entries).
+				WithCreatedAt(time.Now())
+			w.fileblockCreator.NewFileblock(es.entries, builder)
 		}
 	}
 	return nil

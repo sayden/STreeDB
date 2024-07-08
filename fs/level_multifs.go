@@ -97,16 +97,14 @@ func (b *MultiFsLevels[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
 	b.list.Remove(block.Metadata().Min)
 }
 
-func (b *MultiFsLevels[T]) NewFileblock(es db.Entries[T], initialLevel int) error {
-	meta := db.NewMetadataBuilder[T]().WithEntries(es).WithLevel(initialLevel)
-
+func (b *MultiFsLevels[T]) NewFileblock(es db.Entries[T], builder *db.MetadataBuilder[T]) error {
 	for _, promoter := range b.promoters {
-		if err := promoter.Promote(meta); err != nil {
+		if err := promoter.Promote(builder); err != nil {
 			return err
 		}
 	}
 
-	_, err := b.levels[meta.Level].Create(es, meta)
+	_, err := b.levels[builder.Level].Create(es, builder)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	db "github.com/sayden/streedb"
 )
 
@@ -23,7 +25,11 @@ func (w *inMemoryWal[E]) Append(d E) (isFull bool) {
 	isFull = len(w.entries) == cap(w.entries)
 
 	if isFull {
-		w.fileblockCreator.NewFileblock(w.entries, 0)
+		builder := db.NewMetadataBuilder[E]().
+			WithLevel(0).
+			WithEntries(w.entries).
+			WithCreatedAt(time.Now())
+		w.fileblockCreator.NewFileblock(w.entries, builder)
 		w.entries = make(db.Entries[E], 0, w.cfg.WalMaxItems)
 	}
 
@@ -42,7 +48,11 @@ func (w *inMemoryWal[E]) Find(d E) (E, bool) {
 
 func (w *inMemoryWal[E]) Close() error {
 	if len(w.entries) > 0 {
-		w.fileblockCreator.NewFileblock(w.entries, 0)
+		builder := db.NewMetadataBuilder[E]().
+			WithLevel(0).
+			WithEntries(w.entries).
+			WithCreatedAt(time.Now())
+		w.fileblockCreator.NewFileblock(w.entries, builder)
 	}
 
 	return nil

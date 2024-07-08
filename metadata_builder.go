@@ -27,6 +27,16 @@ func (b *MetadataBuilder[T]) WithRootPath(p string) *MetadataBuilder[T] {
 	return b
 }
 
+func (b *MetadataBuilder[T]) WithSize(sizeBytes int64) *MetadataBuilder[T] {
+	b.Size = sizeBytes
+	return b
+}
+
+func (b *MetadataBuilder[T]) WithCreatedAt(t time.Time) *MetadataBuilder[T] {
+	b.CreatedAt = t
+	return b
+}
+
 func (b *MetadataBuilder[T]) WithFilepath(p string) *MetadataBuilder[T] {
 	b.MetaFilepath = p
 	return b
