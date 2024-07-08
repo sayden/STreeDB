@@ -14,8 +14,8 @@ type Level[T Entry] interface {
 type Levels[T Entry] interface {
 	Level[T]
 	FileblockListener[T]
+	FileblockCreator[T]
 
-	NewFileblock(es Entries[T], initialLevel int) error
 	ForwardIterator(d T) (EntryIterator[T], bool, error)
 	RangeIterator(begin, end T) (EntryIterator[T], bool, error)
 	Level(i int) Level[T]

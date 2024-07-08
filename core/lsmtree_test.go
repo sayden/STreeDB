@@ -132,7 +132,7 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		assert.NoError(t, err)
 	}
 
-	entry := streedb.NewKv("hello 15", 0)
+	entry := streedb.NewKv("hello 15", 0, "a")
 	val, found, err := lsmtree.Find(entry)
 	assert.NoError(t, err)
 	assert.True(t, found)
@@ -142,7 +142,7 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 	assert.True(t, val.(streedb.Kv).Val >= int32(0) && val.(streedb.Kv).Val <= total)
 
 	t.Run("Iterators", func(t *testing.T) {
-		begin := streedb.NewKv("hello 27", 0)
+		begin := streedb.NewKv("hello 27", 0, "a")
 
 		t.Run("ForwardIterator", func(t *testing.T) {
 			iter, found, err := lsmtree.ForwardIterator(begin)
@@ -162,7 +162,7 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		})
 
 		t.Run("RangeIterators", func(t *testing.T) {
-			end := streedb.NewKv("hello 39", 0)
+			end := streedb.NewKv("hello 39", 0, "a")
 			iter, found, err := lsmtree.RangeIterator(begin, end)
 			assert.NoError(t, err)
 			if !found {

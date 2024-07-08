@@ -2,13 +2,10 @@ package core
 
 import (
 	"errors"
-	"sort"
-	"sync"
 	"time"
 
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/fs"
-	"github.com/thehivecorporation/log"
 )
 
 var (
@@ -44,7 +41,7 @@ const (
 	MAX_LEVEL_4_BLOCK_AGE    = 24 * 30 * time.Hour
 )
 
-func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
+func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 	if cfg.LevelFilesystems == nil {
 		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
 		for i := 0; i < cfg.MaxLevels; i++ {
@@ -52,23 +49,19 @@ func NewLsmTree[T db.Entry](cfg *db.Config) (*LsmTree[T], error) {
 		}
 	}
 
-	promoter := NewItemLimitPromoter[T](7, cfg.MaxLevels)
+	promoter := NewItemLimitPromoter[E](7, cfg.MaxLevels)
 	levels, err := fs.NewLeveledFilesystem(cfg, promoter)
 	if err != nil {
 		panic(err)
 	}
 
-	l := &LsmTree[T]{
-		walPool: sync.Pool{
-			New: func() interface{} {
-				return newInMemoryWal[T](cfg)
-			},
-		},
+	l := &LsmTree[E]{
 		levels: levels,
 		cfg:    cfg,
 	}
 
-	l.wal = l.walPool.Get().(db.Wal[T])
+	// l.wal = newInMemoryWal(cfg, levels)
+	l.wal = newNMMemoryWal(cfg, levels)
 
 	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels)
 	if err != nil {
@@ -82,40 +75,14 @@ type LsmTree[T db.Entry] struct {
 	cfg *db.Config
 
 	compactor db.Compactor[T]
-	walPool   sync.Pool
 	wal       db.Wal[T]
 	levels    db.Levels[T]
 }
 
 func (l *LsmTree[T]) Append(d T) {
 	if l.wal.Append(d) {
-		// WAL is full, write a new block
-		err := l.WriteBlock()
-		if err != nil {
-			log.Errorf("Error writing block: %v", err)
-			return
-		}
-
-		l.wal = newInMemoryWal[T](l.cfg)
+		// WAL is full
 	}
-}
-
-func (l *LsmTree[T]) WriteBlock() (err error) {
-	entries := l.wal.GetData()
-	if len(entries) == 0 {
-		return
-	}
-
-	sort.Sort(entries)
-
-	if err = l.levels.NewFileblock(entries, 0); err != nil {
-		return err
-	}
-
-	// reset the wal
-	l.wal = l.walPool.Get().(db.Wal[T])
-
-	return
 }
 
 func (l *LsmTree[T]) RangeIterator(begin, end T) (db.EntryIterator[T], bool, error) {
@@ -140,10 +107,6 @@ func (l *LsmTree[T]) Close() (err error) {
 	errs := make([]error, 0)
 
 	if err = l.wal.Close(); err != nil {
-		errs = append(errs, err)
-	}
-
-	if err = l.WriteBlock(); err != nil {
 		errs = append(errs, err)
 	}
 

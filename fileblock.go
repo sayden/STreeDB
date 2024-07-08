@@ -6,8 +6,8 @@ import (
 	"sort"
 )
 
-type UUIdentifiable interface {
-	UUID() string
+type FileblockCreator[T Entry] interface {
+	NewFileblock(es Entries[T], initialLevel int) error
 }
 
 type FileblockListener[T Entry] interface {

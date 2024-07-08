@@ -2,12 +2,14 @@ package streedb
 
 import "math"
 
-func NewInteger(n int32) Integer {
-	return Integer{N: n}
+func NewInteger(n int32, p, s string) Integer {
+	return Integer{N: n, primaryIdx: p, secondaryIdx: s}
 }
 
 type Integer struct {
-	N int32 `parquet:"name=n, type=INT32"`
+	primaryIdx   string
+	secondaryIdx string
+	N            int32 `parquet:"name=n, type=INT32"`
 }
 
 func (i Integer) LessThan(a Entry) bool {
@@ -48,6 +50,10 @@ func (i Integer) Cmp(a, b Entry) int {
 	return 0
 }
 
-func (i Integer) UUID() string {
-	return string(i.N)
+func (i Integer) PrimaryIndex() string {
+	return i.primaryIdx
+}
+
+func (i Integer) SecondaryIndex() string {
+	return i.secondaryIdx
 }

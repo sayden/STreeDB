@@ -94,7 +94,7 @@ func (b *MultiFsLevels[T]) OnNewFileblock(block *db.Fileblock[T]) {
 }
 
 func (b *MultiFsLevels[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
-	b.list.Remove(block)
+	b.list.Remove(block.Metadata().Min)
 }
 
 func (b *MultiFsLevels[T]) NewFileblock(es db.Entries[T], initialLevel int) error {

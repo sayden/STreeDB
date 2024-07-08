@@ -4,37 +4,50 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-type inMemoryWal[T db.Entry] struct {
-	entries db.Entries[T]
-	cfg     *db.Config
+type inMemoryWal[E db.Entry] struct {
+	entries          db.Entries[E]
+	cfg              *db.Config
+	fileblockCreator db.FileblockCreator[E]
 }
 
-func newInMemoryWal[T db.Entry](c *db.Config) db.Wal[T] {
-	return &inMemoryWal[T]{
-		entries: make(db.Entries[T], 0, c.WalMaxItems),
-		cfg:     c,
+func newInMemoryWal[E db.Entry](c *db.Config, fbc db.FileblockCreator[E]) db.Wal[E] {
+	return &inMemoryWal[E]{
+		entries:          make(db.Entries[E], 0, c.WalMaxItems),
+		cfg:              c,
+		fileblockCreator: fbc,
 	}
 }
 
-func (w *inMemoryWal[T]) Append(d T) (isFull bool) {
+func (w *inMemoryWal[E]) Append(d E) (isFull bool) {
 	w.entries = append(w.entries, d)
-	return len(w.entries) == cap(w.entries)
+	isFull = len(w.entries) == cap(w.entries)
+
+	if isFull {
+		w.fileblockCreator.NewFileblock(w.entries, 0)
+		w.entries = make(db.Entries[E], 0, w.cfg.WalMaxItems)
+	}
+
+	return isFull
 }
 
-func (w *inMemoryWal[T]) Find(d db.Entry) (db.Entry, bool) {
+func (w *inMemoryWal[E]) Find(d E) (E, bool) {
 	for _, v := range w.entries {
 		if v.Equals(d) {
 			return v, true
 		}
 	}
 
-	return nil, false
+	return (*new(E)), false
 }
 
-func (w *inMemoryWal[T]) Close() error {
+func (w *inMemoryWal[E]) Close() error {
+	if len(w.entries) > 0 {
+		w.fileblockCreator.NewFileblock(w.entries, 0)
+	}
+
 	return nil
 }
 
-func (w *inMemoryWal[T]) GetData() db.Entries[T] {
+func (w *inMemoryWal[E]) Data() db.Entries[E] {
 	return w.entries
 }

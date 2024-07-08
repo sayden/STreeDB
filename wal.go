@@ -1,8 +1,7 @@
 package streedb
 
-type Wal[T Entry] interface {
-	Append(d T) (isFull bool)
-	Find(d Entry) (Entry, bool)
+type Wal[E Entry] interface {
+	Append(d E) (isFull bool)
+	Find(d E) (E, bool)
 	Close() error
-	GetData() Entries[T]
 }

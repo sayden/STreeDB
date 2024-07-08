@@ -4,13 +4,14 @@ import (
 	"fmt"
 )
 
-func NewKv(key string, val int32) Kv {
-	return Kv{Key: key, Val: val}
+func NewKv(key string, val int32, primaryIdx string) Kv {
+	return Kv{Key: key, Val: val, primaryIndex: primaryIdx}
 }
 
 type Kv struct {
-	Key string `parquet:"name=key, type=BYTE_ARRAY, encoding=DELTA_LENGTH_BYTE_ARRAY, repetitiontype=REQUIRED"`
-	Val int32  `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REQUIRED"`
+	primaryIndex string
+	Key          string `parquet:"name=key, type=BYTE_ARRAY, encoding=DELTA_LENGTH_BYTE_ARRAY, repetitiontype=REQUIRED"`
+	Val          int32  `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REQUIRED"`
 }
 
 func (l Kv) LessThan(a Entry) bool {
@@ -18,9 +19,19 @@ func (l Kv) LessThan(a Entry) bool {
 	return l.Key < a_.Key
 }
 
-func (l Kv) Equals(a Entry) bool {
-	a_ := a.(Kv)
-	return l.Key == a_.Key
+func (l Kv) Equals(b Entry) bool {
+	if l.PrimaryIndex() != "" {
+		return l.PrimaryIndex() == b.PrimaryIndex() && l.SecondaryIndex() == b.SecondaryIndex()
+	}
+	return l.SecondaryIndex() == b.SecondaryIndex()
+}
+
+func (l Kv) PrimaryIndex() string {
+	return l.primaryIndex
+}
+
+func (l Kv) SecondaryIndex() string {
+	return l.Key
 }
 
 func (l Kv) Adjacent(a Entry) bool {
@@ -63,19 +74,4 @@ func abs(n int) int {
 
 func (l Kv) String() string {
 	return fmt.Sprintf("'%s'", l.Key)
-}
-
-func (l Kv) Cmp(a, b Entry) int {
-	a_ := a.(Kv)
-	b_ := b.(Kv)
-
-	if a_.Equals(b) {
-		return 0
-	}
-
-	if a_.LessThan(b_) {
-		return -1
-	}
-
-	return 1
 }

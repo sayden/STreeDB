@@ -11,6 +11,10 @@ func isAdjacent[T db.Entry](a, b *db.MetaFile[T]) bool {
 }
 
 func HasOverlap[T db.Entry](a, b *db.MetaFile[T]) bool {
+	if a.Min.PrimaryIndex() != "" && a.Min.PrimaryIndex() != b.Min.PrimaryIndex() {
+		return false
+	}
+
 	return ((b.Min.LessThan(a.Max) || b.Min.Equals(a.Max)) && (a.Min.LessThan(b.Max) || a.Min.Equals(b.Max)))
 }
 
