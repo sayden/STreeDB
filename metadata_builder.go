@@ -5,11 +5,12 @@ import (
 	"time"
 )
 
-func NewMetadataBuilder[T Entry]() *MetadataBuilder[T] {
-	return &MetadataBuilder[T]{MetaFile: MetaFile[T]{Uuid: NewUUID(), CreatedAt: time.Now()}}
+func NewMetadataBuilder[T Entry](cfg *Config) *MetadataBuilder[T] {
+	return &MetadataBuilder[T]{cfg: cfg, MetaFile: MetaFile[T]{Uuid: NewUUID(), CreatedAt: time.Now()}}
 }
 
 type MetadataBuilder[T Entry] struct {
+	cfg            *Config
 	fileExtension  string
 	filenamePrefix string
 	fullFilepath   string
@@ -81,7 +82,14 @@ func (b *MetadataBuilder[T]) WithFilenamePrefix(prefix string) *MetadataBuilder[
 }
 
 func (b *MetadataBuilder[T]) WithLevel(l int) *MetadataBuilder[T] {
-	b.Level = l
+	if l > b.Level {
+		b.Level = l
+	}
+
+	if b.Level > b.cfg.MaxLevels {
+		b.WithLevel(b.cfg.MaxLevels)
+	}
+
 	return b
 }
 
@@ -92,6 +100,10 @@ func (b *MetadataBuilder[T]) Build() (*MetaFile[T], error) {
 
 	if b.MetaFilepath != "" {
 		return &b.MetaFile, nil
+	}
+
+	if b.CreatedAt.IsZero() {
+		b.CreatedAt = time.Now()
 	}
 
 	if b.fileExtension == "" {

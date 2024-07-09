@@ -25,7 +25,7 @@ func (w *inMemoryWal[E]) Append(d E) (isFull bool) {
 	isFull = len(w.entries) == cap(w.entries)
 
 	if isFull {
-		builder := db.NewMetadataBuilder[E]().
+		builder := db.NewMetadataBuilder[E](w.cfg).
 			WithLevel(0).
 			WithEntries(w.entries).
 			WithCreatedAt(time.Now())
@@ -48,7 +48,7 @@ func (w *inMemoryWal[E]) Find(d E) (E, bool) {
 
 func (w *inMemoryWal[E]) Close() error {
 	if len(w.entries) > 0 {
-		builder := db.NewMetadataBuilder[E]().
+		builder := db.NewMetadataBuilder[E](w.cfg).
 			WithLevel(0).
 			WithEntries(w.entries).
 			WithCreatedAt(time.Now())

@@ -22,7 +22,8 @@ func TestInitJSONLocal(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Run("EmptyEntries", func(t *testing.T) {
-			meta, err := db.NewMetadataBuilder[db.Integer]().Build()
+			meta, err := db.NewMetadataBuilder[db.Integer](cfg).
+				Build()
 			assert.NoError(t, err)
 			es := db.Entries[db.Integer]{}
 			fileblock, err := fs.Create(cfg, es, meta, nil)
@@ -34,7 +35,9 @@ func TestInitJSONLocal(t *testing.T) {
 			es := db.Entries[db.Integer]{db.Integer{N: 1}, db.Integer{N: 2}}
 			assert.Equal(t, 2, len(es))
 
-			meta, err := db.NewMetadataBuilder[db.Integer]().WithEntries(es).Build()
+			meta, err := db.NewMetadataBuilder[db.Integer](cfg).
+				WithEntries(es).
+				Build()
 			assert.NoError(t, err)
 			fileblock, err := fs.Create(cfg, es, meta, nil)
 			assert.NoError(t, err)

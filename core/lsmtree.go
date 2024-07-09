@@ -16,7 +16,8 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 	}
 
 	itemLimitPromoter := newItemLimitPromoter[E](100, cfg.MaxLevels)
-	sizeLimitPromoter := newSizeLimitPromoter[E](cfg.MaxLevels)
+	// sizeLimitPromoter := newSizeLimitPromoter[E](cfg.MaxLevels, 10, 1024*32, 1<<30)
+	sizeLimitPromoter := newSizeLimitPromoter[E](cfg.MaxLevels, 16, 512, 1<<30)
 	levels, err := fs.NewLeveledFilesystem(cfg, sizeLimitPromoter, itemLimitPromoter)
 	if err != nil {
 		panic(err)
@@ -27,10 +28,10 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 		cfg:    cfg,
 	}
 
-	// l.wal = newInMemoryWal(cfg, levels)
 	l.wal = newNMMemoryWal(cfg, levels)
 
-	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels)
+	andMerger1 := &samePrimaryIndexMerger[E]{and: &overlappingMerger[E]{}}
+	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels, andMerger1)
 	if err != nil {
 		panic(err)
 	}

@@ -9,7 +9,7 @@ import (
 func TestMetadataBuilder(t *testing.T) {
 	// Create a new metadata builder
 	es := []Integer{{N: 1}, {N: 2}, {N: 3}}
-	meta, err := NewMetadataBuilder[Integer]().
+	meta, err := NewMetadataBuilder[Integer](&Config{MaxLevels: 5}).
 		WithEntries(es).
 		WithLevel(1).
 		WithFilenamePrefix("01").
