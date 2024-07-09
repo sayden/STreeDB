@@ -1,8 +1,40 @@
 package core
 
 import (
+	"time"
+
 	db "github.com/sayden/streedb"
 )
+
+func newTimeLimitPromoter[E db.Entry](maxLevels int, maxTimeMs, minTimeMs int64) db.LevelPromoter[E] {
+	levels := make([]int64, 0, maxLevels)
+	for i := 0; i < maxLevels; i++ {
+		levels = append(levels, (maxTimeMs/minTimeMs)*int64(i+1))
+	}
+
+	return &timeLimitPromoter[E]{
+		maxLevels:  maxLevels,
+		timeLevels: levels,
+	}
+}
+
+type timeLimitPromoter[E db.Entry] struct {
+	maxLevels  int
+	timeLevels []int64
+}
+
+func (t *timeLimitPromoter[E]) Promote(builder *db.MetadataBuilder[E]) error {
+	elapsed := time.Since(builder.CreatedAt).Milliseconds()
+	for i, level := range t.timeLevels {
+		if elapsed >= level {
+			builder.WithLevel(i + 1)
+		} else {
+			break
+		}
+	}
+
+	return nil
+}
 
 func newSizeLimitPromoter[E db.Entry](maxLevels, growthFactor, firstBlockSize, maxBlockSize int) db.LevelPromoter[E] {
 	slp := &sizeLimitPromoter[E]{
@@ -11,7 +43,9 @@ func newSizeLimitPromoter[E db.Entry](maxLevels, growthFactor, firstBlockSize, m
 		firstBlockSize: firstBlockSize,
 		maxBlockSize:   maxBlockSize,
 	}
+
 	slp.calculateBlockSizes()
+
 	return slp
 }
 

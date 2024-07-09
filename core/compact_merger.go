@@ -1,6 +1,8 @@
 package core
 
-import db "github.com/sayden/streedb"
+import (
+	db "github.com/sayden/streedb"
+)
 
 type samePrimaryIndexMerger[E db.Entry] struct {
 	and db.Merger[E]
