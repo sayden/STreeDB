@@ -1,12 +1,18 @@
 package streedb
 
+import "time"
+
 func NewDefaultConfig() *Config {
 	return &Config{
-		MaxLevels:   5,
-		DbPath:      "/tmp/db",
-		Filesystem:  FilesystemTypeMap[FILESYSTEM_TYPE_LOCAL],
-		Format:      FormatMap[FILE_FORMAT_JSON],
-		WalMaxItems: 5,
+		MaxLevels:  5,
+		DbPath:     "/tmp/db",
+		Filesystem: FilesystemTypeMap[FILESYSTEM_TYPE_LOCAL],
+		Format:     FormatMap[FILE_FORMAT_JSON],
+		Wal: WalCfg{
+			MaxItems:         100,
+			MaxElapsedTimeMs: time.Hour.Milliseconds(),
+			MaxSizeBytes:     32 * 1024,
+		},
 		Compaction: CompactionCfg{
 			Promoters: PromotersCfg{
 				TimeLimit: TimeLimitPromoterCfg{
@@ -33,10 +39,16 @@ type Config struct {
 	DbPath           string
 	Filesystem       string
 	Format           string
-	WalMaxItems      int
 	S3Config         S3Config
 	LevelFilesystems []string
 	Compaction       CompactionCfg
+	Wal              WalCfg
+}
+
+type WalCfg struct {
+	MaxItems         int
+	MaxElapsedTimeMs int64
+	MaxSizeBytes     int
 }
 
 type CompactionCfg struct {

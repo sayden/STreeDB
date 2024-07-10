@@ -1,14 +1,18 @@
 package streedb
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 func NewInteger(n int32, p, s string) Integer {
-	return Integer{N: n, primaryIdx: p, secondaryIdx: s}
+	return Integer{N: n, primaryIdx: p, secondaryIdx: s, createdAt: time.Now()}
 }
 
 type Integer struct {
 	primaryIdx   string
 	secondaryIdx string
+	createdAt    time.Time
 	N            int32 `parquet:"name=n, type=INT32"`
 }
 
@@ -56,4 +60,8 @@ func (i Integer) PrimaryIndex() string {
 
 func (i Integer) SecondaryIndex() string {
 	return i.secondaryIdx
+}
+
+func (i Integer) CreationTime() time.Time {
+	return i.createdAt
 }

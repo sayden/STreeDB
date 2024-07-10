@@ -2,9 +2,11 @@ package core
 
 import (
 	"errors"
+	"time"
 
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/fs"
+	"github.com/thehivecorporation/log"
 )
 
 func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
@@ -28,7 +30,11 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 		cfg:    cfg,
 	}
 
-	l.wal = newNMMemoryWal(cfg, levels)
+	// Create the WAL
+	l.wal = newNMMemoryWal(cfg, levels,
+		newItemLimitWalFlushStrategy[E](cfg.Wal.MaxItems),
+		newSizeLimitWalFlushStrategy[E](cfg.Wal.MaxSizeBytes),
+		newTimeLimitWalFlushStrategy[E](time.Duration(cfg.Wal.MaxElapsedTimeMs*1000)))
 
 	andMerger1 := &samePrimaryIndexMerger[E]{and: &overlappingMerger[E]{}}
 	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels, andMerger1)
@@ -48,8 +54,9 @@ type LsmTree[T db.Entry] struct {
 }
 
 func (l *LsmTree[T]) Append(d T) {
-	if l.wal.Append(d) {
-		// WAL is full
+	err := l.wal.Append(d)
+	if err != nil {
+		log.WithError(err).Error("error appending to wal")
 	}
 }
 

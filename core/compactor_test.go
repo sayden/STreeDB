@@ -14,9 +14,10 @@ func TestCompactionMultiLevel(t *testing.T) {
 	})
 
 	defaultCfg := db.NewDefaultConfig()
+	defaultCfg.Wal.MaxItems = 5
 
 	cfg := &db.Config{
-		WalMaxItems:      5,
+		Wal:              defaultCfg.Wal,
 		Format:           db.FormatMap[db.FILE_FORMAT_JSON],
 		Filesystem:       db.FilesystemTypeMap[db.FILESYSTEM_TYPE_LOCAL],
 		MaxLevels:        2,

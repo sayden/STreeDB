@@ -25,11 +25,12 @@ func TestS3(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
 	defaultCfg := streedb.NewDefaultConfig()
+	defaultCfg.Wal.MaxItems = 10
 
 	testCfgs := []*streedb.Config{
 		{
+			Wal:              defaultCfg.Wal,
 			Compaction:       defaultCfg.Compaction,
-			WalMaxItems:      5,
 			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
 			Format:           streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
 			MaxLevels:        5,
@@ -41,8 +42,8 @@ func TestS3(t *testing.T) {
 			},
 		},
 		{
+			Wal:              defaultCfg.Wal,
 			Compaction:       defaultCfg.Compaction,
-			WalMaxItems:      5,
 			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
 			Format:           streedb.FormatMap[streedb.FILE_FORMAT_JSON],
 			MaxLevels:        5,
@@ -73,23 +74,24 @@ func TestDBLocal(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
 	defaultCfg := streedb.NewDefaultConfig()
+	defaultCfg.Wal.MaxItems = 10
 
 	testCfgs := []*streedb.Config{
 		{
-			WalMaxItems: 10,
-			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
-			MaxLevels:   5,
-			DbPath:      "/tmp/db/json",
-			Compaction:  defaultCfg.Compaction,
+			Wal:        defaultCfg.Wal,
+			Filesystem: streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:     streedb.FormatMap[streedb.FILE_FORMAT_JSON],
+			MaxLevels:  5,
+			DbPath:     "/tmp/db/json",
+			Compaction: defaultCfg.Compaction,
 		},
 		{
-			WalMaxItems: 5,
-			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
-			MaxLevels:   5,
-			DbPath:      "/tmp/db/parquet",
-			Compaction:  defaultCfg.Compaction,
+			Wal:        defaultCfg.Wal,
+			Filesystem: streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:     streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
+			MaxLevels:  5,
+			DbPath:     "/tmp/db/parquet",
+			Compaction: defaultCfg.Compaction,
 		},
 	}
 

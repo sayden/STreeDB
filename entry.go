@@ -1,5 +1,7 @@
 package streedb
 
+import "time"
+
 type Entry interface {
 	PrimaryIndex() string
 	SecondaryIndex() string
@@ -7,6 +9,7 @@ type Entry interface {
 	LessThan(Entry) bool
 	Equals(Entry) bool
 	Adjacent(Entry) bool
+	CreationTime() time.Time
 }
 
 type Entries[T Entry] []T
