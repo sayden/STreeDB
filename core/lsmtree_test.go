@@ -68,7 +68,8 @@ func TestS3(t *testing.T) {
 
 func TestDBLocal(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
-	// t.Cleanup(cleanAll)
+	t.Cleanup(cleanAll)
+	defaultCfg := streedb.NewDefaultConfig()
 
 	testCfgs := []*streedb.Config{
 		{
@@ -77,14 +78,16 @@ func TestDBLocal(t *testing.T) {
 			Format:      streedb.FormatMap[streedb.FILE_FORMAT_JSON],
 			MaxLevels:   5,
 			DbPath:      "/tmp/db/json",
+			Compaction:  defaultCfg.Compaction,
 		},
-		// {
-		// 	WalMaxItems: 5,
-		// 	Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
-		// 	Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
-		// 	MaxLevels:   5,
-		// 	DbPath:      "/tmp/db/parquet",
-		// },
+		{
+			WalMaxItems: 5,
+			Filesystem:  streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Format:      streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
+			MaxLevels:   5,
+			DbPath:      "/tmp/db/parquet",
+			Compaction:  defaultCfg.Compaction,
+		},
 	}
 
 	for _, cfg := range testCfgs {
@@ -94,7 +97,7 @@ func TestDBLocal(t *testing.T) {
 
 		t.Run(fmt.Sprintf("Compaction:%s", cfg.Format), func(t *testing.T) {
 			launchTestWithConfig(t, cfg, false)
-			// t.Cleanup(cleanAll)
+			t.Cleanup(cleanAll)
 		})
 	}
 }

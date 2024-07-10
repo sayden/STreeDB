@@ -6,20 +6,20 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-func newTimeLimitPromoter[E db.Entry](maxLevels int, maxTimeMs, minTimeMs int64) db.LevelPromoter[E] {
-	levels := make([]int64, 0, maxLevels)
-	for i := 0; i < maxLevels; i++ {
-		levels = append(levels, (maxTimeMs/minTimeMs)*int64(i+1))
+// TODO: Add growth factor for exponential growth
+// TODO: Add checks for config values
+func newTimeLimitPromoter[E db.Entry](cfg *db.Config) db.LevelPromoter[E] {
+	levels := make([]int64, 0, cfg.MaxLevels)
+	for i := 0; i < cfg.MaxLevels; i++ {
+		levels = append(levels, (cfg.Compaction.Promoters.TimeLimit.MaxTimeMs/cfg.Compaction.Promoters.TimeLimit.MinTimeMs)*int64(i+1))
 	}
 
 	return &timeLimitPromoter[E]{
-		maxLevels:  maxLevels,
 		timeLevels: levels,
 	}
 }
 
 type timeLimitPromoter[E db.Entry] struct {
-	maxLevels  int
 	timeLevels []int64
 }
 
@@ -36,13 +36,9 @@ func (t *timeLimitPromoter[E]) Promote(builder *db.MetadataBuilder[E]) error {
 	return nil
 }
 
-func newSizeLimitPromoter[E db.Entry](maxLevels, growthFactor, firstBlockSize, maxBlockSize int) db.LevelPromoter[E] {
-	slp := &sizeLimitPromoter[E]{
-		maxLevels:      maxLevels,
-		growthFactor:   growthFactor,
-		firstBlockSize: firstBlockSize,
-		maxBlockSize:   maxBlockSize,
-	}
+// TODO: Add checks for config values
+func newSizeLimitPromoter[E db.Entry](cfg *db.Config) db.LevelPromoter[E] {
+	slp := &sizeLimitPromoter[E]{cfg: cfg}
 
 	slp.calculateBlockSizes()
 
@@ -50,11 +46,8 @@ func newSizeLimitPromoter[E db.Entry](maxLevels, growthFactor, firstBlockSize, m
 }
 
 type sizeLimitPromoter[E db.Entry] struct {
-	maxLevels      int
-	growthFactor   int
-	firstBlockSize int
-	maxBlockSize   int
-	blockSizes     []int64
+	cfg        *db.Config
+	blockSizes []int64
 }
 
 func (s *sizeLimitPromoter[E]) Promote(builder *db.MetadataBuilder[E]) error {
@@ -71,16 +64,16 @@ func (s *sizeLimitPromoter[E]) Promote(builder *db.MetadataBuilder[E]) error {
 }
 
 func (s *sizeLimitPromoter[E]) calculateBlockSizes() {
-	blockSizes := make([]int64, 0, s.maxLevels)
+	blockSizes := make([]int64, 0, s.cfg.MaxLevels)
 
-	for i := 0; i < s.maxLevels; i++ {
+	for i := 0; i < s.cfg.MaxLevels; i++ {
 		var blockSize int64
 		if i == 0 {
-			blockSize = int64(s.firstBlockSize) // 1 MB
+			blockSize = int64(s.cfg.Compaction.Promoters.SizeLimit.FirstBlockSizeBytes) // 1 MB
 		} else {
-			blockSize = blockSizes[i-1] * int64(s.growthFactor)
-			if blockSize > int64(s.maxBlockSize) {
-				blockSize = int64(s.maxBlockSize)
+			blockSize = blockSizes[i-1] * int64(s.cfg.Compaction.Promoters.SizeLimit.GrowthFactor)
+			if blockSize > int64(s.cfg.Compaction.Promoters.SizeLimit.MaxBlockSizeBytes) {
+				blockSize = int64(s.cfg.Compaction.Promoters.SizeLimit.MaxBlockSizeBytes)
 			}
 		}
 
@@ -90,20 +83,20 @@ func (s *sizeLimitPromoter[E]) calculateBlockSizes() {
 	s.blockSizes = blockSizes
 }
 
-func newItemLimitPromoter[E db.Entry](maxItems, maxLevels int) db.LevelPromoter[E] {
+// TODO: Add growth factor for exponential growth
+// TODO: Add checks for config values
+func newItemLimitPromoter[E db.Entry](cfg *db.Config) db.LevelPromoter[E] {
 	return &itemLimitPromoter[E]{
-		maxItems: maxItems,
-		maxLevel: maxLevels,
+		cfg: cfg,
 	}
 }
 
 type itemLimitPromoter[E db.Entry] struct {
-	maxItems int
-	maxLevel int
+	cfg *db.Config
 }
 
 func (i *itemLimitPromoter[E]) Promote(builder *db.MetadataBuilder[E]) error {
-	realLevel := builder.ItemCount / i.maxItems
+	realLevel := builder.ItemCount / i.cfg.Compaction.Promoters.ItemLimit.MaxItems
 	builder.WithLevel(realLevel)
 	return nil
 }

@@ -15,9 +15,9 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 		}
 	}
 
-	timeLimitPromoter := newTimeLimitPromoter[E](cfg.MaxLevels, 7*24*3600*1000, 1000*3600)
-	itemLimitPromoter := newItemLimitPromoter[E](100, cfg.MaxLevels)
-	sizeLimitPromoter := newSizeLimitPromoter[E](cfg.MaxLevels, 16, 512, 1<<30)
+	timeLimitPromoter := newTimeLimitPromoter[E](cfg)
+	itemLimitPromoter := newItemLimitPromoter[E](cfg)
+	sizeLimitPromoter := newSizeLimitPromoter[E](cfg)
 	levels, err := fs.NewLeveledFilesystem(cfg, sizeLimitPromoter, itemLimitPromoter, timeLimitPromoter)
 	if err != nil {
 		panic(err)

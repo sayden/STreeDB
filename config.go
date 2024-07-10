@@ -1,43 +1,69 @@
 package streedb
 
-type FILE_FORMAT int
+func NewDefaultConfig() *Config {
+	return &Config{
+		MaxLevels:   5,
+		DbPath:      "/tmp/db",
+		Filesystem:  FilesystemTypeMap[FILESYSTEM_TYPE_LOCAL],
+		Format:      FormatMap[FILE_FORMAT_JSON],
+		WalMaxItems: 5,
+		Compaction: CompactionCfg{
+			Promoters: PromotersCfg{
+				TimeLimit: TimeLimitPromoterCfg{
+					GrowthFactor: 8,
+					MaxTimeMs:    7 * 24 * 3600 * 1000,
+					MinTimeMs:    1000 * 3600,
+				},
+				SizeLimit: SizeLimitPromoterCfg{
+					GrowthFactor:        16,
+					FirstBlockSizeBytes: 1024 * 1024,
+				},
+				ItemLimit: ItemLimitPromoterCfg{
+					GrowthFactor: 8,
+					MaxItems:     1000,
+				},
+			},
+		},
+	}
 
-const (
-	FILE_FORMAT_JSON FILE_FORMAT = iota
-	FILE_FORMAT_PARQUET
-)
-
-var FormatMap = map[FILE_FORMAT]string{
-	FILE_FORMAT_JSON:    "json",
-	FILE_FORMAT_PARQUET: "parquet",
 }
-
-var ReverseFormatMap = map[string]FILE_FORMAT{
-	"json":    FILE_FORMAT_JSON,
-	"parquet": FILE_FORMAT_PARQUET,
-}
-
-const (
-	PARQUET_NUMBER_OF_THREADS = 8
-)
 
 type Config struct {
-	CompactionExtraPasses int
-	MaxLevels             int
-	DbPath                string
-	Filesystem            string
-	Format                string
-	WalMaxItems           int
-	S3Config              S3Config
-	LevelPromoter         LevelPromoterCfg
-	LevelFilesystems      []string
+	MaxLevels        int
+	DbPath           string
+	Filesystem       string
+	Format           string
+	WalMaxItems      int
+	S3Config         S3Config
+	LevelFilesystems []string
+	Compaction       CompactionCfg
 }
 
-type LevelPromoterCfg struct {
-	MaxItemsExponential int
-	MaxItemsLinar       int
-	MaxSizeExponential  int
-	MaxSizeLinear       int
+type CompactionCfg struct {
+	Promoters PromotersCfg
+}
+
+type PromotersCfg struct {
+	TimeLimit TimeLimitPromoterCfg
+	SizeLimit SizeLimitPromoterCfg
+	ItemLimit ItemLimitPromoterCfg
+}
+
+type SizeLimitPromoterCfg struct {
+	GrowthFactor        int
+	FirstBlockSizeBytes int
+	MaxBlockSizeBytes   int
+}
+
+type ItemLimitPromoterCfg struct {
+	GrowthFactor int
+	MaxItems     int
+}
+
+type TimeLimitPromoterCfg struct {
+	GrowthFactor int
+	MaxTimeMs    int64
+	MinTimeMs    int64
 }
 
 type S3Config struct {
