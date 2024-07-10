@@ -13,13 +13,18 @@ func TestCompactionMultiLevel(t *testing.T) {
 		os.RemoveAll("/tmp/db/compaction")
 	})
 
+	defaultCfg := db.NewDefaultConfig()
+
 	cfg := &db.Config{
 		WalMaxItems:      5,
 		Format:           db.FormatMap[db.FILE_FORMAT_JSON],
+		Filesystem:       db.FilesystemTypeMap[db.FILESYSTEM_TYPE_LOCAL],
 		MaxLevels:        2,
 		LevelFilesystems: []string{"local", "local"},
 		DbPath:           "/tmp/db/compaction",
+		Compaction:       defaultCfg.Compaction,
 	}
+	cfg.Compaction.Promoters.ItemLimit.MaxItems = 10
 
 	mlevel, err := NewLsmTree[db.Integer](cfg)
 	assert.NoError(t, err)
@@ -38,12 +43,12 @@ func TestCompactionMultiLevel(t *testing.T) {
 	blocks := mlevel.levels.Level(0).Fileblocks()
 	assert.Equal(t, 2, len(blocks))
 	blocks = mlevel.levels.Level(1).Fileblocks()
-	// mergedBlock := blocks[0]
-	// meta := mergedBlock.Metadata()
-	// assert.Equal(t, 10, meta.ItemCount)
-	// es, err := mergedBlock.Load()
-	// assert.NoError(t, err)
-	// assert.Equal(t, 10, len(es))
-	// assert.Equal(t, int32(1), es[0].N)
-	// assert.Equal(t, int32(7), es[9].N)
+	mergedBlock := blocks[0]
+	meta := mergedBlock.Metadata()
+	assert.Equal(t, 10, meta.ItemCount)
+	es, err := mergedBlock.Load()
+	assert.NoError(t, err)
+	assert.Equal(t, 10, len(es))
+	assert.Equal(t, int32(1), es[0].N)
+	assert.Equal(t, int32(7), es[9].N)
 }

@@ -88,9 +88,9 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) erro
 			blocksToSkip[a.Metadata().UUID()] = struct{}{}
 			blocksToSkip[b.Metadata().UUID()] = struct{}{}
 
-			// break
+			break
 			// }
-			j++
+			// j++
 		}
 		i++
 	}

@@ -86,8 +86,8 @@ func (b *MetadataBuilder[T]) WithLevel(l int) *MetadataBuilder[T] {
 		b.Level = l
 	}
 
-	if b.Level > b.cfg.MaxLevels {
-		b.WithLevel(b.cfg.MaxLevels)
+	if b.Level > b.cfg.MaxLevels-1 {
+		b.Level = b.cfg.MaxLevels - 1
 	}
 
 	return b

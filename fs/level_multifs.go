@@ -100,13 +100,13 @@ func (b *MultiFsLevels[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
 func (b *MultiFsLevels[T]) NewFileblock(es db.Entries[T], builder *db.MetadataBuilder[T]) error {
 	for _, promoter := range b.promoters {
 		if err := promoter.Promote(builder); err != nil {
-			return err
+			return errors.Join(errors.New("failed during promotion"), err)
 		}
 	}
 
 	_, err := b.levels[builder.Level].Create(es, builder)
 	if err != nil {
-		return err
+		return errors.Join(errors.New("failed to create new fileblock in mfs"), err)
 	}
 
 	return nil

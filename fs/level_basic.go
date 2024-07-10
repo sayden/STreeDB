@@ -69,12 +69,12 @@ func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (*
 	// Add filesystem related information to the metadata
 	metadata, err := b.filesystem.FillMetadataBuilder(meta).Build()
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(fmt.Errorf("error creating metadata for block: "), err)
 	}
 
 	fileblock, err := b.filesystem.Create(b.cfg, es, metadata, b.fileblockListeners)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(fmt.Errorf("error creating block at level: "), err)
 	}
 
 	return fileblock, nil

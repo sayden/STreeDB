@@ -24,9 +24,11 @@ func cleanAll() {
 func TestS3(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
+	defaultCfg := streedb.NewDefaultConfig()
 
 	testCfgs := []*streedb.Config{
 		{
+			Compaction:       defaultCfg.Compaction,
 			WalMaxItems:      5,
 			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
 			Format:           streedb.FormatMap[streedb.FILE_FORMAT_PARQUET],
@@ -39,6 +41,7 @@ func TestS3(t *testing.T) {
 			},
 		},
 		{
+			Compaction:       defaultCfg.Compaction,
 			WalMaxItems:      5,
 			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
 			Format:           streedb.FormatMap[streedb.FILE_FORMAT_JSON],
