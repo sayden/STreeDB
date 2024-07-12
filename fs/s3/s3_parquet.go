@@ -3,6 +3,7 @@ package fss3
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,18 +19,18 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 )
 
-func InitParquetS3[T db.Entry](cfg *db.Config, level int) (db.Filesystem[T], error) {
-	return initS3[T](cfg, level, newS3FilesystemParquet)
+func InitParquetS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O, E], error) {
+	return initS3[O, E](cfg, level)
 }
 
-type s3ParquetFs[T db.Entry] struct {
+type s3ParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg      *db.Config
 	s3cfg    s3config.Config
 	client   *s3.Client
 	rootPath string
 }
 
-func (f *s3ParquetFs[T]) Load(b *db.Fileblock[T]) (db.Entries[T], error) {
+func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], error) {
 	out, err := f.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(f.cfg.S3Config.Bucket),
 		Key:    aws.String(b.Metadata().DataFilepath),
@@ -67,28 +68,38 @@ func (f *s3ParquetFs[T]) Load(b *db.Fileblock[T]) (db.Entries[T], error) {
 	}
 	defer pf.Close()
 
-	pr, err := reader.NewParquetReader(pf, new(T), db.PARQUET_NUMBER_OF_THREADS)
+	pr, err := reader.NewParquetReader(pf, new(E), db.PARQUET_NUMBER_OF_THREADS)
 	if err != nil {
 		return nil, err
 	}
 
 	numRows := int(pr.GetNumRows())
-	entries := make(db.Entries[T], numRows)
-	err = pr.Read(&entries)
+	entries := make([]E, numRows)
+	if err = pr.Read(&entries); err != nil {
+		return nil, err
+	}
+
+	return db.NewSliceToMap(entries), nil
+}
+
+func (f *s3ParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
+	return updateMetadataS3[O, E](f.cfg, f.client, b.Metadata())
+}
+
+func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+	if es.Len() == 0 {
+		return nil, errors.New("empty data")
+	}
+
+	builder = f.FillMetadataBuilder(builder)
+	meta, err := builder.Build()
 	if err != nil {
 		return nil, err
 	}
 
-	return entries, nil
-}
-
-func (f *s3ParquetFs[T]) UpdateMetadata(b *db.Fileblock[T]) error {
-	return updateMetadataS3(f.cfg, f.client, b.Metadata())
-}
-
-func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (*db.Fileblock[T], error) {
-	if entries.Len() == 0 {
-		return nil, errors.New("empty data")
+	sliceOfEntries, ok := es.(db.EntriesMap[O, E])
+	if !ok {
+		return nil, errors.New("entries is not a EntriesMap")
 	}
 
 	// data file
@@ -98,19 +109,20 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 	}
 	// closed 10 lines below
 
-	pw, err := writer.NewParquetWriter(fw, new(T), 4)
+	parquetWriter, err := writer.NewParquetWriter(fw, new(E), 4)
 	if err != nil {
 		fw.Close()
 		return nil, err
 	}
-	for _, entry := range entries {
-		pw.Write(entry)
-	}
 
-	if err = pw.WriteStop(); err != nil {
+	for _, entry := range sliceOfEntries {
+		parquetWriter.Write(entry)
+	}
+	if err = parquetWriter.WriteStop(); err != nil {
 		fw.Close()
 		return nil, err
 	}
+
 	if err = fw.Close(); err != nil {
 		return nil, err
 	}
@@ -144,20 +156,20 @@ func (f *s3ParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.
 	}
 	block := db.NewFileblock(cfg, meta, f)
 	for _, l := range ls {
-		l.OnNewFileblock(block)
+		l.OnFileblockCreated(block)
 	}
 
 	return block, nil
 }
 
-func (f *s3ParquetFs[T]) Remove(b *db.Fileblock[T], listeners []db.FileblockListener[T]) error {
+func (f *s3ParquetFs[O, E]) Remove(b *db.Fileblock[O, E], listeners []db.FileblockListener[O, E]) error {
 	return removeS3(f.client, f.cfg, b, listeners...)
 }
 
-func (f *s3ParquetFs[T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[T]) error {
+func (f *s3ParquetFs[O, E]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O, E]) error {
 	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, listeners...)
 }
 
-func (f *s3ParquetFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
+func (f *s3ParquetFs[O, E]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
 	return meta.WithRootPath(f.rootPath).WithExtension(".parquet")
 }

@@ -1,26 +1,56 @@
 package streedb
 
 import (
+	"cmp"
 	"time"
 )
 
-type MetaFile[T Entry] struct {
-	CreatedAt time.Time
-	ItemCount int
-	Size      int64
-	Level     int
-	Min       T
-	Max       T
-	Uuid      string
+type MetaFile[O cmp.Ordered] struct {
+	CreatedAt  time.Time
+	ItemCount  int
+	Size       int64
+	Level      int
+	Uuid       string
+	PrimaryIdx string
+	Min        *O
+	Max        *O
+	Rows       []Row[O]
 
 	DataFilepath string `json:"Datafile"`
 	MetaFilepath string `json:"Metafile"`
 }
 
-func (m *MetaFile[T]) Metadata() *MetaFile[T] {
+type Row[O cmp.Ordered] struct {
+	SecondaryIdx string
+	ItemCount    int
+	Min          O
+	Max          O
+}
+
+func (m *MetaFile[O]) MaxAtSecondary(s string) (O, bool) {
+	for _, rg := range m.Rows {
+		if rg.SecondaryIdx == s {
+			return rg.Max, true
+		}
+	}
+
+	return (*new(O)), false
+}
+
+func (m *MetaFile[O]) MinAtSecondary(s string) (O, bool) {
+	for _, rg := range m.Rows {
+		if rg.SecondaryIdx == s {
+			return rg.Min, true
+		}
+	}
+
+	return (*new(O)), false
+}
+
+func (m *MetaFile[O]) Metadata() *MetaFile[O] {
 	return m
 }
 
-func (m *MetaFile[T]) UUID() string {
+func (m *MetaFile[O]) UUID() string {
 	return m.Uuid
 }

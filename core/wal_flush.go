@@ -1,55 +1,57 @@
 package core
 
 import (
+	"cmp"
 	"time"
 	"unsafe"
 
 	db "github.com/sayden/streedb"
 )
 
-func newItemLimitWalFlushStrategy[E db.Entry](limit int) db.WalFlushStrategy[E] {
-	return &itemLimitWalFlushStrategy[E]{limit: limit}
+func newItemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](limit int) db.WalFlushStrategy[O, E] {
+	return &itemLimitWalFlushStrategy[O, E]{limit: limit}
 }
 
-type itemLimitWalFlushStrategy[E db.Entry] struct{ limit int }
+type itemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct{ limit int }
 
-func (s *itemLimitWalFlushStrategy[E]) ShouldFlush(es db.Entries[E]) bool {
-	if len(es) == 0 {
+func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
+	if es.Len() == 0 {
 		return false
 	}
-	return len(es) >= s.limit
+	return es.Len() >= s.limit
 }
 
-func newTimeLimitWalFlushStrategy[E db.Entry](d time.Duration) db.WalFlushStrategy[E] {
-	return &timeLimitWalFlushStrategy[E]{duration: d}
+// FIXME: This function is not used in the codebase
+func newTimeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](d time.Duration) db.WalFlushStrategy[O, E] {
+	return &timeLimitWalFlushStrategy[O, E]{duration: d}
 }
 
-type timeLimitWalFlushStrategy[E db.Entry] struct {
+type timeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 	duration time.Duration
 }
 
-func (s *timeLimitWalFlushStrategy[E]) ShouldFlush(es db.Entries[E]) bool {
-	if len(es) == 0 {
+func (s *timeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
+	if es.Len() == 0 {
 		return false
 	}
-	return time.Since(es[len(es)-1].CreationTime()) > s.duration
+	return time.Since(es.Last().CreationTime()) > s.duration
 }
 
-func newSizeLimitWalFlushStrategy[E db.Entry](s int) db.WalFlushStrategy[E] {
-	return &sizeLimitWalFlushStrategy[E]{maxSize: s}
+func newSizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](s int) db.WalFlushStrategy[O, E] {
+	return &sizeLimitWalFlushStrategy[O, E]{maxSize: s}
 }
 
-type sizeLimitWalFlushStrategy[E db.Entry] struct {
+type sizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 	maxSize int
 }
 
-func (s *sizeLimitWalFlushStrategy[E]) ShouldFlush(es db.Entries[E]) bool {
-	if len(es) == 0 {
+func (s *sizeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
+	if es.Len() == 0 {
 		return false
 	}
 
 	// TODO: Optimistic way to get the size of a struct
-	size := int(unsafe.Sizeof(es[0]))
+	size := int(unsafe.Sizeof(es.Get(0)))
 
-	return size*len(es) >= s.maxSize
+	return size*es.Len() >= s.maxSize
 }

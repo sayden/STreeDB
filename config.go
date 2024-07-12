@@ -4,13 +4,13 @@ import "time"
 
 func NewDefaultConfig() *Config {
 	return &Config{
-		MaxLevels:  5,
-		DbPath:     "/tmp/db",
-		Filesystem: FilesystemTypeMap[FILESYSTEM_TYPE_LOCAL],
-		Format:     FormatMap[FILE_FORMAT_JSON],
+		MaxLevels:        5,
+		DbPath:           "/tmp/db",
+		Filesystem:       FilesystemTypeMap[FILESYSTEM_TYPE_LOCAL],
+		LevelFilesystems: []string{"local", "local", "local", "local", "local"},
 		Wal: WalCfg{
 			MaxItems:         100,
-			MaxElapsedTimeMs: time.Hour.Milliseconds(),
+			MaxElapsedTimeMs: time.Hour.Milliseconds() * 1000,
 			MaxSizeBytes:     32 * 1024,
 		},
 		Compaction: CompactionCfg{
@@ -38,7 +38,6 @@ type Config struct {
 	MaxLevels        int
 	DbPath           string
 	Filesystem       string
-	Format           string
 	S3Config         S3Config
 	LevelFilesystems []string
 	Compaction       CompactionCfg

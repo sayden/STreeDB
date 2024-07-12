@@ -1,28 +1,31 @@
 package core
 
 import (
+	"cmp"
 	"errors"
 
 	db "github.com/sayden/streedb"
 )
 
-func NewTieredMultiFsCompactor[E db.Entry](cfg *db.Config, levels db.Levels[E], mergers ...db.Merger[E]) (db.Compactor[E], error) {
-	return &TieredMultiFsCompactor[E]{
-		cfg:     cfg,
-		levels:  levels,
-		mergers: mergers,
+func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, levels db.Levels[O, E], mergers ...db.CompactionStrategy[O]) (db.Compactor[O, E], error) {
+	return &TieredMultiFsCompactor[O, E]{
+		cfg:                cfg,
+		levels:             levels,
+		compactionStrategy: mergers,
 	}, nil
 }
 
-type TieredMultiFsCompactor[E db.Entry] struct {
-	cfg     *db.Config
-	levels  db.Levels[E]
-	mergers []db.Merger[E]
+// TieredMultiFsCompactor compacts fileblocks across multiple levels and filesystems.
+// It is effective but it is N^2 in the number of fileblocks.
+type TieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]] struct {
+	cfg                *db.Config
+	levels             db.Levels[O, E]
+	compactionStrategy []db.CompactionStrategy[O]
 }
 
 var ErrNoBlocksFound = errors.New("no blocks found")
 
-func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) error {
+func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O, E]) error {
 	if len(fileblocks) < 1 {
 		return ErrNoBlocksFound
 	}
@@ -31,9 +34,9 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) erro
 		i            = 0
 		j            = 1
 		err          error
-		a            *db.Fileblock[T]
-		b            *db.Fileblock[T]
-		entries      db.Entries[T]
+		a            *db.Fileblock[O, E]
+		b            *db.Fileblock[O, E]
+		entries      db.Entries[O, E]
 		blocksToSkip = make(map[string]struct{})
 	)
 
@@ -53,7 +56,7 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) erro
 				continue
 			}
 
-			for _, merger := range mf.mergers {
+			for _, merger := range mf.compactionStrategy {
 				if !merger.ShouldMerge(a.Metadata(), b.Metadata()) {
 					j++
 					continue jLoop
@@ -70,10 +73,10 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) erro
 			}
 
 			// Write the new block to its new storage directly
-			builder := db.NewMetadataBuilder[T](mf.cfg).
+			builder := db.NewMetadataBuilder[O](mf.cfg).
 				WithLevel(higherLevel).
-				WithEntries(entries).
 				WithSize(a.Size + b.Size)
+
 			if err = mf.levels.NewFileblock(entries, builder); err != nil {
 				return errors.Join(errors.New("failed to create new fileblock"), err)
 			}
@@ -89,8 +92,6 @@ func (mf *TieredMultiFsCompactor[T]) Compact(fileblocks []*db.Fileblock[T]) erro
 			blocksToSkip[b.Metadata().UUID()] = struct{}{}
 
 			break
-			// }
-			// j++
 		}
 		i++
 	}

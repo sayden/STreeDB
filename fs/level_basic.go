@@ -1,20 +1,21 @@
 package fs
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
 	db "github.com/sayden/streedb"
 )
 
-func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T], levels db.Levels[T]) db.Level[T] {
-	level := &BasicLevel[T]{
+func NewBasicLevel[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fs db.Filesystem[O, E], levels db.Levels[O, E]) db.Level[O, E] {
+	level := &BasicLevel[O, E]{
 		cfg:                cfg,
 		filesystem:         fs,
-		fileblocks:         make([]*db.Fileblock[T], 0, 10),
-		min:                db.LinkedList[T]{},
-		max:                db.LinkedList[T]{},
-		fileblockListeners: []db.FileblockListener[T]{levels},
+		fileblocks:         make([]*db.Fileblock[O, E], 0, 10),
+		min:                db.LinkedList[O, E]{},
+		max:                db.LinkedList[O, E]{},
+		fileblockListeners: []db.FileblockListener[O, E]{levels},
 	}
 	// add self to the listeners
 	level.fileblockListeners = append(level.fileblockListeners, level)
@@ -27,20 +28,20 @@ func NewBasicLevel[T db.Entry](cfg *db.Config, fs db.Filesystem[T], levels db.Le
 	return level
 }
 
-type BasicLevel[T db.Entry] struct {
-	filesystem db.Filesystem[T]
+type BasicLevel[O cmp.Ordered, E db.Entry[O]] struct {
+	filesystem db.Filesystem[O, E]
 
-	min db.LinkedList[T]
-	max db.LinkedList[T]
+	min db.LinkedList[O, E]
+	max db.LinkedList[O, E]
 
 	cfg                *db.Config
-	fileblockListeners []db.FileblockListener[T]
+	fileblockListeners []db.FileblockListener[O, E]
 
 	// TODO: Use a Btree instead of a slice
-	fileblocks []*db.Fileblock[T]
+	fileblocks []*db.Fileblock[O, E]
 }
 
-func (b *BasicLevel[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
+func (b *BasicLevel[O, T]) OnFileblockRemoved(block *db.Fileblock[O, T]) {
 	idx := 0
 
 	meta := block.Metadata()
@@ -58,21 +59,15 @@ func (b *BasicLevel[T]) OnFileblockRemoved(block *db.Fileblock[T]) {
 	b.fileblocks = append(b.fileblocks[:idx], b.fileblocks[idx+1:]...)
 }
 
-func (b *BasicLevel[T]) OnNewFileblock(f *db.Fileblock[T]) {
+func (b *BasicLevel[O, T]) OnFileblockCreated(f *db.Fileblock[O, T]) {
 	meta := f.Metadata()
 	b.updateMinMax(meta)
 
 	b.fileblocks = append(b.fileblocks, f)
 }
 
-func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (*db.Fileblock[T], error) {
-	// Add filesystem related information to the metadata
-	metadata, err := b.filesystem.FillMetadataBuilder(meta).Build()
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("error creating metadata for block: "), err)
-	}
-
-	fileblock, err := b.filesystem.Create(b.cfg, es, metadata, b.fileblockListeners)
+func (b *BasicLevel[O, T]) Create(es db.Entries[O, T], builder *db.MetadataBuilder[O]) (*db.Fileblock[O, T], error) {
+	fileblock, err := b.filesystem.Create(b.cfg, es, builder, b.fileblockListeners)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("error creating block at level: "), err)
 	}
@@ -80,11 +75,11 @@ func (b *BasicLevel[T]) Create(es db.Entries[T], meta *db.MetadataBuilder[T]) (*
 	return fileblock, nil
 }
 
-func (b *BasicLevel[T]) RemoveFile(f *db.Fileblock[T]) error {
+func (b *BasicLevel[O, T]) RemoveFile(f *db.Fileblock[O, T]) error {
 	return b.filesystem.Remove(f, b.fileblockListeners)
 }
 
-func (b *BasicLevel[T]) FindFileblock(d T) (*db.Fileblock[T], bool, error) {
+func (b *BasicLevel[O, T]) FindFileblock(d T) (*db.Fileblock[O, T], bool, error) {
 	if !b.entryFallsInside(d) {
 		return nil, false, nil
 	}
@@ -98,16 +93,16 @@ func (b *BasicLevel[T]) FindFileblock(d T) (*db.Fileblock[T], bool, error) {
 	return nil, false, nil
 }
 
-func (b *BasicLevel[T]) Find(d T) (db.Entry, bool, error) {
+func (b *BasicLevel[O, T]) Find(d T) (db.Entry[O], bool, error) {
 	if !b.entryFallsInside(d) {
 		return nil, false, nil
 	}
 
 	// iterate through each block
 	var (
-		entry     db.Entry
-		fileblock *db.Fileblock[T]
-		entries   db.Entries[T]
+		// entry     db.Entry[O]
+		fileblock *db.Fileblock[O, T]
+		entries   db.Entries[O, T]
 		err       error
 		found     bool
 	)
@@ -117,17 +112,18 @@ func (b *BasicLevel[T]) Find(d T) (db.Entry, bool, error) {
 			if entries, err = fileblock.Load(); err != nil {
 				return nil, false, errors.Join(fmt.Errorf("error finding value %v in block: ", d), err)
 			}
+			_ = entries
 
-			if entry, found = entries.Find(d); found {
-				return entry, found, nil
-			}
+			// if entry, found = entries.Find(d); found {
+			// 	return entry, found, nil
+			// }
 		}
 	}
 
 	return nil, false, nil
 }
 
-func (b *BasicLevel[T]) Close() error {
+func (b *BasicLevel[O, T]) Close() error {
 	for _, block := range b.fileblocks {
 		block.Close()
 	}
@@ -135,11 +131,11 @@ func (b *BasicLevel[T]) Close() error {
 	return nil
 }
 
-func (b *BasicLevel[T]) Fileblocks() []*db.Fileblock[T] {
+func (b *BasicLevel[O, T]) Fileblocks() []*db.Fileblock[O, T] {
 	return b.fileblocks
 }
 
-func (b *BasicLevel[T]) entryFallsInside(d T) bool {
+func (b *BasicLevel[O, T]) entryFallsInside(d T) bool {
 	if minV, found := b.min.Head(); !found {
 		return false
 	} else if d.LessThan(minV) {
@@ -155,12 +151,12 @@ func (b *BasicLevel[T]) entryFallsInside(d T) bool {
 	return true
 }
 
-func (b *BasicLevel[T]) updateMinMax(in *db.MetaFile[T]) {
-	b.min.SetMin(in.Min)
-	b.max.SetMax(in.Max)
+func (b *BasicLevel[O, T]) updateMinMax(in *db.MetaFile[O]) {
+	// b.min.SetMin(in.Min)
+	// b.max.SetMax(in.Max())
 }
 
-func (b *BasicLevel[T]) removeMinMax(meta *db.MetaFile[T]) {
-	b.min.Remove(meta.Min)
-	b.max.Remove(meta.Max)
+func (b *BasicLevel[O, T]) removeMinMax(meta *db.MetaFile[O]) {
+	// b.min.Remove(meta.Min())
+	// b.max.Remove(meta.Max())
 }

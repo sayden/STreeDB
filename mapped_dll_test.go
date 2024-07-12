@@ -3,18 +3,18 @@ package streedb
 import "testing"
 
 func TestMappedDLL(t *testing.T) {
-	dll := MapDLL[Entry, Integer]{}
-	dll.SetMax(NewInteger(1, "a", "b"), NewInteger(1, "a", "b"))
-	dll.SetMax(NewInteger(4, "a", "b"), NewInteger(4, "a", "b"))
-	dll.SetMax(NewInteger(3, "a", "b"), NewInteger(3, "a", "b"))
-	dll.SetMax(NewInteger(2, "a", "b"), NewInteger(2, "a", "b"))
-	dll.SetMax(NewInteger(0, "a", "b"), NewInteger(0, "a", "b"))
-	dll.Remove(NewInteger(3, "a", "b"))
-	dll.Remove(NewInteger(0, "a", "b"))
+	dll := MapDLL[int32, Entry[int32], *Kv]{}
+	dll.SetMax(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMax(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMax(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMax(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMax(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.Remove(NewKv("b", []int32{}, "idx1"))
+	dll.Remove(NewKv("b", []int32{}, "idx1"))
 
-	dll = MapDLL[Entry, Integer]{}
-	dll.SetMin(NewInteger(1, "a", "b"), NewInteger(1, "a", "b"))
-	dll.SetMin(NewInteger(4, "a", "b"), NewInteger(4, "a", "b"))
-	dll.SetMin(NewInteger(3, "a", "b"), NewInteger(3, "a", "b"))
-	dll.SetMin(NewInteger(2, "a", "b"), NewInteger(2, "a", "b"))
+	dll = MapDLL[int32, Entry[int32], *Kv]{}
+	dll.SetMin(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMin(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMin(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
+	dll.SetMin(NewKv("b", []int32{}, "idx1"), NewKv("b", []int32{}, "idx1"))
 }

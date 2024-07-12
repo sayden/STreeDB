@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cmp"
 	"errors"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
+func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], error) {
 	if cfg.LevelFilesystems == nil {
 		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
 		for i := 0; i < cfg.MaxLevels; i++ {
@@ -17,27 +18,28 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 		}
 	}
 
-	timeLimitPromoter := newTimeLimitPromoter[E](cfg)
-	itemLimitPromoter := newItemLimitPromoter[E](cfg)
-	sizeLimitPromoter := newSizeLimitPromoter[E](cfg)
-	levels, err := fs.NewLeveledFilesystem(cfg, sizeLimitPromoter, itemLimitPromoter, timeLimitPromoter)
+	timeLimitPromoter := newTimeLimitPromoter[O, E](cfg)
+	itemLimitPromoter := newItemLimitPromoter[O, E](cfg)
+	sizeLimitPromoter := newSizeLimitPromoter[O, E](cfg)
+	levels, err := fs.NewLeveledFilesystem[O, E](cfg, sizeLimitPromoter, itemLimitPromoter, timeLimitPromoter)
 	if err != nil {
 		panic(err)
 	}
 
-	l := &LsmTree[E]{
+	l := &LsmTree[O, E]{
 		levels: levels,
 		cfg:    cfg,
 	}
 
 	// Create the WAL
 	l.wal = newNMMemoryWal(cfg, levels,
-		newItemLimitWalFlushStrategy[E](cfg.Wal.MaxItems),
-		newSizeLimitWalFlushStrategy[E](cfg.Wal.MaxSizeBytes),
-		newTimeLimitWalFlushStrategy[E](time.Duration(cfg.Wal.MaxElapsedTimeMs*1000)))
+		newItemLimitWalFlushStrategy[O, E](cfg.Wal.MaxItems),
+		newSizeLimitWalFlushStrategy[O, E](cfg.Wal.MaxSizeBytes),
+		newTimeLimitWalFlushStrategy[O, E](time.Duration(cfg.Wal.MaxElapsedTimeMs*1000)),
+	)
 
-	andMerger1 := &samePrimaryIndexMerger[E]{and: &overlappingMerger[E]{}}
-	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels, andMerger1)
+	compactionStrategies := &samePrimaryIndexCompactionStrategy[O]{and: &overlappingCompactionStrategy[O]{}}
+	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels, compactionStrategies)
 	if err != nil {
 		panic(err)
 	}
@@ -45,30 +47,30 @@ func NewLsmTree[E db.Entry](cfg *db.Config) (*LsmTree[E], error) {
 	return l, nil
 }
 
-type LsmTree[T db.Entry] struct {
+type LsmTree[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg *db.Config
 
-	compactor db.Compactor[T]
-	wal       db.Wal[T]
-	levels    db.Levels[T]
+	compactor db.Compactor[O, E]
+	wal       db.Wal[O, E]
+	levels    db.Levels[O, E]
 }
 
-func (l *LsmTree[T]) Append(d T) {
+func (l *LsmTree[O, E]) Append(d E) {
 	err := l.wal.Append(d)
 	if err != nil {
 		log.WithError(err).Error("error appending to wal")
 	}
 }
 
-func (l *LsmTree[T]) RangeIterator(begin, end T) (db.EntryIterator[T], bool, error) {
-	return l.levels.RangeIterator(begin, end)
-}
+// func (l *LsmTree[O, T]) RangeIterator(begin, end T) (db.EntryIterator[O, T], bool, error) {
+// 	return l.levels.RangeIterator(begin, end)
+// }
+//
+// func (l *LsmTree[O, T]) ForwardIterator(d T) (db.EntryIterator[O, T], bool, error) {
+// 	return l.levels.ForwardIterator(d)
+// }
 
-func (l *LsmTree[T]) ForwardIterator(d T) (db.EntryIterator[T], bool, error) {
-	return l.levels.ForwardIterator(d)
-}
-
-func (l *LsmTree[T]) Find(d T) (db.Entry, bool, error) {
+func (l *LsmTree[O, T]) Find(d T) (db.Entry[O], bool, error) {
 	// Look in the WAL
 	if v, found := l.wal.Find(d); found {
 		return v, true, nil
@@ -77,7 +79,7 @@ func (l *LsmTree[T]) Find(d T) (db.Entry, bool, error) {
 	return l.levels.Find(d)
 }
 
-func (l *LsmTree[T]) Close() (err error) {
+func (l *LsmTree[O, T]) Close() (err error) {
 	// Close the wal and write whatever is left in it
 	errs := make([]error, 0)
 
@@ -85,6 +87,7 @@ func (l *LsmTree[T]) Close() (err error) {
 		errs = append(errs, err)
 	}
 
+	// l.levels will take care of closing every embedded level
 	if err = l.levels.Close(); err != nil {
 		errs = append(errs, err)
 	}
@@ -92,12 +95,12 @@ func (l *LsmTree[T]) Close() (err error) {
 	return errors.Join(errs...)
 }
 
-func (l *LsmTree[T]) Compact() error {
+func (l *LsmTree[O, T]) Compact() error {
 	return l.compactor.Compact(getBlocksFromLevels(l.cfg.MaxLevels, l.levels))
 }
 
-func getBlocksFromLevels[T db.Entry](maxLevels int, levels db.Levels[T]) []*db.Fileblock[T] {
-	var blocks []*db.Fileblock[T]
+func getBlocksFromLevels[O cmp.Ordered, E db.Entry[O]](maxLevels int, levels db.Levels[O, E]) []*db.Fileblock[O, E] {
+	var blocks []*db.Fileblock[O, E]
 	for i := 0; i < maxLevels; i++ {
 		level := levels.Level(i)
 		blocks = append(blocks, level.Fileblocks()...)

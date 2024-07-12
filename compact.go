@@ -1,9 +1,15 @@
 package streedb
 
-type Compactor[T Entry] interface {
-	Compact(block []*Fileblock[T]) error
+import "cmp"
+
+type Compactor[O cmp.Ordered, E Entry[O]] interface {
+	Compact(block []*Fileblock[O,E]) error
 }
 
-type LevelPromoter[T Entry] interface {
-	Promote(metaBuilder *MetadataBuilder[T]) error
+type LevelPromoter[O cmp.Ordered] interface {
+	Promote(metaBuilder *MetadataBuilder[O]) error
+}
+
+type CompactionStrategy[O cmp.Ordered] interface {
+	ShouldMerge(a, b *MetaFile[O]) bool
 }

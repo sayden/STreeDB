@@ -1,46 +1,98 @@
 package streedb
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"time"
 )
 
-func NewKv(key string, val int32, primaryIdx string) Kv {
-	return Kv{Key: key, Val: val, PrimaryIdx: primaryIdx, createdAt: time.Now()}
+func NewKv(key string, val []int32, primaryIdx string) *Kv {
+	return &Kv{
+		Key:        key,
+		Val:        val,
+		PrimaryIdx: primaryIdx,
+		createdAt:  time.Now(),
+	}
 }
 
 type Kv struct {
 	createdAt  time.Time
 	PrimaryIdx string
-	Key        string `parquet:"name=key, type=BYTE_ARRAY, encoding=DELTA_LENGTH_BYTE_ARRAY, repetitiontype=REQUIRED"`
-	Val        int32  `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REQUIRED"`
+	Key        string  `parquet:"name=key, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
+	Val        []int32 `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
 }
 
-func (l Kv) LessThan(a Entry) bool {
-	a_ := a.(Kv)
+func (l *Kv) Append(a Entry[int32]) error {
+	a_, ok := a.(*Kv)
+	if !ok {
+		return errors.New("invalid type")
+	}
+
+	l.Val = append(l.Val, a_.Val...)
+
+	return nil
+}
+
+func (l *Kv) Get(i int) any {
+	return l.Val[i]
+}
+
+func (l *Kv) Last() int32 {
+	return l.Val[len(l.Val)-1]
+}
+
+func (l *Kv) Max() int32 {
+	max := int32(math.MinInt32)
+	for _, v := range l.Val {
+		if v > max {
+			max = v
+		}
+	}
+	return max
+}
+
+func (l *Kv) Min() int32 {
+	min := int32(math.MaxInt32)
+
+	for _, v := range l.Val {
+		if v < min {
+			min = v
+		}
+	}
+
+	return min
+}
+
+func (l *Kv) LessThan(a Comparable[int32]) bool {
+	a_ := a.(*Kv)
 	return l.Key < a_.Key
 }
 
-func (l Kv) Equals(b Entry) bool {
+func (l *Kv) Equals(b Comparable[int32]) bool {
 	if l.PrimaryIndex() != "" {
 		return l.PrimaryIndex() == b.PrimaryIndex() && l.SecondaryIndex() == b.SecondaryIndex()
 	}
 	return l.SecondaryIndex() == b.SecondaryIndex()
 }
 
-func (l Kv) PrimaryIndex() string {
+func (l *Kv) PrimaryIndex() string {
 	return l.PrimaryIdx
 }
 
-func (l Kv) SecondaryIndex() string {
+func (l *Kv) SecondaryIndex() string {
 	return l.Key
 }
 
-func (l Kv) Adjacent(a Entry) bool {
-	s1 := l.Key
-	s2 := a.(Kv).Key
+func (l *Kv) Len() int {
+	return len(l.Val)
+}
 
-	// If the strings are empty or have different lengths, they're not adjacent
+func (l *Kv) Adjacent(a Comparable[int32]) bool {
+	s1 := l.Key
+	s2 := a.(*Kv).Key
+
+	// If the strings are empty or have different lenggths, they're not adjacent
 	if len(s1) == 0 || len(s2) == 0 || len(s1) != len(s2) {
 		return false
 	}
@@ -74,7 +126,7 @@ func abs(n int) int {
 	return n
 }
 
-func (l Kv) String() string {
+func (l *Kv) String() string {
 	return fmt.Sprintf("'%s'", l.Key)
 }
 

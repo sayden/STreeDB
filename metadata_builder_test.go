@@ -8,9 +8,9 @@ import (
 
 func TestMetadataBuilder(t *testing.T) {
 	// Create a new metadata builder
-	es := []Integer{{N: 1}, {N: 2}, {N: 3}}
-	meta, err := NewMetadataBuilder[Integer](&Config{MaxLevels: 5}).
-		WithEntries(es).
+	es := NewKv("key1", []int32{1, 2, 3}, "pidx1")
+	meta, err := NewMetadataBuilder[int32](&Config{MaxLevels: 5}).
+		WithEntry(es).
 		WithLevel(1).
 		WithFilenamePrefix("01").
 		WithRootPath("/tmp/db/json").
@@ -25,6 +25,17 @@ func TestMetadataBuilder(t *testing.T) {
 	assert.Contains(t, meta.DataFilepath, "ext")
 	assert.Contains(t, meta.MetaFilepath, "/tmp/db/json/01")
 	assert.Contains(t, meta.MetaFilepath, ".json")
-	assert.Equal(t, int32(1), meta.Min.N)
-	assert.Equal(t, int32(3), meta.Max.N)
+
+	min, found := meta.MinAtSecondary("key1")
+	assert.True(t, found)
+	assert.Equal(t, int32(1), min)
+
+	max, found := meta.MaxAtSecondary("key1")
+	assert.True(t, found)
+	assert.Equal(t, int32(3), max)
+
+	min = *meta.Min
+	max = *meta.Max
+	assert.Equal(t, int32(1), min)
+	assert.Equal(t, int32(3), max)
 }

@@ -1,25 +1,27 @@
 package streedb
 
+import "cmp"
+
 // LinkedList is a LL with specific methods to order in ascending or descending order
 // it allows also duplicate values
-type LinkedList[T Entry] struct {
-	head *node[T]
+type LinkedList[O cmp.Ordered, T Entry[O]] struct {
+	head *node[O, T]
 }
 
 // node represents a node in the doubly linked list
-type node[T Entry] struct {
+type node[O cmp.Ordered, T Entry[O]] struct {
 	value T
-	next  *node[T]
+	next  *node[O, T]
 }
 
-func (dll *LinkedList[T]) Head() (T, bool) {
+func (dll *LinkedList[O, T]) Head() (T, bool) {
 	if dll.head == nil {
 		return *(new(T)), false
 	}
 	return dll.head.value, true
 }
 
-func (dll *LinkedList[T]) Last() (T, bool) {
+func (dll *LinkedList[O, T]) Last() (T, bool) {
 	if dll.head == nil {
 		return *(new(T)), false
 	}
@@ -32,15 +34,15 @@ func (dll *LinkedList[T]) Last() (T, bool) {
 	return current.value, true
 }
 
-func (dll *LinkedList[T]) SetMax(value T) {
-	newNode := &node[T]{value: value}
+func (dll *LinkedList[O, T]) SetMax(value T) {
+	newNode := &node[O, T]{value: value}
 
 	if dll.head == nil {
 		dll.head = newNode
 		return
 	}
 
-	var last *node[T]
+	var last *node[O, T]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if current.value.LessThan(value) {
 			// less than head value
@@ -60,15 +62,15 @@ func (dll *LinkedList[T]) SetMax(value T) {
 	last.next = newNode
 }
 
-func (dll *LinkedList[T]) SetMin(value T) {
-	newNode := &node[T]{value: value}
+func (dll *LinkedList[O, T]) SetMin(value T) {
+	newNode := &node[O, T]{value: value}
 
 	if dll.head == nil {
 		dll.head = newNode
 		return
 	}
 
-	var last *node[T]
+	var last *node[O, T]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if value.LessThan(current.value) {
 			// less than head value
@@ -93,8 +95,8 @@ func (dll *LinkedList[T]) SetMin(value T) {
 }
 
 // Remove removes a node from the list
-func (dll *LinkedList[T]) Remove(value T) {
-	var last *node[T]
+func (dll *LinkedList[O, T]) Remove(value T) {
+	var last *node[O, T]
 	for current := dll.head; current != nil; current, last = current.next, current {
 		if value.Equals(current.value) {
 			// remove the head
@@ -118,7 +120,7 @@ func (dll *LinkedList[T]) Remove(value T) {
 }
 
 // TraverseForward traverses the list from head to tail
-func (dll *LinkedList[T]) Each(f func(int, T)) {
+func (dll *LinkedList[O, T]) Each(f func(int, T)) {
 	i := 0
 	for current := dll.head; current != nil; current, i = current.next, i+1 {
 		f(i, current.value)

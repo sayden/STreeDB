@@ -1,6 +1,7 @@
 package fslocal
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"os"
@@ -14,45 +15,54 @@ import (
 
 // InitParquetLocal initializes a local filesystem destination. Writes the folder structure if required
 // and then read the medatada files that are already there.
-func InitParquetLocal[T db.Entry](c *db.Config, level int) (db.Filesystem[T], error) {
-	return initLocal[T](c, level, parquetFsBuilder)
+func InitParquetLocal[O cmp.Ordered, E db.Entry[O]](c *db.Config, level int) (db.Filesystem[O, E], error) {
+	return initLocal[O, E](c, level)
 }
 
-type localParquetFs[T db.Entry] struct {
+type localParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg      *db.Config
 	rootPath string
 }
 
-func (f *localParquetFs[T]) UpdateMetadata(b *db.Fileblock[T]) error {
-	return updateMetadata(b.Metadata())
+func (f *localParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
+	return updateMetadata[O, E](b.Metadata())
 }
 
 // Load the parquet file using the data stored in the metadata file
-func (f *localParquetFs[T]) Load(b *db.Fileblock[T]) (db.Entries[T], error) {
-	pf, err := local.NewLocalFileReader(b.Metadata().DataFilepath)
+func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], error) {
+	pf, err := local.NewLocalFileReader(b.DataFilepath)
 	if err != nil {
 		return nil, err
 	}
 	defer pf.Close()
 
-	pr, err := reader.NewParquetReader(pf, new(T), db.PARQUET_NUMBER_OF_THREADS)
+	pE := new(E)
+	pr, err := reader.NewParquetReader(pf, *pE, db.PARQUET_NUMBER_OF_THREADS)
 	if err != nil {
 		return nil, err
 	}
 
 	numRows := int(pr.GetNumRows())
-	entries := make(db.Entries[T], numRows)
-	err = pr.Read(&entries)
+	entries := make([]E, numRows)
+	err = pr.Read(entries)
 	if err != nil {
 		return nil, err
 	}
+	pr.ReadStop()
 
-	return entries, nil
+	return db.NewSliceToMap[O](entries), nil
 }
 
-func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *db.MetaFile[T], ls []db.FileblockListener[T]) (*db.Fileblock[T], error) {
-	if entries.Len() == 0 {
+func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+	if es.Len() == 0 {
 		return nil, errors.New("empty data")
+	}
+
+	builder = f.FillMetadataBuilder(builder)
+
+	meta, err := builder.Build()
+	if err != nil {
+		return nil, errors.Join(errors.New("error building metadata"), err)
 	}
 
 	dataFile, err := os.Create(meta.DataFilepath)
@@ -61,27 +71,30 @@ func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *
 	}
 	defer dataFile.Close()
 
-	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, new(T), db.PARQUET_NUMBER_OF_THREADS)
+	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, *new(E), db.PARQUET_NUMBER_OF_THREADS)
 	if err != nil {
-		panic(err)
+		return nil, errors.Join(errors.New("error creating parquet writer: "), err)
 	}
 
-	for _, entry := range entries {
-		parquetWriter.Write(entry)
+	total := es.Len()
+	for i := 0; i < total; i++ {
+		parquetWriter.Write(es.Get(i))
 	}
 
 	if err = parquetWriter.WriteStop(); err != nil {
-		panic(err)
+		return nil, errors.Join(errors.New("error stopping parquet writer: "), err)
+	}
+
+	if err = parquetWriter.Flush(true); err != nil {
+		return nil, errors.Join(errors.New("error flushing parquet writer: "), err)
 	}
 
 	stat, err := dataFile.Stat()
-	if err != nil {
-		log.WithFields(log.Fields{"meta_file": meta.MetaFilepath, "data_file": meta.DataFilepath}).Warn("error happened during creating of fileblock, removing files")
-		os.Remove(meta.DataFilepath)
-		os.Remove(meta.MetaFilepath)
-		return nil, err
+	if err != nil && len(parquetWriter.Footer.RowGroups) > 0 {
+		meta.Size = parquetWriter.Footer.RowGroups[0].TotalByteSize
+	} else {
+		meta.Size = stat.Size()
 	}
-	meta.Size = stat.Size()
 
 	metaFile, err := os.Create(meta.MetaFilepath)
 	if err != nil {
@@ -100,20 +113,20 @@ func (f *localParquetFs[T]) Create(cfg *db.Config, entries db.Entries[T], meta *
 
 	block := db.NewFileblock(f.cfg, meta, f)
 	for _, listener := range ls {
-		listener.OnNewFileblock(block)
+		listener.OnFileblockCreated(block)
 	}
 
 	return block, nil
 }
 
-func (f *localParquetFs[T]) Remove(b *db.Fileblock[T], ls []db.FileblockListener[T]) error {
+func (f *localParquetFs[O, T]) Remove(b *db.Fileblock[O, T], ls []db.FileblockListener[O, T]) error {
 	return remove(b, ls...)
 }
 
-func (f *localParquetFs[T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[T]) error {
+func (f *localParquetFs[O, T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O, T]) error {
 	return metaFilesInDir(f.cfg, f.rootPath, f, listeners...)
 }
 
-func (f *localParquetFs[T]) FillMetadataBuilder(meta *db.MetadataBuilder[T]) *db.MetadataBuilder[T] {
+func (f *localParquetFs[O, T]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
 	return meta.WithRootPath(f.rootPath).WithExtension(".parquet")
 }

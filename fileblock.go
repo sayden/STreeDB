@@ -1,56 +1,62 @@
 package streedb
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
 )
 
-type FileblockCreator[T Entry] interface {
-	NewFileblock(es Entries[T], builder *MetadataBuilder[T]) error
+type FileblockCreator[O cmp.Ordered, E Entry[O]] interface {
+	NewFileblock(es Entries[O, E], builder *MetadataBuilder[O]) error
 }
 
-type FileblockListener[T Entry] interface {
-	OnNewFileblock(*Fileblock[T])
-	OnFileblockRemoved(*Fileblock[T])
+type FileblockListener[O cmp.Ordered, E Entry[O]] interface {
+	OnFileblockCreated(*Fileblock[O, E])
+	OnFileblockRemoved(*Fileblock[O, E])
 }
 
-func NewFileblock[T Entry](cfg *Config, meta *MetaFile[T], filesystem Filesystem[T]) *Fileblock[T] {
-	return &Fileblock[T]{
+func NewFileblock[O cmp.Ordered, E Entry[O]](cfg *Config, meta *MetaFile[O], filesystem Filesystem[O, E]) *Fileblock[O, E] {
+	return &Fileblock[O, E]{
 		MetaFile:   *meta,
 		cfg:        cfg,
 		filesystem: filesystem,
 	}
 }
 
-type Fileblock[T Entry] struct {
-	MetaFile[T]
+type Fileblock[O cmp.Ordered, E Entry[O]] struct {
+	MetaFile[O]
 
 	cfg        *Config
-	filesystem Filesystem[T]
+	filesystem Filesystem[O, E]
 }
 
-func (l *Fileblock[T]) Load() (Entries[T], error) {
+func (l *Fileblock[O, E]) Load() (Entries[O, E], error) {
 	return l.filesystem.Load(l)
 }
 
-func (l *Fileblock[T]) Find(v Entry) bool {
-	return EntryFallsInsideMinMax(l.Min, l.Max, v)
+func (l *Fileblock[O, E]) Find(v Entry[O]) bool {
+	for _, rowGroup := range l.Rows {
+		if EntryFallsInsideMinMax(rowGroup.Min, rowGroup.Max, v.Min()) {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (l *Fileblock[T]) Metadata() *MetaFile[T] {
+func (l *Fileblock[O, E]) Metadata() *MetaFile[O] {
 	return &l.MetaFile
 }
 
-func (l *Fileblock[T]) Close() error {
+func (l *Fileblock[O, E]) Close() error {
 	return nil
 }
 
-func (l *Fileblock[T]) UUID() string {
+func (l *Fileblock[O, E]) UUID() string {
 	return l.Uuid
 }
 
-func Merge[T Entry](a, b *Fileblock[T]) (Entries[T], error) {
+func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (Entries[O, E], error) {
 	entries, err := a.Load()
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)
@@ -61,11 +67,5 @@ func Merge[T Entry](a, b *Fileblock[T]) (Entries[T], error) {
 		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", b.Metadata().DataFilepath), err)
 	}
 
-	dest := make(Entries[T], 0, entries.Len()+entries2.Len())
-	dest = append(dest, entries...)
-	dest = append(dest, entries2...)
-
-	sort.Sort(dest)
-
-	return dest, nil
+	return entries.Merge(entries2)
 }
