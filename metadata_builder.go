@@ -27,6 +27,11 @@ func (b *MetadataBuilder[O]) GetLevel() int {
 	return b.Level
 }
 
+func (b *MetadataBuilder[O]) WithItemCount(i int) *MetadataBuilder[O] {
+	b.ItemCount = i
+	return b
+}
+
 func (b *MetadataBuilder[O]) WithRootPath(p string) *MetadataBuilder[O] {
 	b.rootPath = p
 	return b
@@ -39,6 +44,11 @@ func (b *MetadataBuilder[O]) WithSize(sizeBytes int64) *MetadataBuilder[O] {
 
 func (b *MetadataBuilder[O]) WithCreatedAt(t time.Time) *MetadataBuilder[O] {
 	b.CreatedAt = t
+	return b
+}
+
+func (b *MetadataBuilder[O]) WithPrimaryIndex(p string) *MetadataBuilder[O] {
+	b.PrimaryIdx = p
 	return b
 }
 
@@ -66,8 +76,30 @@ func (b *MetadataBuilder[O]) WithExtension(e string) *MetadataBuilder[O] {
 	return b
 }
 
+func (b *MetadataBuilder[O]) WithMax(m O) *MetadataBuilder[O] {
+	if b.Max == nil {
+		b.Max = &m
+	} else if m > *b.Max {
+		*b.Max = m
+	}
+
+	return b
+}
+
+func (b *MetadataBuilder[O]) WithMin(m O) *MetadataBuilder[O] {
+	if b.Min == nil {
+		b.Min = &m
+	} else if m < *b.Min {
+		*b.Min = m
+	}
+
+	return b
+}
+
 func (b *MetadataBuilder[O]) WithEntry(e Comparable[O]) *MetadataBuilder[O] {
-	b.PrimaryIdx = e.PrimaryIndex()
+	if b.PrimaryIdx == "" {
+		b.PrimaryIdx = e.PrimaryIndex()
+	}
 
 	if b.Min == nil {
 		b.Min = new(O)
@@ -84,8 +116,17 @@ func (b *MetadataBuilder[O]) WithEntry(e Comparable[O]) *MetadataBuilder[O] {
 	}
 
 	b.ItemCount += e.Len()
-	b.Rows = append(b.Rows,
-		Row[O]{SecondaryIdx: e.SecondaryIndex(), Min: e.Min(), Max: e.Max(), ItemCount: e.Len()})
+	found := false
+	for _, row := range b.Rows {
+		if row.SecondaryIdx == e.SecondaryIndex() {
+			row.Merge(e)
+			return b
+		}
+	}
+	if !found {
+		b.Rows = append(b.Rows,
+			Row[O]{SecondaryIdx: e.SecondaryIndex(), Min: e.Min(), Max: e.Max(), ItemCount: e.Len()})
+	}
 
 	return b
 }

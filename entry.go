@@ -23,6 +23,8 @@ type Entry[O cmp.Ordered] interface {
 
 	Append(Entry[O]) error
 	CreationTime() time.Time
+	Merge(Entry[O]) error
+	SetPrimaryIndex(string)
 
 	Get(int) any
 	Last() O
@@ -30,9 +32,11 @@ type Entry[O cmp.Ordered] interface {
 }
 
 type Entries[O cmp.Ordered, E Entry[O]] interface {
-	Get(i int) E
+	SecondaryIndices() []string
+	Get(s string) E
 	Last() E
-	Len() int
+	LenAll() int
+	SecondaryIndicesLen() int
 	Merge(Entries[O, E]) (Entries[O, E], error)
 }
 
@@ -42,8 +46,37 @@ func NewEntriesMap[O cmp.Ordered, E Entry[O]]() EntriesMap[O, E] {
 
 type EntriesMap[O cmp.Ordered, E Entry[O]] map[string]E
 
+func (e EntriesMap[O, E]) SecondaryIndices() []string {
+	indices := make([]string, 0, len(e))
+	for k := range e {
+		indices = append(indices, k)
+	}
+	return indices
+}
+
+func (em EntriesMap[O, E]) Append(d E) {
+	idx := d.SecondaryIndex()
+
+	if _, ok := em[idx]; !ok {
+		em[idx] = d
+		return
+	}
+
+	em[idx].Append(d)
+}
+
 func (e EntriesMap[O, E]) Merge(d Entries[O, E]) (Entries[O, E], error) {
-	panic("not implemented / unreachable")
+	idxs := d.SecondaryIndices()
+
+	for _, idx := range idxs {
+		if _, ok := e[idx]; !ok {
+			e[idx] = d.Get(idx)
+		} else {
+			e[idx].Merge(d.Get(idx))
+		}
+	}
+
+	return e, nil
 }
 
 func (em EntriesMap[O, E]) Last() E {
@@ -73,25 +106,32 @@ func (em EntriesMap[O, E]) Last() E {
 	return lastE
 }
 
-func (e EntriesMap[O, E]) Get(i int) E {
+func (e EntriesMap[O, E]) Get(secondary string) E {
+	return e[secondary]
+}
+
+func (em EntriesMap[O, E]) LenAll() int {
+	l := 0
+	for _, es := range em {
+		l += es.Len()
+	}
+	return l
+}
+
+func (em EntriesMap[O, E]) PrimaryIndex() string {
+	if len(em) == 0 {
+		return ""
+	}
+
+	for _, es := range em {
+		return es.PrimaryIndex()
+	}
+
 	panic("unreachable")
 }
 
-func (em EntriesMap[O, E]) Len() int {
-	total := 0
-	for _, es := range em {
-		total += es.Len()
-	}
-	return total
-}
-
-func (em EntriesMap[O, E]) Append(d E) {
-	if _, ok := em[d.SecondaryIndex()]; !ok {
-		em[d.SecondaryIndex()] = d
-		return
-	}
-
-	em[d.SecondaryIndex()].Append(d)
+func (em EntriesMap[O, E]) SecondaryIndicesLen() int {
+	return len(em)
 }
 
 func (e EntriesMap[O, E]) Find(d E) (E, bool) {
@@ -102,6 +142,16 @@ func (e EntriesMap[O, E]) Find(d E) (E, bool) {
 	//
 	// return es.Find(d)
 	panic("not implemented / unreachable")
+}
+
+func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) EntriesMap[O, E] {
+	em := NewEntriesMap[O, E]()
+	for _, es := range e {
+		es.SetPrimaryIndex(m.PrimaryIdx)
+		em.Append(es)
+	}
+
+	return em
 }
 
 func NewSliceToMap[O cmp.Ordered, E Entry[O]](e []E) EntriesMap[O, E] {

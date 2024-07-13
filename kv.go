@@ -4,23 +4,36 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 )
 
-func NewKv(key string, val []int32, primaryIdx string) *Kv {
+func NewKv(primaryIdx, secondary string, val []int32) *Kv {
 	return &Kv{
-		Key:        key,
-		Val:        val,
 		PrimaryIdx: primaryIdx,
+		Key:        secondary,
+		Val:        val,
 		createdAt:  time.Now(),
 	}
 }
 
 type Kv struct {
-	createdAt  time.Time
 	PrimaryIdx string
+	createdAt  time.Time
 	Key        string  `parquet:"name=key, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
 	Val        []int32 `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
+}
+
+func (l *Kv) Merge(a Entry[int32]) error {
+	a_, ok := a.(*Kv)
+	if !ok {
+		return errors.New("invalid type")
+	}
+
+	l.Val = append(l.Val, a_.Val...)
+	slices.Sort(l.Val)
+
+	return nil
 }
 
 func (l *Kv) Append(a Entry[int32]) error {
@@ -74,6 +87,10 @@ func (l *Kv) Equals(b Comparable[int32]) bool {
 		return l.PrimaryIndex() == b.PrimaryIndex() && l.SecondaryIndex() == b.SecondaryIndex()
 	}
 	return l.SecondaryIndex() == b.SecondaryIndex()
+}
+
+func (l *Kv) SetPrimaryIndex(s string) {
+	l.PrimaryIdx = s
 }
 
 func (l *Kv) PrimaryIndex() string {

@@ -7,6 +7,7 @@ import (
 
 	db "github.com/sayden/streedb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
 	"github.com/xitongsys/parquet-go/writer"
@@ -24,13 +25,11 @@ func TestParquetFiles(t *testing.T) {
 	})
 
 	dataFile, err := os.Create(tmpDir + "/data1.parquet")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer dataFile.Close()
 
 	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, new(db.Kv), 4)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	ints := make([]int32, 0, 2000000)
 	for i := 0; i < 2000000; i++ {
@@ -38,29 +37,32 @@ func TestParquetFiles(t *testing.T) {
 	}
 
 	err = parquetWriter.Write(db.Kv{Key: "key", Val: ints, PrimaryIdx: "idx"})
-	assert.NoError(t, err)
-	if err = parquetWriter.WriteStop(); err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+	err = parquetWriter.WriteStop()
+	require.NoError(t, err)
 
 	pf, err := local.NewLocalFileReader(dataFile.Name())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pf.Close()
 
 	pr, err := reader.NewParquetReader(pf, nil, 4)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	numRows := int(pr.GetNumRows())
 	// entries := db.NewEntriesSlice[int32, *db.Kv](numRows)
 	entries := make([]db.Kv, 0, numRows)
 	err = pr.Read(&entries)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestParquetLocalFilesystem(t *testing.T) {
+	t.Cleanup(func() {
+		os.RemoveAll("/tmp/db")
+	})
+
 	cfg := db.NewDefaultConfig()
 	fsp, err := InitParquetLocal[int32, *db.Kv](cfg, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	temp := make([]*db.Kv, 0)
 	data := db.NewSliceToMap(temp)
@@ -69,16 +71,16 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	for i := 0; i < n; i++ {
 		ints = append(ints, int32(i))
 	}
-	data.Append(db.NewKv("key", ints, "idx"))
-	data.Append(db.NewKv("key2", ints, "idx"))
+	data.Append(db.NewKv("key", "idx", ints))
+	data.Append(db.NewKv("key2", "idx", ints))
 	builder := db.NewMetadataBuilder[int32](cfg)
-	builder.WithEntry(data.Get(0))
-	builder.WithEntry(data.Get(1))
+	builder.WithEntry(data.Get("key"))
+	builder.WithEntry(data.Get("key2"))
 
 	var fb *db.Fileblock[int32, *db.Kv]
 	t.Run("Create", func(t *testing.T) {
 		fb, err = fsp.Create(cfg, data, builder, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.NotEmpty(t, fb.DataFilepath)
 		assert.Contains(t, fb.DataFilepath, ".parquet")
@@ -98,21 +100,21 @@ func TestParquetLocalFilesystem(t *testing.T) {
 
 	t.Run("Load", func(t *testing.T) {
 		es, err := fsp.Load(fb)
-		assert.NoError(t, err)
-		entries, ok := es.(*db.EntriesMap[int32, *db.Kv])
-		assert.True(t, ok)
+		require.NoError(t, err)
+		entries, ok := es.(db.EntriesMap[int32, *db.Kv])
+		require.True(t, ok)
 
-		assert.Equal(t, 2, entries.Len())
-		assert.Equal(t, "key", entries.Get(0).Key)
-		assert.Equal(t, "key2", entries.Get(1).Key)
-		assert.Equal(t, 2000, len(entries.Get(0).Val))
-		assert.Equal(t, 2000, len(entries.Get(1).Val))
+		assert.Equal(t, 2, entries.SecondaryIndices())
+		assert.Equal(t, "key", entries.Get("key").Key)
+		assert.Equal(t, "key2", entries.Get("key2").Key)
+		assert.Equal(t, 2000, len(entries.Get("key").Val))
+		assert.Equal(t, 2000, len(entries.Get("key2").Val))
 	})
 
 	t.Run("OpenMetaFilesInLevel", func(t *testing.T) {
 		listener := &testFileblockListener{}
 		err := fsp.OpenMetaFilesInLevel([]db.FileblockListener[int32, *db.Kv]{listener})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, listener.created)
 		assert.Equal(t, 0, listener.removed)
 	})
@@ -120,8 +122,7 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	t.Run("Remove", func(t *testing.T) {
 		listener := &testFileblockListener{}
 		err := fsp.Remove(fb, []db.FileblockListener[int32, *db.Kv]{listener})
-		assert.NoError(t, err)
-		_ = err
+		require.NoError(t, err)
 		assert.NoFileExists(t, fb.DataFilepath)
 		assert.NoFileExists(t, fb.MetaFilepath)
 		assert.Equal(t, 0, listener.created)

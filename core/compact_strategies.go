@@ -11,6 +11,10 @@ type samePrimaryIndexCompactionStrategy[O cmp.Ordered] struct {
 }
 
 func (o *samePrimaryIndexCompactionStrategy[O]) ShouldMerge(a, b *db.MetaFile[O]) bool {
+	if a.PrimaryIdx != b.PrimaryIdx {
+		return false
+	}
+
 	for _, rga := range a.Rows {
 		for _, rgb := range b.Rows {
 			if rga.SecondaryIdx == rgb.SecondaryIdx {
@@ -72,6 +76,10 @@ type orCompactionStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 }
 
 func (o *orCompactionStrategy[O, E]) ShouldMerge(a, b *db.MetaFile[O]) bool {
+	if a.PrimaryIdx != b.PrimaryIdx {
+		return false
+	}
+
 	for _, merger := range o.compactionStrategies {
 		if merger.ShouldMerge(a, b) {
 			return true

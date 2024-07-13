@@ -15,10 +15,10 @@ func newItemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](limit int) db.Wa
 type itemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct{ limit int }
 
 func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
-	if es.Len() == 0 {
+	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
-	return es.Len() >= s.limit
+	return es.LenAll() >= s.limit
 }
 
 // FIXME: This function is not used in the codebase
@@ -31,7 +31,7 @@ type timeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 }
 
 func (s *timeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
-	if es.Len() == 0 {
+	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
 	return time.Since(es.Last().CreationTime()) > s.duration
@@ -46,12 +46,12 @@ type sizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 }
 
 func (s *sizeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
-	if es.Len() == 0 {
+	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
 
 	// TODO: Optimistic way to get the size of a struct
-	size := int(unsafe.Sizeof(es.Get(0)))
+	size := int(unsafe.Sizeof(es))
 
-	return size*es.Len() >= s.maxSize
+	return size*es.SecondaryIndicesLen() >= s.maxSize
 }

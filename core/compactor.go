@@ -37,6 +37,7 @@ func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O, E]
 		a            *db.Fileblock[O, E]
 		b            *db.Fileblock[O, E]
 		entries      db.Entries[O, E]
+		builder      *db.MetadataBuilder[O]
 		blocksToSkip = make(map[string]struct{})
 	)
 
@@ -63,19 +64,9 @@ func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O, E]
 				}
 			}
 
-			if entries, err = db.Merge(a, b); err != nil {
+			if builder, entries, err = db.Merge(a, b); err != nil {
 				return errors.Join(errors.New("failed to create new fileblock"), err)
 			}
-
-			higherLevel := a.Metadata().Level
-			if b.Metadata().Level > higherLevel {
-				higherLevel = b.Metadata().Level
-			}
-
-			// Write the new block to its new storage directly
-			builder := db.NewMetadataBuilder[O](mf.cfg).
-				WithLevel(higherLevel).
-				WithSize(a.Size + b.Size)
 
 			if err = mf.levels.NewFileblock(entries, builder); err != nil {
 				return errors.Join(errors.New("failed to create new fileblock"), err)

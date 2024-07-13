@@ -36,25 +36,23 @@ func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], er
 	}
 	defer pf.Close()
 
-	pE := new(E)
-	pr, err := reader.NewParquetReader(pf, *pE, db.PARQUET_NUMBER_OF_THREADS)
+	pr, err := reader.NewParquetReader(pf, *new(E), db.PARQUET_NUMBER_OF_THREADS)
 	if err != nil {
 		return nil, err
 	}
 
 	numRows := int(pr.GetNumRows())
 	entries := make([]E, numRows)
-	err = pr.Read(entries)
-	if err != nil {
+	if err = pr.Read(&entries); err != nil {
 		return nil, err
 	}
 	pr.ReadStop()
 
-	return db.NewSliceToMap[O](entries), nil
+	return db.NewSliceToMapWithMetadata(entries, &b.MetaFile), nil
 }
 
 func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
-	if es.Len() == 0 {
+	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
 
@@ -76,9 +74,9 @@ func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], build
 		return nil, errors.Join(errors.New("error creating parquet writer: "), err)
 	}
 
-	total := es.Len()
-	for i := 0; i < total; i++ {
-		parquetWriter.Write(es.Get(i))
+	sIdx := es.SecondaryIndices()
+	for _, sidx := range sIdx {
+		parquetWriter.Write(es.Get(sidx))
 	}
 
 	if err = parquetWriter.WriteStop(); err != nil {

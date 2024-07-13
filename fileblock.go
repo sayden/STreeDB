@@ -56,16 +56,33 @@ func (l *Fileblock[O, E]) UUID() string {
 	return l.Uuid
 }
 
-func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (Entries[O, E], error) {
+func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (*MetadataBuilder[O], Entries[O, E], error) {
 	entries, err := a.Load()
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)
+		return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)
 	}
 
 	entries2, err := b.Load()
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to load block '%s'", b.Metadata().DataFilepath), err)
+		return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", b.Metadata().DataFilepath), err)
 	}
 
-	return entries.Merge(entries2)
+	res, err := entries.Merge(entries2)
+	if err != nil {
+		return nil, nil, errors.Join(errors.New("failed to merge entries"), err)
+	}
+
+	higherLevel := a.Metadata().Level
+	if b.Metadata().Level > higherLevel {
+		higherLevel = b.Metadata().Level
+	}
+
+	// Merge metadatas
+	builder := NewMetadataBuilder[O](a.cfg).
+		WithLevel(higherLevel).
+		WithPrimaryIndex(a.PrimaryIdx).
+		WithMin(*a.Min).WithMin(*b.Min).
+		WithMax(*a.Max).WithMax(*b.Max)
+
+	return builder, res, nil
 }

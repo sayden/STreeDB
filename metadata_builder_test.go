@@ -8,7 +8,7 @@ import (
 
 func TestMetadataBuilder(t *testing.T) {
 	// Create a new metadata builder
-	es := NewKv("key1", []int32{1, 2, 3}, "pidx1")
+	es := NewKv("key1", "pidx1", []int32{1, 2, 3})
 	meta, err := NewMetadataBuilder[int32](&Config{MaxLevels: 5}).
 		WithEntry(es).
 		WithLevel(1).

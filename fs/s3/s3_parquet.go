@@ -79,7 +79,7 @@ func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], error
 		return nil, err
 	}
 
-	return db.NewSliceToMap(entries), nil
+	return db.NewSliceToMapWithMetadata(entries, &b.MetaFile), nil
 }
 
 func (f *s3ParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
@@ -87,7 +87,7 @@ func (f *s3ParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
 }
 
 func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
-	if es.Len() == 0 {
+	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
 

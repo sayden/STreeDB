@@ -69,8 +69,8 @@ func TestLevelBasic(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		temp := make([]*db.Kv, 0)
 		data := db.NewSliceToMap(temp)
-		k1 := db.NewKv("key", []int32{1}, "idx")
-		k2 := db.NewKv("key2", []int32{2}, "idx")
+		k1 := db.NewKv("key", "idx", []int32{1})
+		k2 := db.NewKv("key2", "idx", []int32{2})
 		data.Append(k1)
 		data.Append(k2)
 

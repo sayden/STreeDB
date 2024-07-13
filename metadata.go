@@ -27,6 +27,21 @@ type Row[O cmp.Ordered] struct {
 	Max          O
 }
 
+func (r *Row[O]) Merge(o Comparable[O]) {
+	if r.SecondaryIdx == "" {
+		r.SecondaryIdx = o.SecondaryIndex()
+	}
+
+	r.ItemCount += o.Len()
+	if o.Min() < r.Min {
+		r.Min = o.Min()
+	}
+
+	if o.Max() > r.Max {
+		r.Max = o.Max()
+	}
+}
+
 func (m *MetaFile[O]) MaxAtSecondary(s string) (O, bool) {
 	for _, rg := range m.Rows {
 		if rg.SecondaryIdx == s {

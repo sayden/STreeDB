@@ -9,10 +9,10 @@ import (
 
 func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.FileblockCreator[O, E], persistStrategies ...db.WalFlushStrategy[O, E]) db.Wal[O, E] {
 	return &nmMemoryWal[O, E]{
-		entries:           make(map[string]db.EntriesMap[O, E]),
-		cfg:               cfg,
-		fileblockCreator:  fbc,
-		persistStrategies: persistStrategies,
+		entries:          make(map[string]db.EntriesMap[O, E]),
+		cfg:              cfg,
+		fileblockCreator: fbc,
+		flushStrategies:  persistStrategies,
 	}
 }
 
@@ -21,10 +21,10 @@ func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.Fileblo
 // a persist strategies is met or the WAL is closed (usually when
 // closing the database)
 type nmMemoryWal[O cmp.Ordered, E db.Entry[O]] struct {
-	entries           map[string]db.EntriesMap[O, E]
-	cfg               *db.Config
-	fileblockCreator  db.FileblockCreator[O, E]
-	persistStrategies []db.WalFlushStrategy[O, E]
+	entries          map[string]db.EntriesMap[O, E]
+	cfg              *db.Config
+	fileblockCreator db.FileblockCreator[O, E]
+	flushStrategies  []db.WalFlushStrategy[O, E]
 }
 
 func (w *nmMemoryWal[O, E]) Append(d E) (err error) {
@@ -36,15 +36,12 @@ func (w *nmMemoryWal[O, E]) Append(d E) (err error) {
 	}
 	fileEntries.Append(d)
 
-	for _, s := range w.persistStrategies {
+	for _, s := range w.flushStrategies {
 		if s.ShouldFlush(fileEntries) {
 			builder := db.NewMetadataBuilder[O](w.cfg).
+				WithPrimaryIndex(d.PrimaryIndex()).
 				WithLevel(0).
 				WithCreatedAt(time.Now())
-
-			for _, entries := range fileEntries {
-				builder.WithEntry(entries)
-			}
 
 			if err = w.fileblockCreator.NewFileblock(fileEntries, builder); err != nil {
 				return err
@@ -72,19 +69,18 @@ func (w *nmMemoryWal[O, E]) Find(d E) (E, bool) {
 
 func (w *nmMemoryWal[O, E]) Close() error {
 	for _, fileEntries := range w.entries {
-		if fileEntries.Len() == 0 {
+		if fileEntries.SecondaryIndicesLen() == 0 {
 			return nil
+		}
+		pIdx := fileEntries.PrimaryIndex()
+		if pIdx == "" {
+			continue
 		}
 
 		builder := db.NewMetadataBuilder[O](w.cfg).
 			WithLevel(0).
+			WithPrimaryIndex(pIdx).
 			WithCreatedAt(time.Now())
-
-		// We fill as much data as possible in the builder so it can
-		// be used later for level promotion
-		for _, entries := range fileEntries {
-			builder.WithEntry(entries)
-		}
 
 		if err := w.fileblockCreator.NewFileblock(&fileEntries, builder); err != nil {
 			return err

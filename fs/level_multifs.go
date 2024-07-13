@@ -71,6 +71,10 @@ func (b *MultiFsLevels[O, T]) OnFileblockRemoved(block *db.Fileblock[O, T]) {
 }
 
 func (b *MultiFsLevels[O, T]) NewFileblock(es db.Entries[O, T], builder *db.MetadataBuilder[O]) error {
+	for _, secIdx := range es.SecondaryIndices() {
+		builder.WithEntry(es.Get(secIdx))
+	}
+
 	for _, promoter := range b.promoters {
 		if err := promoter.Promote(builder); err != nil {
 			return errors.Join(errors.New("failed during promotion"), err)
