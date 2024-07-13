@@ -9,7 +9,7 @@ import (
 	fss3 "github.com/sayden/streedb/fs/s3"
 )
 
-func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter ...db.LevelPromoter[O]) (db.Levels[O, E], error) {
+func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter ...db.LevelPromoter[O]) (*MultiFsLevels[O, E], error) {
 	levels := &MultiFsLevels[O, E]{
 		cfg:                cfg,
 		promoters:          promoter,
@@ -19,7 +19,7 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
 
-	result := make(map[int]db.Level[O, E])
+	result := make(map[int]*BasicLevel[O, E])
 
 	if len(cfg.LevelFilesystems) == 0 {
 		panic("LevelFilesystems must have at least one entry")
@@ -57,7 +57,7 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 type MultiFsLevels[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[O]
-	levels             map[int]db.Level[O, E]
+	levels             map[int]*BasicLevel[O, E]
 	list               db.MapDLL[O, E, *db.Fileblock[O, E]]
 	fileblockListeners []db.FileblockListener[O, E]
 }
@@ -180,7 +180,7 @@ func (b *MultiFsLevels[O, T]) Fileblocks() []*db.Fileblock[O, T] {
 	return blocks
 }
 
-func (b *MultiFsLevels[O, T]) Level(i int) db.Level[O, T] {
+func (b *MultiFsLevels[O, T]) Level(i int) *BasicLevel[O, T] {
 	return b.levels[i]
 }
 

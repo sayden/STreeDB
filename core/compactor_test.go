@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	db "github.com/sayden/streedb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,12 +31,24 @@ func TestCompactionMultiLevel(t *testing.T) {
 	}
 	require.NoError(t, err)
 
+	assert.Equal(t, 0, len(mlevel.levels.Fileblocks()))
+
 	mlevel.Append(db.NewKv("instance1", "mem", []int32{1, 2, 4, 5, 6, 3, 7, 8, 9}))
+	assert.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
+	assert.Equal(t, 0, len(mlevel.levels.Level(1).Fileblocks()))
 	mlevel.Append(db.NewKv("instance1", "cpu", []int32{1, 2, 4, 5, 6, 3, 7, 7, 1, 2, 4, 5, 6, 3, 7, 7}))
+	assert.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
+	assert.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
 	mlevel.Append(db.NewKv("instance1", "cpu", []int32{1, 2, 4, 5, 6, 3, 7, 8, 11}))
+	assert.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
+	assert.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
 	mlevel.Append(db.NewKv("instance2", "cpu", []int32{1, 2, 4, 5, 6, 3, 7}))
+	assert.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
+	assert.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
 
 	err = mlevel.Close()
+	assert.Equal(t, 2, len(mlevel.levels.Level(0).Fileblocks()))
+	assert.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
 	require.NoError(t, err)
 
 	err = mlevel.Compact()

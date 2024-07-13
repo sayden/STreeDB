@@ -52,7 +52,7 @@ type LsmTree[O cmp.Ordered, E db.Entry[O]] struct {
 
 	compactor db.Compactor[O, E]
 	wal       db.Wal[O, E]
-	levels    db.Levels[O, E]
+	levels    *fs.MultiFsLevels[O, E]
 }
 
 func (l *LsmTree[O, E]) Append(d E) {
@@ -99,7 +99,7 @@ func (l *LsmTree[O, T]) Compact() error {
 	return l.compactor.Compact(getBlocksFromLevels(l.cfg.MaxLevels, l.levels))
 }
 
-func getBlocksFromLevels[O cmp.Ordered, E db.Entry[O]](maxLevels int, levels db.Levels[O, E]) []*db.Fileblock[O, E] {
+func getBlocksFromLevels[O cmp.Ordered, E db.Entry[O]](maxLevels int, levels *fs.MultiFsLevels[O, E]) []*db.Fileblock[O, E] {
 	var blocks []*db.Fileblock[O, E]
 	for i := 0; i < maxLevels; i++ {
 		level := levels.Level(i)

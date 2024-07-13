@@ -8,7 +8,7 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-func NewBasicLevel[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fs db.Filesystem[O, E], levels db.Levels[O, E]) db.Level[O, E] {
+func NewBasicLevel[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fs db.Filesystem[O, E], levels *MultiFsLevels[O, E]) *BasicLevel[O, E] {
 	level := &BasicLevel[O, E]{
 		cfg:                cfg,
 		filesystem:         fs,

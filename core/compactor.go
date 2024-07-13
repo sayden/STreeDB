@@ -5,9 +5,10 @@ import (
 	"errors"
 
 	db "github.com/sayden/streedb"
+	"github.com/sayden/streedb/fs"
 )
 
-func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, levels db.Levels[O, E], mergers ...db.CompactionStrategy[O]) (db.Compactor[O, E], error) {
+func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, levels *fs.MultiFsLevels[O, E], mergers ...db.CompactionStrategy[O]) (db.Compactor[O, E], error) {
 	return &TieredMultiFsCompactor[O, E]{
 		cfg:                cfg,
 		levels:             levels,
@@ -19,7 +20,7 @@ func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, lev
 // It is effective but it is N^2 in the number of fileblocks.
 type TieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg                *db.Config
-	levels             db.Levels[O, E]
+	levels             *fs.MultiFsLevels[O, E]
 	compactionStrategy []db.CompactionStrategy[O]
 }
 
