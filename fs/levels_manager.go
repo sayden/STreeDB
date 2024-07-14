@@ -72,7 +72,9 @@ func (b *MultiFsLevels[O, T]) OnFileblockRemoved(block *db.Fileblock[O, T]) {
 
 func (b *MultiFsLevels[O, E]) NewFileblock(es db.EntriesMap[O, E], builder *db.MetadataBuilder[O]) error {
 	for _, secIdx := range es.SecondaryIndices() {
-		builder.WithEntry(es.Get(secIdx))
+		entry := es.Get(secIdx)
+		entry.Sort()
+		builder.WithEntry(entry)
 	}
 
 	for _, promoter := range b.promoters {

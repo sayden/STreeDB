@@ -27,18 +27,18 @@ type Row[O cmp.Ordered] struct {
 	Max          O
 }
 
-func (r *Row[O]) Merge(o Comparable[O]) {
+func (r *Row[O]) Merge(o *Row[O]) {
 	if r.SecondaryIdx == "" {
-		r.SecondaryIdx = o.SecondaryIndex()
+		r.SecondaryIdx = o.SecondaryIdx
 	}
 
-	r.ItemCount += o.Len()
-	if o.Min() < r.Min {
-		r.Min = o.Min()
+	r.ItemCount += o.ItemCount
+	if o.Min < r.Min {
+		r.Min = o.Min
 	}
 
-	if o.Max() > r.Max {
-		r.Max = o.Max()
+	if o.Max > r.Max {
+		r.Max = o.Max
 	}
 }
 

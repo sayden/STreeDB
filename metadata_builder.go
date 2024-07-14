@@ -96,7 +96,7 @@ func (b *MetadataBuilder[O]) WithMin(m O) *MetadataBuilder[O] {
 	return b
 }
 
-func (b *MetadataBuilder[O]) WithEntry(e Comparable[O]) *MetadataBuilder[O] {
+func (b *MetadataBuilder[O]) WithEntry(e Entry[O]) *MetadataBuilder[O] {
 	if b.PrimaryIdx == "" {
 		b.PrimaryIdx = e.PrimaryIndex()
 	}
@@ -119,7 +119,7 @@ func (b *MetadataBuilder[O]) WithEntry(e Comparable[O]) *MetadataBuilder[O] {
 	found := false
 	for _, row := range b.Rows {
 		if row.SecondaryIdx == e.SecondaryIndex() {
-			row.Merge(e)
+			row.Merge(&row)
 			return b
 		}
 	}

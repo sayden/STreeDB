@@ -21,11 +21,10 @@ type Entry[O cmp.Ordered] interface {
 	CreationTime() time.Time
 	Merge(Entry[O]) error
 	SetPrimaryIndex(string)
+	Sort()
 
-	Get(int) any
 	Last() O
 	Len() int
-
 	Max() O
 	Min() O
 }

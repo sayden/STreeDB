@@ -31,9 +31,12 @@ func (l *Kv) Merge(a Entry[int32]) error {
 	}
 
 	l.Val = append(l.Val, a_.Val...)
-	slices.Sort(l.Val)
 
 	return nil
+}
+
+func (l *Kv) Sort() {
+	slices.Sort(l.Val)
 }
 
 func (l *Kv) Append(a Entry[int32]) error {
