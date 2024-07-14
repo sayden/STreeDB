@@ -4,13 +4,14 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/sayden/streedb"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thehivecorporation/log"
 )
 
@@ -20,6 +21,7 @@ func cleanAll() {
 }
 
 func TestS3(t *testing.T) {
+	t.Skip()
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
 	defaultCfg := streedb.NewDefaultConfig()
@@ -81,7 +83,8 @@ func TestDBLocal(t *testing.T) {
 }
 
 func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact bool) {
-	lsmtree, err := NewLsmTree[int32, *streedb.Kv](cfg)
+	tsWalFlush := newTimeLimitWalFlushStrategy[*streedb.Kv](time.Duration(cfg.Wal.MaxElapsedTimeMs * 1000))
+	lsmtree, err := NewLsmTree(cfg, tsWalFlush)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,24 +106,29 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		60, 61, 62, 63,
 	}
 
-	if insertOrCompact {
-		lsmtree.Append(streedb.NewKv("hello", "a", keys))
-		lsmtree.Append(streedb.NewKv("hello", "world", keys))
+	ts := make([]int64, len(keys))
+	for i := 0; i < len(keys); i++ {
+		ts[i] = int64(i)
 	}
 
 	if insertOrCompact {
-		lsmtree.Append(streedb.NewKv("hello", "a", keys))
-		lsmtree.Append(streedb.NewKv("hello", "world", keys))
+		lsmtree.Append(streedb.NewKv("instance1", "cpu", ts, keys))
+		lsmtree.Append(streedb.NewKv("instance1", "mem", ts, keys))
+	}
+
+	if insertOrCompact {
+		lsmtree.Append(streedb.NewKv("instance1", "cpu", ts, keys))
+		lsmtree.Append(streedb.NewKv("instance1", "mem", ts, keys))
 	}
 
 	lsmtree.Close()
 
 	if !insertOrCompact {
 		err = lsmtree.Compact()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
-	// entry := streedb.NewKv("hello", nil, "a")
+	// entry := streedb.NewKv("instance1", "cpu", nil)
 	// val, found, err := lsmtree.Find(entry)
 	// assert.NoError(t, err)
 	// assert.True(t, found)

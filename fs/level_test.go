@@ -59,22 +59,23 @@ func (m *mockFilesystem[O, E]) UpdateMetadata(*db.Fileblock[O, E]) error {
 
 func TestLevelBasic(t *testing.T) {
 	cfg := db.NewDefaultConfig()
-	fs := mockFilesystem[int32, *db.Kv]{}
+	fs := mockFilesystem[int64, *db.Kv]{}
 
-	levels, err := NewLeveledFilesystem[int32, *db.Kv](cfg)
+	levels, err := NewLeveledFilesystem[int64, *db.Kv](cfg)
 	assert.NoError(t, err)
 
 	level := NewBasicLevel(cfg, &fs, levels)
 
+	ts := []int64{1, 2, 3, 4}
 	t.Run("Create", func(t *testing.T) {
 		temp := make([]*db.Kv, 0)
 		data := db.NewSliceToMap(temp)
-		k1 := db.NewKv("key", "idx", []int32{1})
-		k2 := db.NewKv("key2", "idx", []int32{2})
+		k1 := db.NewKv("key", "idx", ts[0:1], []int32{1})
+		k2 := db.NewKv("key2", "idx", ts[0:1], []int32{2})
 		data.Append(k1)
 		data.Append(k2)
 
-		builder := db.NewMetadataBuilder[int32](cfg).
+		builder := db.NewMetadataBuilder[int64](cfg).
 			WithEntry(k1).
 			WithEntry(k2).
 			WithLevel(1).

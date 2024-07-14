@@ -11,7 +11,7 @@ func TestAdjacent(t *testing.T) {
 	b := Kv{Key: "abd"}
 	c := Kv{Key: "hij"}
 
-	assert.True(t, a.Adjacent(&b))
-	assert.False(t, a.Adjacent(&c))
-	assert.False(t, b.Adjacent(&c))
+	assert.True(t, a.IsAdjacent(&b))
+	assert.False(t, a.IsAdjacent(&c))
+	assert.False(t, b.IsAdjacent(&c))
 }

@@ -3,14 +3,13 @@ package core
 import (
 	"cmp"
 	"errors"
-	"time"
 
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/fs"
 	"github.com/thehivecorporation/log"
 )
 
-func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], error) {
+func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies ...db.WalFlushStrategy[O, E]) (*LsmTree[O, E], error) {
 	if cfg.LevelFilesystems == nil {
 		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
 		for i := 0; i < cfg.MaxLevels; i++ {
@@ -31,12 +30,15 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], e
 		cfg:    cfg,
 	}
 
+	if persistStrategies == nil {
+		persistStrategies = make([]db.WalFlushStrategy[O, E], 0)
+	}
 	// Create the WAL
 	l.wal = newNMMemoryWal(cfg, levels,
-		newItemLimitWalFlushStrategy[O, E](cfg.Wal.MaxItems),
-		newSizeLimitWalFlushStrategy[O, E](cfg.Wal.MaxSizeBytes),
-		newTimeLimitWalFlushStrategy[O, E](time.Duration(cfg.Wal.MaxElapsedTimeMs*1000)),
-	)
+		append(persistStrategies, []db.WalFlushStrategy[O, E]{
+			newItemLimitWalFlushStrategy[O, E](cfg.Wal.MaxItems),
+			newSizeLimitWalFlushStrategy[O, E](cfg.Wal.MaxSizeBytes),
+		}...)...)
 
 	compactionStrategies := &samePrimaryIndexCompactionStrategy[O]{and: &overlappingCompactionStrategy[O]{}}
 	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels, compactionStrategies)

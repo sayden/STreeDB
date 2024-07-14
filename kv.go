@@ -5,41 +5,33 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"time"
 )
 
-func NewKv(primaryIdx, secondary string, val []int32) *Kv {
+func NewKv(primaryIdx, secondary string, ts []int64, val []int32) *Kv {
 	return &Kv{
 		PrimaryIdx: primaryIdx,
 		Key:        secondary,
 		Val:        val,
-		createdAt:  time.Now(),
+		Ts:         ts,
 	}
 }
 
 type Kv struct {
 	PrimaryIdx string
-	createdAt  time.Time
+	Ts         []int64 `parquet:"name=ts, type=INT64, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
 	Key        string  `parquet:"name=key, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
 	Val        []int32 `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
 }
 
-func (l *Kv) Merge(a Entry[int32]) error {
-	a_, ok := a.(*Kv)
-	if !ok {
-		return errors.New("invalid type")
-	}
-
-	l.Val = append(l.Val, a_.Val...)
-
-	return nil
+func (l *Kv) Merge(a Entry[int64]) error {
+	return l.Append(a)
 }
 
 func (l *Kv) Sort() {
 	slices.Sort(l.Val)
 }
 
-func (l *Kv) Append(a Entry[int32]) error {
+func (l *Kv) Append(a Entry[int64]) error {
 	a_, ok := a.(*Kv)
 	if !ok {
 		return errors.New("invalid type")
@@ -50,17 +42,13 @@ func (l *Kv) Append(a Entry[int32]) error {
 	return nil
 }
 
-func (l *Kv) Get(i int) any {
-	return l.Val[i]
+func (l *Kv) Last() int64 {
+	return l.Ts[len(l.Ts)-1]
 }
 
-func (l *Kv) Last() int32 {
-	return l.Val[len(l.Val)-1]
-}
-
-func (l *Kv) Max() int32 {
-	max := int32(math.MinInt32)
-	for _, v := range l.Val {
+func (l *Kv) Max() int64 {
+	max := int64(math.MinInt64)
+	for _, v := range l.Ts {
 		if v > max {
 			max = v
 		}
@@ -68,10 +56,10 @@ func (l *Kv) Max() int32 {
 	return max
 }
 
-func (l *Kv) Min() int32 {
-	min := int32(math.MaxInt32)
+func (l *Kv) Min() int64 {
+	min := int64(math.MaxInt64)
 
-	for _, v := range l.Val {
+	for _, v := range l.Ts {
 		if v < min {
 			min = v
 		}
@@ -80,12 +68,12 @@ func (l *Kv) Min() int32 {
 	return min
 }
 
-func (l *Kv) LessThan(a Comparable[int32]) bool {
+func (l *Kv) LessThan(a Comparable[int64]) bool {
 	a_ := a.(*Kv)
 	return l.Key < a_.Key
 }
 
-func (l *Kv) Equals(b Comparable[int32]) bool {
+func (l *Kv) Equals(b Comparable[int64]) bool {
 	if l.PrimaryIndex() != "" {
 		return l.PrimaryIndex() == b.PrimaryIndex() && l.SecondaryIndex() == b.SecondaryIndex()
 	}
@@ -108,7 +96,7 @@ func (l *Kv) Len() int {
 	return len(l.Val)
 }
 
-func (l *Kv) Adjacent(a Comparable[int32]) bool {
+func (l *Kv) IsAdjacent(a Comparable[int64]) bool {
 	s1 := l.Key
 	s2 := a.(*Kv).Key
 
@@ -148,8 +136,4 @@ func abs(n int) int {
 
 func (l *Kv) String() string {
 	return fmt.Sprintf("'%s'", l.Key)
-}
-
-func (l Kv) CreationTime() time.Time {
-	return l.createdAt
 }

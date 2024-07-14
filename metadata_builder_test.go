@@ -8,8 +8,9 @@ import (
 
 func TestMetadataBuilder(t *testing.T) {
 	// Create a new metadata builder
-	es := NewKv("key1", "pidx1", []int32{1, 2, 3})
-	meta, err := NewMetadataBuilder[int32](&Config{MaxLevels: 5}).
+	ts := []int64{1, 2, 3}
+	es := NewKv("key1", "pidx1", ts, []int32{1, 2, 3})
+	meta, err := NewMetadataBuilder[int64](&Config{MaxLevels: 5}).
 		WithEntry(es).
 		WithLevel(1).
 		WithFilenamePrefix("01").
@@ -28,6 +29,6 @@ func TestMetadataBuilder(t *testing.T) {
 
 	min := *meta.Min
 	max := *meta.Max
-	assert.Equal(t, int32(1), min)
-	assert.Equal(t, int32(3), max)
+	assert.Equal(t, int64(1), min)
+	assert.Equal(t, int64(3), max)
 }

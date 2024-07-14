@@ -21,19 +21,24 @@ func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bo
 	return es.LenAll() >= s.limit
 }
 
-func newTimeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](d time.Duration) db.WalFlushStrategy[O, E] {
-	return &timeLimitWalFlushStrategy[O, E]{duration: d}
+func newTimeLimitWalFlushStrategy[E db.Entry[int64]](d time.Duration) db.WalFlushStrategy[int64, E] {
+	return &timeLimitWalFlushStrategy[E]{duration: d}
 }
 
-type timeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
+type timeLimitWalFlushStrategy[E db.Entry[int64]] struct {
 	duration time.Duration
 }
 
-func (s *timeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bool {
+func (s *timeLimitWalFlushStrategy[E]) ShouldFlush(es db.EntriesMap[int64, E]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
-	return time.Since(es.Last().CreationTime()) > s.duration
+
+	inMs := es.Min()
+	inTimeMs := time.UnixMilli(inMs)
+	since := time.Since(inTimeMs)
+
+	return since > s.duration
 }
 
 func newSizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](s int) db.WalFlushStrategy[O, E] {

@@ -2,14 +2,13 @@ package streedb
 
 import (
 	"cmp"
-	"time"
 )
 
 type Comparable[O cmp.Ordered] interface {
 	PrimaryIndex() string
 	SecondaryIndex() string
 
-	Adjacent(Comparable[O]) bool
+	IsAdjacent(Comparable[O]) bool
 	Equals(Comparable[O]) bool
 	LessThan(Comparable[O]) bool
 }
@@ -18,7 +17,6 @@ type Entry[O cmp.Ordered] interface {
 	Comparable[O]
 
 	Append(Entry[O]) error
-	CreationTime() time.Time
 	Merge(Entry[O]) error
 	SetPrimaryIndex(string)
 	Sort()
@@ -68,31 +66,44 @@ func (e EntriesMap[O, E]) Merge(d EntriesMap[O, E]) (EntriesMap[O, E], error) {
 	return e, nil
 }
 
-func (em EntriesMap[O, E]) Last() E {
+func (em EntriesMap[O, E]) Min() O {
 	if len(em) == 0 {
 		panic("no entries")
 	}
 
-	var last O
-	var lastE E
-	if len(em) > 1 {
-		for _, es := range em {
-			last = es.Last()
-			lastE = es
-			if len(em) == 1 {
-				return es
-			}
-		}
-	}
-
+	var min *O
 	for _, e := range em {
-		if e.Last() > last {
-			last = e.Last()
-			lastE = e
+		if min == nil {
+			m := e.Min()
+			min = &m
+			continue
+		}
+		if e.Min() < *min {
+			*min = e.Min()
 		}
 	}
 
-	return lastE
+	return *min
+}
+
+func (em EntriesMap[O, E]) Max() O {
+	if len(em) == 0 {
+		panic("no entries")
+	}
+
+	var max *O
+	for _, e := range em {
+		if max == nil {
+			m := e.Max()
+			max = &m
+			continue
+		}
+		if e.Max() > *max {
+			*max = e.Max()
+		}
+	}
+
+	return *max
 }
 
 func (e EntriesMap[O, E]) Get(secondary string) E {
@@ -101,9 +112,11 @@ func (e EntriesMap[O, E]) Get(secondary string) E {
 
 func (em EntriesMap[O, E]) LenAll() int {
 	l := 0
+
 	for _, es := range em {
 		l += es.Len()
 	}
+
 	return l
 }
 
