@@ -37,7 +37,7 @@ func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O, E]
 		err          error
 		a            *db.Fileblock[O, E]
 		b            *db.Fileblock[O, E]
-		entries      db.Entries[O, E]
+		entries      db.EntriesMap[O, E]
 		builder      *db.MetadataBuilder[O]
 		blocksToSkip = make(map[string]struct{})
 	)

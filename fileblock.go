@@ -7,7 +7,7 @@ import (
 )
 
 type FileblockCreator[O cmp.Ordered, E Entry[O]] interface {
-	NewFileblock(es Entries[O, E], builder *MetadataBuilder[O]) error
+	NewFileblock(es EntriesMap[O, E], builder *MetadataBuilder[O]) error
 }
 
 type FileblockListener[O cmp.Ordered, E Entry[O]] interface {
@@ -30,7 +30,7 @@ type Fileblock[O cmp.Ordered, E Entry[O]] struct {
 	filesystem Filesystem[O, E]
 }
 
-func (l *Fileblock[O, E]) Load() (Entries[O, E], error) {
+func (l *Fileblock[O, E]) Load() (EntriesMap[O, E], error) {
 	return l.filesystem.Load(l)
 }
 
@@ -56,7 +56,7 @@ func (l *Fileblock[O, E]) UUID() string {
 	return l.Uuid
 }
 
-func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (*MetadataBuilder[O], Entries[O, E], error) {
+func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (*MetadataBuilder[O], EntriesMap[O, E], error) {
 	entries, err := a.Load()
 	if err != nil {
 		return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)

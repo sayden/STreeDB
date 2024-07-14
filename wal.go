@@ -9,5 +9,5 @@ type Wal[O cmp.Ordered, E Entry[O]] interface {
 }
 
 type WalFlushStrategy[O cmp.Ordered, E Entry[O]] interface {
-	ShouldFlush(es Entries[O, E]) bool
+	ShouldFlush(es EntriesMap[O, E]) bool
 }

@@ -29,11 +29,11 @@ var FilesystemTypeReverseMap = map[string]FilesystemType{
 	"s3":    FILESYSTEM_TYPE_S3,
 }
 
-type Filesystem[O cmp.Ordered, T Entry[O]] interface {
-	Create(cfg *Config, entries Entries[O, T], builder *MetadataBuilder[O], listeners []FileblockListener[O, T]) (*Fileblock[O, T], error)
+type Filesystem[O cmp.Ordered, E Entry[O]] interface {
+	Create(cfg *Config, entries EntriesMap[O, E], builder *MetadataBuilder[O], listeners []FileblockListener[O, E]) (*Fileblock[O, E], error)
 	FillMetadataBuilder(meta *MetadataBuilder[O]) *MetadataBuilder[O]
-	Load(*Fileblock[O, T]) (Entries[O, T], error)
-	OpenMetaFilesInLevel([]FileblockListener[O, T]) error
-	Remove(*Fileblock[O, T], []FileblockListener[O, T]) error
-	UpdateMetadata(*Fileblock[O, T]) error
+	Load(*Fileblock[O, E]) (EntriesMap[O, E], error)
+	OpenMetaFilesInLevel([]FileblockListener[O, E]) error
+	Remove(*Fileblock[O, E], []FileblockListener[O, E]) error
+	UpdateMetadata(*Fileblock[O, E]) error
 }

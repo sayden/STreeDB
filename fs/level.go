@@ -66,7 +66,7 @@ func (b *BasicLevel[O, T]) OnFileblockCreated(f *db.Fileblock[O, T]) {
 	b.fileblocks = append(b.fileblocks, f)
 }
 
-func (b *BasicLevel[O, T]) Create(es db.Entries[O, T], builder *db.MetadataBuilder[O]) (*db.Fileblock[O, T], error) {
+func (b *BasicLevel[O, E]) Create(es db.EntriesMap[O, E], builder *db.MetadataBuilder[O]) (*db.Fileblock[O, E], error) {
 	fileblock, err := b.filesystem.Create(b.cfg, es, builder, b.fileblockListeners)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("error creating block at level: "), err)
@@ -93,7 +93,7 @@ func (b *BasicLevel[O, T]) FindFileblock(d T) (*db.Fileblock[O, T], bool, error)
 	return nil, false, nil
 }
 
-func (b *BasicLevel[O, T]) Find(d T) (db.Entry[O], bool, error) {
+func (b *BasicLevel[O, E]) Find(d E) (db.Entry[O], bool, error) {
 	if !b.entryFallsInside(d) {
 		return nil, false, nil
 	}
@@ -101,8 +101,8 @@ func (b *BasicLevel[O, T]) Find(d T) (db.Entry[O], bool, error) {
 	// iterate through each block
 	var (
 		// entry     db.Entry[O]
-		fileblock *db.Fileblock[O, T]
-		entries   db.Entries[O, T]
+		fileblock *db.Fileblock[O, E]
+		entries   db.EntriesMap[O, E]
 		err       error
 		found     bool
 	)

@@ -14,7 +14,7 @@ func newItemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](limit int) db.Wa
 
 type itemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct{ limit int }
 
-func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
+func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
@@ -29,7 +29,7 @@ type timeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 	duration time.Duration
 }
 
-func (s *timeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
+func (s *timeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
@@ -44,7 +44,7 @@ type sizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
 	maxSize int
 }
 
-func (s *sizeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool {
+func (s *sizeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}

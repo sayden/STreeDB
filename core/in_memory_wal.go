@@ -82,7 +82,7 @@ func (w *nmMemoryWal[O, E]) Close() error {
 			WithPrimaryIndex(pIdx).
 			WithCreatedAt(time.Now())
 
-		if err := w.fileblockCreator.NewFileblock(&fileEntries, builder); err != nil {
+		if err := w.fileblockCreator.NewFileblock(fileEntries, builder); err != nil {
 			return err
 		}
 	}

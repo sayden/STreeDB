@@ -30,7 +30,7 @@ type s3ParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 	rootPath string
 }
 
-func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], error) {
+func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.EntriesMap[O, E], error) {
 	out, err := f.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(f.cfg.S3Config.Bucket),
 		Key:    aws.String(b.Metadata().DataFilepath),
@@ -86,7 +86,7 @@ func (f *s3ParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
 	return updateMetadataS3[O, E](f.cfg, f.client, b.Metadata())
 }
 
-func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
 	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -95,11 +95,6 @@ func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder 
 	meta, err := builder.Build()
 	if err != nil {
 		return nil, err
-	}
-
-	sliceOfEntries, ok := es.(db.EntriesMap[O, E])
-	if !ok {
-		return nil, errors.New("entries is not a EntriesMap")
 	}
 
 	// data file
@@ -115,7 +110,7 @@ func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder 
 		return nil, err
 	}
 
-	for _, entry := range sliceOfEntries {
+	for _, entry := range es {
 		parquetWriter.Write(entry)
 	}
 	if err = parquetWriter.WriteStop(); err != nil {

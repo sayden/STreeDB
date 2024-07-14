@@ -29,7 +29,7 @@ func (f *localParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
 }
 
 // Load the parquet file using the data stored in the metadata file
-func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], error) {
+func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.EntriesMap[O, E], error) {
 	pf, err := local.NewLocalFileReader(b.DataFilepath)
 	if err != nil {
 		return nil, err
@@ -51,13 +51,12 @@ func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.Entries[O, E], er
 	return db.NewSliceToMapWithMetadata(entries, &b.MetaFile), nil
 }
 
-func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.Entries[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
 	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
 
 	builder = f.FillMetadataBuilder(builder)
-
 	meta, err := builder.Build()
 	if err != nil {
 		return nil, errors.Join(errors.New("error building metadata"), err)

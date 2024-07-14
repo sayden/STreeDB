@@ -101,10 +101,8 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	})
 
 	t.Run("Load", func(t *testing.T) {
-		es, err := fsp.Load(fb)
+		entries, err := fsp.Load(fb)
 		require.NoError(t, err)
-		entries, ok := es.(db.EntriesMap[int32, *db.Kv])
-		require.True(t, ok)
 		require.NotNil(t, entries)
 
 		assert.Equal(t, 2, entries.SecondaryIndicesLen())

@@ -12,10 +12,6 @@ type Comparable[O cmp.Ordered] interface {
 	Adjacent(Comparable[O]) bool
 	Equals(Comparable[O]) bool
 	LessThan(Comparable[O]) bool
-
-	Len() int
-	Max() O
-	Min() O
 }
 
 type Entry[O cmp.Ordered] interface {
@@ -29,15 +25,9 @@ type Entry[O cmp.Ordered] interface {
 	Get(int) any
 	Last() O
 	Len() int
-}
 
-type Entries[O cmp.Ordered, E Entry[O]] interface {
-	SecondaryIndices() []string
-	Get(s string) E
-	Last() E
-	LenAll() int
-	SecondaryIndicesLen() int
-	Merge(Entries[O, E]) (Entries[O, E], error)
+	Max() O
+	Min() O
 }
 
 func NewEntriesMap[O cmp.Ordered, E Entry[O]]() EntriesMap[O, E] {
@@ -65,7 +55,7 @@ func (em EntriesMap[O, E]) Append(entry E) {
 	em[secondaryIdx].Append(entry)
 }
 
-func (e EntriesMap[O, E]) Merge(d Entries[O, E]) (Entries[O, E], error) {
+func (e EntriesMap[O, E]) Merge(d EntriesMap[O, E]) (EntriesMap[O, E], error) {
 	idxs := d.SecondaryIndices()
 
 	for _, idx := range idxs {
