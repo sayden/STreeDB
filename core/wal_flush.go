@@ -21,7 +21,6 @@ func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.Entries[O, E]) bool 
 	return es.LenAll() >= s.limit
 }
 
-// FIXME: This function is not used in the codebase
 func newTimeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](d time.Duration) db.WalFlushStrategy[O, E] {
 	return &timeLimitWalFlushStrategy[O, E]{duration: d}
 }

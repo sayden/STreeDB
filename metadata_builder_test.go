@@ -26,16 +26,8 @@ func TestMetadataBuilder(t *testing.T) {
 	assert.Contains(t, meta.MetaFilepath, "/tmp/db/json/01")
 	assert.Contains(t, meta.MetaFilepath, ".json")
 
-	min, found := meta.MinAtSecondary("key1")
-	assert.True(t, found)
-	assert.Equal(t, int32(1), min)
-
-	max, found := meta.MaxAtSecondary("key1")
-	assert.True(t, found)
-	assert.Equal(t, int32(3), max)
-
-	min = *meta.Min
-	max = *meta.Max
+	min := *meta.Min
+	max := *meta.Max
 	assert.Equal(t, int32(1), min)
 	assert.Equal(t, int32(3), max)
 }

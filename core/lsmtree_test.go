@@ -15,14 +15,13 @@ import (
 )
 
 func cleanAll() {
-	// deleteBuckets()
+	deleteBuckets()
 	os.RemoveAll("/tmp/db")
 }
 
 func TestS3(t *testing.T) {
-	t.Skip()
 	log.SetLevel(log.LevelInfo)
-	// t.Cleanup(cleanAll)
+	t.Cleanup(cleanAll)
 	defaultCfg := streedb.NewDefaultConfig()
 	defaultCfg.Wal.MaxItems = 10
 
@@ -49,14 +48,12 @@ func TestS3(t *testing.T) {
 		})
 
 		t.Run("Compact", func(t *testing.T) {
-			t.Skip()
 			launchTestWithConfig(t, cfg, false)
 		})
 	}
 }
 
 func TestDBLocal(t *testing.T) {
-	t.Skip()
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
 	defaultCfg := streedb.NewDefaultConfig()

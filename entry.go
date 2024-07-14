@@ -54,15 +54,15 @@ func (e EntriesMap[O, E]) SecondaryIndices() []string {
 	return indices
 }
 
-func (em EntriesMap[O, E]) Append(d E) {
-	idx := d.SecondaryIndex()
+func (em EntriesMap[O, E]) Append(entry E) {
+	secondaryIdx := entry.SecondaryIndex()
 
-	if _, ok := em[idx]; !ok {
-		em[idx] = d
+	if _, ok := em[secondaryIdx]; !ok {
+		em[secondaryIdx] = entry
 		return
 	}
 
-	em[idx].Append(d)
+	em[secondaryIdx].Append(entry)
 }
 
 func (e EntriesMap[O, E]) Merge(d Entries[O, E]) (Entries[O, E], error) {

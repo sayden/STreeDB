@@ -38,13 +38,13 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 			if fs, err = local.InitParquetLocal[O, E](cfg, levelIdx); err != nil {
 				return nil, err
 			}
-			result[levelIdx] = NewBasicLevel[O, E](cfg, fs, levels)
+			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
 
 		case db.FILESYSTEM_TYPE_S3:
 			if fs, err = fss3.InitParquetS3[O, E](cfg, levelIdx); err != nil {
 				return nil, err
 			}
-			result[levelIdx] = NewBasicLevel[O, E](cfg, fs, levels)
+			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
 		default:
 			return nil, db.ErrUnknownFilesystemType
 		}

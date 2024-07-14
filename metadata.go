@@ -42,26 +42,6 @@ func (r *Row[O]) Merge(o Comparable[O]) {
 	}
 }
 
-func (m *MetaFile[O]) MaxAtSecondary(s string) (O, bool) {
-	for _, rg := range m.Rows {
-		if rg.SecondaryIdx == s {
-			return rg.Max, true
-		}
-	}
-
-	return (*new(O)), false
-}
-
-func (m *MetaFile[O]) MinAtSecondary(s string) (O, bool) {
-	for _, rg := range m.Rows {
-		if rg.SecondaryIdx == s {
-			return rg.Min, true
-		}
-	}
-
-	return (*new(O)), false
-}
-
 func (m *MetaFile[O]) Metadata() *MetaFile[O] {
 	return m
 }

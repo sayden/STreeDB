@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEntryFallsInside(t *testing.T) {
@@ -20,7 +21,8 @@ func TestEntries(t *testing.T) {
 	em := NewSliceToMap(temp)
 	val := NewKv("hello", "hello 15", []int32{15})
 	em.Append(val)
-	first := em.Get("hello")
-	assert.Equal(t, "hello", first.Key)
-	assert.Equal(t, "hello 15", first.PrimaryIdx)
+	first := em.Get("hello 15")
+	require.NotNil(t, first)
+	assert.Equal(t, "hello", first.PrimaryIdx)
+	assert.Equal(t, "hello 15", first.Key)
 }

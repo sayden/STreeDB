@@ -3,7 +3,6 @@ package fslocal
 import (
 	"os"
 	"testing"
-	"time"
 
 	db "github.com/sayden/streedb"
 	"github.com/stretchr/testify/assert"
@@ -16,16 +15,13 @@ import (
 func TestParquetFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 	// tmpDir := os.TempDir() + "/parquet"
-	os.MkdirAll(tmpDir, os.ModePerm)
+	// os.MkdirAll(tmpDir, os.ModePerm)
 
-	now := time.Now()
-	t.Cleanup(func() {
-		t.Logf("%s: %v", t.Name(), time.Since(now))
-		t.Logf("File written in %s\n", tmpDir+"/data1.parquet")
-	})
+	// t.Cleanup(func() { os.RemoveAll(tmpDir) })
 
 	dataFile, err := os.Create(tmpDir + "/data1.parquet")
 	require.NoError(t, err)
+	require.NotNil(t, dataFile)
 	defer dataFile.Close()
 
 	parquetWriter, err := writer.NewParquetWriterFromWriter(dataFile, new(db.Kv), 4)
@@ -63,23 +59,29 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	cfg := db.NewDefaultConfig()
 	fsp, err := InitParquetLocal[int32, *db.Kv](cfg, 0)
 	require.NoError(t, err)
+	require.NotNil(t, fsp)
 
-	temp := make([]*db.Kv, 0)
-	data := db.NewSliceToMap(temp)
+	entriesMap := db.NewEntriesMap[int32, *db.Kv]()
 	n := 2000
 	ints := make([]int32, 0, n)
 	for i := 0; i < n; i++ {
 		ints = append(ints, int32(i))
 	}
-	data.Append(db.NewKv("key", "idx", ints))
-	data.Append(db.NewKv("key2", "idx", ints))
+	entriesMap.Append(db.NewKv("idx", "key", ints))
+	entriesMap.Append(db.NewKv("idx", "key2", ints))
 	builder := db.NewMetadataBuilder[int32](cfg)
-	builder.WithEntry(data.Get("key"))
-	builder.WithEntry(data.Get("key2"))
+
+	key := entriesMap.Get("key")
+	require.NotNil(t, key)
+	key2 := entriesMap.Get("key2")
+	require.NotNil(t, key2)
+
+	builder.WithEntry(key)
+	builder.WithEntry(key2)
 
 	var fb *db.Fileblock[int32, *db.Kv]
 	t.Run("Create", func(t *testing.T) {
-		fb, err = fsp.Create(cfg, data, builder, nil)
+		fb, err = fsp.Create(cfg, entriesMap, builder, nil)
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, fb.DataFilepath)
@@ -103,8 +105,9 @@ func TestParquetLocalFilesystem(t *testing.T) {
 		require.NoError(t, err)
 		entries, ok := es.(db.EntriesMap[int32, *db.Kv])
 		require.True(t, ok)
+		require.NotNil(t, entries)
 
-		assert.Equal(t, 2, entries.SecondaryIndices())
+		assert.Equal(t, 2, entries.SecondaryIndicesLen())
 		assert.Equal(t, "key", entries.Get("key").Key)
 		assert.Equal(t, "key2", entries.Get("key2").Key)
 		assert.Equal(t, 2000, len(entries.Get("key").Val))
