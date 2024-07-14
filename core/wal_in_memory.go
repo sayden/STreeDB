@@ -56,15 +56,13 @@ func (w *nmMemoryWal[O, E]) Append(d E) (err error) {
 	return nil
 }
 
-func (w *nmMemoryWal[O, E]) Find(d E) (E, bool) {
-	for _, entries := range w.entries {
-		e, found := entries.Find(d)
-		if found {
-			return e, true
-		}
+func (w *nmMemoryWal[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool) {
+	fileEntries := w.entries[pIdx]
+	if fileEntries == nil {
+		return *new(E), false
 	}
 
-	return (*new(E)), false
+	return fileEntries.Find(sIdx, min, max)
 }
 
 func (w *nmMemoryWal[O, E]) Close() error {

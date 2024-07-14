@@ -93,34 +93,35 @@ func (b *BasicLevel[O, T]) FindFileblock(d T) (*db.Fileblock[O, T], bool, error)
 	return nil, false, nil
 }
 
-func (b *BasicLevel[O, E]) Find(d E) (db.Entry[O], bool, error) {
-	if !b.entryFallsInside(d) {
-		return nil, false, nil
-	}
-
-	// iterate through each block
-	var (
-		// entry     db.Entry[O]
-		fileblock *db.Fileblock[O, E]
-		entries   db.EntriesMap[O, E]
-		err       error
-		found     bool
-	)
-
-	for _, fileblock = range b.fileblocks {
-		if found = fileblock.Find(d); found {
-			if entries, err = fileblock.Load(); err != nil {
-				return nil, false, errors.Join(fmt.Errorf("error finding value %v in block: ", d), err)
-			}
-			_ = entries
-
-			// if entry, found = entries.Find(d); found {
-			// 	return entry, found, nil
-			// }
-		}
-	}
-
-	return nil, false, nil
+func (b *BasicLevel[O, E]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
+	panic("implement me")
+	// if !b.entryFallsInside(d) {
+	// 	return nil, false, nil
+	// }
+	//
+	// // iterate through each block
+	// var (
+	// 	// entry     db.Entry[O]
+	// 	fileblock *db.Fileblock[O, E]
+	// 	entries   db.EntriesMap[O, E]
+	// 	err       error
+	// 	found     bool
+	// )
+	//
+	// for _, fileblock = range b.fileblocks {
+	// 	if found = fileblock.Find(d); found {
+	// 		if entries, err = fileblock.Load(); err != nil {
+	// 			return nil, false, errors.Join(fmt.Errorf("error finding value %v in block: ", d), err)
+	// 		}
+	// 		_ = entries
+	//
+	// 		// if entry, found = entries.Find(d); found {
+	// 		// 	return entry, found, nil
+	// 		// }
+	// 	}
+	// }
+	//
+	// return nil, false, nil
 }
 
 func (b *BasicLevel[O, T]) Close() error {

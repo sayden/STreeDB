@@ -25,6 +25,8 @@ type Entry[O cmp.Ordered] interface {
 	Len() int
 	Max() O
 	Min() O
+
+	Overlap(O, O) (Entry[O], bool)
 }
 
 func NewEntriesMap[O cmp.Ordered, E Entry[O]]() EntriesMap[O, E] {
@@ -136,14 +138,18 @@ func (em EntriesMap[O, E]) SecondaryIndicesLen() int {
 	return len(em)
 }
 
-func (e EntriesMap[O, E]) Find(d E) (E, bool) {
-	// es, ok := e[d.SecondaryIndex()]
-	// if !ok {
-	// 	return (*new(E)), false
-	// }
-	//
-	// return es.Find(d)
-	panic("not implemented / unreachable")
+func (e EntriesMap[O, E]) Find(sIdx string, min, max O) (E, bool) {
+	if _, ok := e[sIdx]; !ok {
+		return *new(E), false
+	}
+
+	res, found := e[sIdx].Overlap(min, max)
+	if !found {
+		return *new(E), false
+	}
+
+	res_, ok := res.(E)
+	return res_, ok
 }
 
 func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) EntriesMap[O, E] {

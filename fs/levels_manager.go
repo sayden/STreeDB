@@ -105,18 +105,19 @@ func (b *MultiFsLevels[O, E]) Create(es db.EntriesMap[O, E], meta *db.MetadataBu
 	return nil, errors.New("unreachable")
 }
 
-func (b *MultiFsLevels[O, E]) Find(d E) (db.Entry[O], bool, error) {
+func (b *MultiFsLevels[O, E]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
+	panic("implement me")
 	// Look in the meta, to open the files
-	for i := 0; i < b.cfg.MaxLevels; i++ {
-		level := b.levels[i]
-		if v, found, err := level.Find(d); found {
-			return v, true, nil
-		} else if err != nil {
-			return nil, false, err
-		}
-	}
-
-	return nil, false, nil
+	// for i := 0; i < b.cfg.MaxLevels; i++ {
+	// 	level := b.levels[i]
+	// 	if v, found, err := level.Find(d); found {
+	// 		return v, true, nil
+	// 	} else if err != nil {
+	// 		return nil, false, err
+	// 	}
+	// }
+	//
+	// return nil, false, nil
 }
 
 func (b *MultiFsLevels[O, E]) FindFileblock(d E) (*db.Fileblock[O, E], bool, error) {

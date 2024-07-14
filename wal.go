@@ -4,7 +4,7 @@ import "cmp"
 
 type Wal[O cmp.Ordered, E Entry[O]] interface {
 	Append(d E) error
-	Find(d E) (E, bool)
+	Find(pIdx string, sIdx string, min, max O) (E, bool)
 	Close() error
 }
 

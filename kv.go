@@ -21,6 +21,8 @@ type Kv struct {
 	Ts         []int64 `parquet:"name=ts, type=INT64, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
 	Key        string  `parquet:"name=key, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
 	Val        []int32 `parquet:"name=val, type=INT32, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
+	min        *int64
+	max        *int64
 }
 
 func (l *Kv) Merge(a Entry[int64]) error {
@@ -31,6 +33,15 @@ func (l *Kv) Sort() {
 	slices.Sort(l.Val)
 }
 
+func (l *Kv) Overlap(min, max int64) (Entry[int64], bool) {
+	lMin := l.Min()
+	lMax := l.Max()
+
+	isOverlapped := (lMin < max || lMin == max) &&
+		(min < lMax || min == lMax)
+	return l, isOverlapped
+}
+
 func (l *Kv) Append(a Entry[int64]) error {
 	a_, ok := a.(*Kv)
 	if !ok {
@@ -38,6 +49,9 @@ func (l *Kv) Append(a Entry[int64]) error {
 	}
 
 	l.Val = append(l.Val, a_.Val...)
+
+	l.min = nil
+	l.max = nil
 
 	return nil
 }
@@ -47,16 +61,25 @@ func (l *Kv) Last() int64 {
 }
 
 func (l *Kv) Max() int64 {
+	if l.max != nil {
+		return *l.max
+	}
+
 	max := int64(math.MinInt64)
 	for _, v := range l.Ts {
 		if v > max {
 			max = v
 		}
 	}
+
+	l.max = &max
 	return max
 }
 
 func (l *Kv) Min() int64 {
+	if l.min != nil {
+		return *l.min
+	}
 	min := int64(math.MaxInt64)
 
 	for _, v := range l.Ts {
@@ -65,6 +88,7 @@ func (l *Kv) Min() int64 {
 		}
 	}
 
+	l.min = &min
 	return min
 }
 
