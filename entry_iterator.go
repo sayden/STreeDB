@@ -1,8 +1,81 @@
 package streedb
 
-// type EntryIterator[T Entry] interface {
-// 	Next() (Entry, bool, error)
+import (
+	"cmp"
+
+	"github.com/thehivecorporation/log"
+)
+
+type EntryIterator[O cmp.Ordered, T Entry[O]] interface {
+	Next() (Entry[O], bool, error)
+}
+
+func newWrapperIterator[O cmp.Ordered, E Entry[O]](btree *BtreeWrapper[O], min, max O) *btreeWrapperIterator[O, E] {
+	tree := &btreeWrapperIterator[O, E]{btree: btree}
+	tree.Start(max, min)
+	return tree
+}
+
+type btreeWrapperIterator[O cmp.Ordered, E Entry[O]] struct {
+	ch         chan Entry[O]
+	btree      *BtreeWrapper[O]
+	list       *LinkedList[O, *Fileblock[O, E]]
+	item       *Fileblock[O, E]
+	entriesMap EntriesMap[O, E]
+	index      int
+}
+
+func (b *btreeWrapperIterator[O, E]) Start(max, min O) {
+	go func() {
+		b.btree.BTreeG.AscendRange(&btreeItem[O]{key: min}, &btreeItem[O]{key: max}, func(ll *btreeItem[O]) bool {
+			head := ll.val.head
+			if head == nil {
+				close(b.ch)
+				return false
+			}
+
+			for next := head; next != nil; next = next.next {
+				entriesMap, err := next.value.Load()
+				if err != nil {
+					close(b.ch)
+					return false
+				}
+				for _, entry := range entriesMap {
+					b.ch <- entry
+				}
+			}
+
+			return true
+		})
+
+		close(b.ch)
+
+		log.Debug("btreeWrapperIterator finished")
+	}()
+}
+
+func (b *btreeWrapperIterator[O, E]) Next() (Entry[O], bool, error) {
+	entry := <-b.ch
+	if entry == nil {
+		return *new(E), false, nil
+	}
+
+	return entry, true, nil
+}
+
+// func NewIterator[O cmp.Ordered, E Entry[O]](btree BtreeWrapper[O], min, max O) (EntryIterator[O, E], error) {
+// iter := newWrapperIterator(&btree, min, max)
+// entry, found, err := iter.Next()
+// if err != nil {
+// 	return nil, err
 // }
+// if !found {
+// 	return nil, errors.New("not found")
+// }
+
+// return nil, errors.New("not implemented")
+// }
+
 //
 // func NewForwardIterator[T Entry](list *MapDLL[T, *Fileblock[T]], k T) (EntryIterator[T], bool) {
 // 	var (

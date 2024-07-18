@@ -86,7 +86,12 @@ func (b *BtreeWrapper[O]) Remove(key O, value *Fileblock[O]) bool {
 		return false
 	}
 
-	btItem.val.Remove(value)
+	comp, ok := value.(*Fileblock[O, Entry[O]])
+	if !ok {
+		return false
+	}
+
+	btItem.val.Remove(comp)
 	if btItem.val.head == nil {
 		_, found := b.BTreeG.Delete(btItem)
 		return found
