@@ -1,15 +1,17 @@
 package streedb
 
-import "cmp"
+import (
+	"cmp"
+)
 
 // LinkedList is a LL with specific methods to order in ascending or descending order
 // it allows also duplicate values
-type LinkedList[O cmp.Ordered, T Entry[O]] struct {
+type LinkedList[O cmp.Ordered, T Comparable[O]] struct {
 	head *node[O, T]
 }
 
 // node represents a node in the doubly linked list
-type node[O cmp.Ordered, T Entry[O]] struct {
+type node[O cmp.Ordered, T Comparable[O]] struct {
 	value T
 	next  *node[O, T]
 }
@@ -120,9 +122,12 @@ func (dll *LinkedList[O, T]) Remove(value T) {
 }
 
 // TraverseForward traverses the list from head to tail
-func (dll *LinkedList[O, T]) Each(f func(int, T)) {
+func (dll *LinkedList[O, T]) Each(f func(int, T) bool) {
 	i := 0
 	for current := dll.head; current != nil; current, i = current.next, i+1 {
-		f(i, current.value)
+		stop := f(i, current.value)
+		if stop {
+			return
+		}
 	}
 }

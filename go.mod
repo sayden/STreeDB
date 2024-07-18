@@ -8,8 +8,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.22
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.22
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.57.0
+	github.com/google/btree v1.1.2
 	github.com/google/uuid v1.6.0
-	github.com/kr/pretty v0.3.1
+	github.com/spaolacci/murmur3 v1.1.0
 	github.com/stretchr/testify v1.9.0
 	github.com/thehivecorporation/log v1.8.5
 	github.com/xitongsys/parquet-go v1.6.2
@@ -40,12 +41,11 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/juju/errors v0.0.0-20210818161939-5560c4c073ff // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/pierrec/lz4/v4 v4.1.8 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

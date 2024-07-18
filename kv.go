@@ -1,10 +1,14 @@
 package streedb
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 	"slices"
+
+	"github.com/spaolacci/murmur3"
 )
 
 func NewKv(primaryIdx, secondary string, ts []int64, val []int32) *Kv {
@@ -118,6 +122,28 @@ func (l *Kv) SecondaryIndex() string {
 
 func (l *Kv) Len() int {
 	return len(l.Val)
+}
+
+func (l *Kv) UUID() string {
+	pIdx := l.PrimaryIndex()
+	sIdx := l.SecondaryIndex()
+	buf := make([]byte, 0, len(pIdx)+len(sIdx)+8)
+	buff := bytes.NewBuffer(buf)
+	buff.WriteString(pIdx)
+	buff.WriteString(sIdx)
+	nBuf := make([]byte, 8)
+	n := binary.PutVarint(nBuf, l.Min())
+	if n != 8 {
+		panic("unexpected amount of bytes written")
+	}
+	buff.Write(nBuf)
+
+	hash, err := murmur3.New64().Write(buff.Bytes())
+	if err != nil {
+		panic(err)
+	}
+
+	return fmt.Sprintf("%d", hash)
 }
 
 func (l *Kv) IsAdjacent(a Comparable[int64]) bool {

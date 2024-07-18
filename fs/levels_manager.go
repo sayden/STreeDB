@@ -14,7 +14,8 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 		cfg:                cfg,
 		promoters:          promoter,
 		fileblockListeners: make([]db.FileblockListener[O, E], 0, 10),
-		list:               db.MapDLL[O, E, *db.Fileblock[O, E]]{},
+		// list:               db.MapDLL[O, E, *db.Fileblock[O, E]]{},
+		index: db.NewBtreeIndex(2, db.LLFComp[O]),
 	}
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
@@ -58,16 +59,16 @@ type MultiFsLevels[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[O]
 	levels             map[int]*BasicLevel[O, E]
-	list               db.MapDLL[O, E, *db.Fileblock[O, E]]
+	index              *db.BtreeWrapper[O]
 	fileblockListeners []db.FileblockListener[O, E]
 }
 
 func (b *MultiFsLevels[O, T]) OnFileblockCreated(block *db.Fileblock[O, T]) {
-	// b.list.SetMin(block.Metadata().Min(), block)
+	b.index.Upsert(*block.Metadata().Min, block)
 }
 
 func (b *MultiFsLevels[O, T]) OnFileblockRemoved(block *db.Fileblock[O, T]) {
-	// b.list.Remove(block.Metadata().Max())
+	b.index.Remove(*block.Metadata().Min, block)
 }
 
 func (b *MultiFsLevels[O, E]) NewFileblock(es db.EntriesMap[O, E], builder *db.MetadataBuilder[O]) error {
@@ -106,18 +107,25 @@ func (b *MultiFsLevels[O, E]) Create(es db.EntriesMap[O, E], meta *db.MetadataBu
 }
 
 func (b *MultiFsLevels[O, E]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
-	panic("implement me")
-	// Look in the meta, to open the files
-	// for i := 0; i < b.cfg.MaxLevels; i++ {
-	// 	level := b.levels[i]
-	// 	if v, found, err := level.Find(d); found {
-	// 		return v, true, nil
-	// 	} else if err != nil {
-	// 		return nil, false, err
-	// 	}
+	// ll, found := b.index.AscendRange(pIdx, sIdx, min, max)
+	// ll, found := b.index.Get(min)
+	// if !found {
+	// 	return nil, false, nil
 	// }
+	// var targetEntry db.Comparable[O]
+	// ll.Each(func(i int, e db.Comparable[O]) bool {
+	// 	found = e.PrimaryIndex() == pIdx && e.SecondaryIndex() == sIdx
+	// 	if found {
+	// 		targetEntry = e
+	// 		return true
+	// 	}
 	//
-	// return nil, false, nil
+	// 	return false
+	// })
+	//
+	// return targetEntry.(db.Entry[O]), targetEntry != nil, nil
+
+	return nil, false, errors.New("not implemented")
 }
 
 func (b *MultiFsLevels[O, E]) FindFileblock(d E) (*db.Fileblock[O, E], bool, error) {

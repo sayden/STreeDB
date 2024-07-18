@@ -7,8 +7,8 @@ import (
 type Comparable[O cmp.Ordered] interface {
 	PrimaryIndex() string
 	SecondaryIndex() string
+	UUID() string
 
-	IsAdjacent(Comparable[O]) bool
 	Equals(Comparable[O]) bool
 	LessThan(Comparable[O]) bool
 }

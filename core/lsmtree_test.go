@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/sayden/streedb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thehivecorporation/log"
 )
@@ -128,13 +129,12 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		require.NoError(t, err)
 	}
 
-	// entry := streedb.NewKv("instance1", "cpu", nil)
-	// val, found, err := lsmtree.Find(entry)
-	// assert.NoError(t, err)
-	// assert.True(t, found)
-	// if val == nil {
-	// 	t.Fatalf("value not found in '%s'", cfg.Filesystem)
-	// }
+	val, found, err := lsmtree.Find("instance1", "cpu", 1, 4)
+	require.NoError(t, err)
+	assert.True(t, found)
+	if val == nil {
+		t.Fatalf("value not found in '%s'", cfg.Filesystem)
+	}
 
 	// t.Run("Iterators", func(t *testing.T) {
 	// 	t.Skip("TODO")

@@ -56,6 +56,27 @@ func (l *Fileblock[O, E]) UUID() string {
 	return l.Uuid
 }
 
+func (l *Fileblock[O, E]) PrimaryIndex() string {
+	return l.PrimaryIdx
+}
+
+func (l *Fileblock[O, E]) SecondaryIndex() string {
+	return ""
+}
+
+func (l *Fileblock[O, E]) Equals(other Comparable[O]) bool {
+	return l.Uuid == other.UUID()
+}
+
+func (l *Fileblock[O, E]) LessThan(other Comparable[O]) bool {
+	if l.Min == nil {
+		return false
+	}
+
+	d := other.(O)
+	return *l.Min < d
+}
+
 func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (*MetadataBuilder[O], EntriesMap[O, E], error) {
 	entries, err := a.Load()
 	if err != nil {

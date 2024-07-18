@@ -80,16 +80,16 @@ func (b *BasicLevel[O, T]) RemoveFile(f *db.Fileblock[O, T]) error {
 }
 
 func (b *BasicLevel[O, T]) FindFileblock(d T) (*db.Fileblock[O, T], bool, error) {
-	if !b.entryFallsInside(d) {
-		return nil, false, nil
-	}
-
-	for _, fileblock := range b.fileblocks {
-		if found := fileblock.Find(d); found {
-			return fileblock, found, nil
-		}
-	}
-
+	// if !b.entryFallsInside(d) {
+	// 	return nil, false, nil
+	// }
+	//
+	// for _, fileblock := range b.fileblocks {
+	// 	if found := fileblock.Find(d); found {
+	// 		return fileblock, found, nil
+	// 	}
+	// }
+	//
 	return nil, false, nil
 }
 
@@ -136,21 +136,21 @@ func (b *BasicLevel[O, T]) Fileblocks() []*db.Fileblock[O, T] {
 	return b.fileblocks
 }
 
-func (b *BasicLevel[O, T]) entryFallsInside(d T) bool {
-	if minV, found := b.min.Head(); !found {
-		return false
-	} else if d.LessThan(minV) {
-		return false
-	}
-
-	if maxV, foundMax := b.max.Head(); !foundMax {
-		return false
-	} else if !d.LessThan(maxV) {
-		return false
-	}
-
-	return true
-}
+// func (b *BasicLevel[O, T]) entryFallsInside(d T) bool {
+// 	if minV, found := b.min.Head(); !found {
+// 		return false
+// 	} else if d.LessThan(minV) {
+// 		return false
+// 	}
+//
+// 	if maxV, foundMax := b.max.Head(); !foundMax {
+// 		return false
+// 	} else if !d.LessThan(maxV) {
+// 		return false
+// 	}
+//
+// 	return true
+// }
 
 func (b *BasicLevel[O, T]) updateMinMax(in *db.MetaFile[O]) {
 	// b.min.SetMin(in.Min)

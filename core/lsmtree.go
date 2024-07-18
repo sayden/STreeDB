@@ -64,14 +64,6 @@ func (l *LsmTree[O, E]) Append(d E) {
 	}
 }
 
-// func (l *LsmTree[O, T]) RangeIterator(begin, end T) (db.EntryIterator[O, T], bool, error) {
-// 	return l.levels.RangeIterator(begin, end)
-// }
-//
-// func (l *LsmTree[O, T]) ForwardIterator(d T) (db.EntryIterator[O, T], bool, error) {
-// 	return l.levels.ForwardIterator(d)
-// }
-
 func (l *LsmTree[O, T]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
 	// Look in the WAL
 	if v, found := l.wal.Find(pIdx, sIdx, min, max); found {
