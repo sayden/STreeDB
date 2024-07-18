@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockFilesystem[O cmp.Ordered, E db.Entry[O]] struct {
+type mockFilesystem[O cmp.Ordered] struct {
 	extra struct {
 		create               int
 		fillMetadataBuilder  int
@@ -18,12 +18,12 @@ type mockFilesystem[O cmp.Ordered, E db.Entry[O]] struct {
 		updateMetadata       int
 	}
 
-	es        db.EntriesMap[O, E]
+	es        db.EntriesMap[O]
 	builder   *db.MetadataBuilder[O]
-	listeners []db.FileblockListener[O, E]
+	listeners []db.FileblockListener[O]
 }
 
-func (m *mockFilesystem[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], b *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+func (m *mockFilesystem[O]) Create(cfg *db.Config, es db.EntriesMap[O], b *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	m.es = es
 	m.builder = b
 	m.listeners = ls
@@ -36,30 +36,30 @@ func (m *mockFilesystem[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], b 
 
 	return db.NewFileblock(cfg, meta, m), nil
 }
-func (m *mockFilesystem[O, E]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
+func (m *mockFilesystem[O]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
 	m.extra.fillMetadataBuilder++
 	return nil
 }
-func (m *mockFilesystem[O, E]) Load(*db.Fileblock[O, E]) (db.EntriesMap[O, E], error) {
+func (m *mockFilesystem[O]) Load(*db.Fileblock[O]) (db.EntriesMap[O], error) {
 	m.extra.load++
 	return nil, nil
 }
-func (m *mockFilesystem[O, E]) OpenMetaFilesInLevel([]db.FileblockListener[O, E]) error {
+func (m *mockFilesystem[O]) OpenMetaFilesInLevel([]db.FileblockListener[O]) error {
 	m.extra.openMetaFilesInLevel++
 	return nil
 }
-func (m *mockFilesystem[O, E]) Remove(*db.Fileblock[O, E], []db.FileblockListener[O, E]) error {
+func (m *mockFilesystem[O]) Remove(*db.Fileblock[O], []db.FileblockListener[O]) error {
 	m.extra.remove++
 	return nil
 }
-func (m *mockFilesystem[O, E]) UpdateMetadata(*db.Fileblock[O, E]) error {
+func (m *mockFilesystem[O]) UpdateMetadata(*db.Fileblock[O]) error {
 	m.extra.updateMetadata++
 	return nil
 }
 
 func TestLevelBasic(t *testing.T) {
 	cfg := db.NewDefaultConfig()
-	fs := mockFilesystem[int64, *db.Kv]{}
+	fs := mockFilesystem[int64]{}
 
 	levels, err := NewLeveledFilesystem[int64, *db.Kv](cfg)
 	assert.NoError(t, err)

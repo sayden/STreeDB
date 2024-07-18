@@ -19,7 +19,7 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 )
 
-func InitParquetS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O, E], error) {
+func InitParquetS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O], error) {
 	return initS3[O, E](cfg, level)
 }
 
@@ -30,7 +30,7 @@ type s3ParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 	rootPath string
 }
 
-func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.EntriesMap[O, E], error) {
+func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O]) (db.EntriesMap[O], error) {
 	out, err := f.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(f.cfg.S3Config.Bucket),
 		Key:    aws.String(b.Metadata().DataFilepath),
@@ -82,11 +82,11 @@ func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.EntriesMap[O, E], er
 	return db.NewSliceToMapWithMetadata(entries, &b.MetaFile), nil
 }
 
-func (f *s3ParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
-	return updateMetadataS3[O, E](f.cfg, f.client, b.Metadata())
+func (f *s3ParquetFs[O, _]) UpdateMetadata(b *db.Fileblock[O]) error {
+	return updateMetadataS3[O](f.cfg, f.client, b.Metadata())
 }
 
-func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -157,12 +157,12 @@ func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], build
 	return block, nil
 }
 
-func (f *s3ParquetFs[O, E]) Remove(b *db.Fileblock[O, E], listeners []db.FileblockListener[O, E]) error {
-	return removeS3(f.client, f.cfg, b, listeners...)
+func (f *s3ParquetFs[O, _]) Remove(b *db.Fileblock[O], listeners []db.FileblockListener[O]) error {
+	return removeS3[O](f.client, f.cfg, b, listeners...)
 }
 
-func (f *s3ParquetFs[O, E]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O, E]) error {
-	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, listeners...)
+func (f *s3ParquetFs[O, _]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O]) error {
+	return openAllMetadataFilesInS3Folder[O](f.cfg, f.client, f, f.rootPath, listeners...)
 }
 
 func (f *s3ParquetFs[O, E]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {

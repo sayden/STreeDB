@@ -8,7 +8,7 @@ import (
 	"github.com/sayden/streedb/fs"
 )
 
-func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, levels *fs.MultiFsLevels[O, E], mergers ...db.CompactionStrategy[O]) (db.Compactor[O, E], error) {
+func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, levels *fs.MultiFsLevels[O], mergers ...db.CompactionStrategy[O]) (db.Compactor[O], error) {
 	return &TieredMultiFsCompactor[O, E]{
 		cfg:                cfg,
 		levels:             levels,
@@ -20,13 +20,13 @@ func NewTieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, lev
 // It is effective but it is N^2 in the number of fileblocks.
 type TieredMultiFsCompactor[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg                *db.Config
-	levels             *fs.MultiFsLevels[O, E]
+	levels             *fs.MultiFsLevels[O]
 	compactionStrategy []db.CompactionStrategy[O]
 }
 
 var ErrNoBlocksFound = errors.New("no blocks found")
 
-func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O, E]) error {
+func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O]) error {
 	if len(fileblocks) < 1 {
 		return ErrNoBlocksFound
 	}
@@ -35,9 +35,9 @@ func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O, E]
 		i            = 0
 		j            = 1
 		err          error
-		a            *db.Fileblock[O, E]
-		b            *db.Fileblock[O, E]
-		entries      db.EntriesMap[O, E]
+		a            *db.Fileblock[O]
+		b            *db.Fileblock[O]
+		entries      db.EntriesMap[O]
 		builder      *db.MetadataBuilder[O]
 		blocksToSkip = make(map[string]struct{})
 	)

@@ -9,18 +9,17 @@ import (
 	fss3 "github.com/sayden/streedb/fs/s3"
 )
 
-func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter ...db.LevelPromoter[O]) (*MultiFsLevels[O, E], error) {
-	levels := &MultiFsLevels[O, E]{
+func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter ...db.LevelPromoter[O]) (*MultiFsLevels[O], error) {
+	levels := &MultiFsLevels[O]{
 		cfg:                cfg,
 		promoters:          promoter,
-		fileblockListeners: make([]db.FileblockListener[O, E], 0, 10),
-		// list:               db.MapDLL[O, E, *db.Fileblock[O, E]]{},
-		index: db.NewBtreeIndex(2, db.LLFComp[O]),
+		fileblockListeners: make([]db.FileblockListener[O], 0, 10),
+		index:              db.NewBtreeIndex(2, db.LLFComp[O]),
 	}
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
 
-	result := make(map[int]*BasicLevel[O, E])
+	result := make(map[int]*BasicLevel[O])
 
 	if len(cfg.LevelFilesystems) == 0 {
 		panic("LevelFilesystems must have at least one entry")
@@ -32,7 +31,7 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 	var err error
 
 	for levelIdx, level := range cfg.LevelFilesystems {
-		var fs db.Filesystem[O, E]
+		var fs db.Filesystem[O]
 
 		switch db.FilesystemTypeReverseMap[level] {
 		case db.FILESYSTEM_TYPE_LOCAL:
@@ -55,23 +54,23 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 	return levels, nil
 }
 
-type MultiFsLevels[O cmp.Ordered, E db.Entry[O]] struct {
+type MultiFsLevels[O cmp.Ordered] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[O]
-	levels             map[int]*BasicLevel[O, E]
+	levels             map[int]*BasicLevel[O]
 	index              *db.BtreeWrapper[O]
-	fileblockListeners []db.FileblockListener[O, E]
+	fileblockListeners []db.FileblockListener[O]
 }
 
-func (b *MultiFsLevels[O, T]) OnFileblockCreated(block *db.Fileblock[O, T]) {
+func (b *MultiFsLevels[O]) OnFileblockCreated(block *db.Fileblock[O]) {
 	b.index.Upsert(*block.Metadata().Min, block)
 }
 
-func (b *MultiFsLevels[O, T]) OnFileblockRemoved(block *db.Fileblock[O, T]) {
+func (b *MultiFsLevels[O]) OnFileblockRemoved(block *db.Fileblock[O]) {
 	b.index.Remove(*block.Metadata().Min, block)
 }
 
-func (b *MultiFsLevels[O, E]) NewFileblock(es db.EntriesMap[O, E], builder *db.MetadataBuilder[O]) error {
+func (b *MultiFsLevels[O]) NewFileblock(es db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
 	for _, secIdx := range es.SecondaryIndices() {
 		entry := es.Get(secIdx)
 		entry.Sort()
@@ -92,21 +91,21 @@ func (b *MultiFsLevels[O, E]) NewFileblock(es db.EntriesMap[O, E], builder *db.M
 	return nil
 }
 
-func (b *MultiFsLevels[O, T]) RemoveFile(a *db.Fileblock[O, T]) error {
+func (b *MultiFsLevels[O]) RemoveFile(a *db.Fileblock[O]) error {
 	meta := a.Metadata()
 	level := meta.Level
 	return b.levels[level].RemoveFile(a)
 }
 
-func (b *MultiFsLevels[O, T]) Open(p string) (*db.Fileblock[O, T], error) {
+func (b *MultiFsLevels[O]) Open(p string) (*db.Fileblock[O], error) {
 	return nil, errors.New("unreachable")
 }
 
-func (b *MultiFsLevels[O, E]) Create(es db.EntriesMap[O, E], meta *db.MetadataBuilder[O]) (*db.Fileblock[O, E], error) {
+func (b *MultiFsLevels[O]) Create(es db.EntriesMap[O], meta *db.MetadataBuilder[O]) (*db.Fileblock[O], error) {
 	return nil, errors.New("unreachable")
 }
 
-func (b *MultiFsLevels[O, E]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
+func (b *MultiFsLevels[O]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
 	// ll, found := b.index.AscendRange(pIdx, sIdx, min, max)
 	// ll, found := b.index.Get(min)
 	// if !found {
@@ -128,7 +127,7 @@ func (b *MultiFsLevels[O, E]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], 
 	return nil, false, errors.New("not implemented")
 }
 
-func (b *MultiFsLevels[O, E]) FindFileblock(d E) (*db.Fileblock[O, E], bool, error) {
+func (b *MultiFsLevels[O]) FindFileblock(d db.Entry[O]) (*db.Fileblock[O], bool, error) {
 	for i := 0; i < b.cfg.MaxLevels; i++ {
 		level := b.levels[i]
 		if v, found, err := level.FindFileblock(d); found {
@@ -181,8 +180,8 @@ func (b *MultiFsLevels[O, E]) FindFileblock(d E) (*db.Fileblock[O, E], bool, err
 // 	return iter, found, nil
 // }
 
-func (b *MultiFsLevels[O, T]) Fileblocks() []*db.Fileblock[O, T] {
-	var blocks []*db.Fileblock[O, T]
+func (b *MultiFsLevels[O]) Fileblocks() []*db.Fileblock[O] {
+	var blocks []*db.Fileblock[O]
 	for i := 0; i < b.cfg.MaxLevels; i++ {
 		level := b.levels[i]
 		blocks = append(blocks, level.Fileblocks()...)
@@ -191,11 +190,11 @@ func (b *MultiFsLevels[O, T]) Fileblocks() []*db.Fileblock[O, T] {
 	return blocks
 }
 
-func (b *MultiFsLevels[O, T]) Level(i int) *BasicLevel[O, T] {
+func (b *MultiFsLevels[O]) Level(i int) *BasicLevel[O] {
 	return b.levels[i]
 }
 
-func (b *MultiFsLevels[O, T]) Close() error {
+func (b *MultiFsLevels[O]) Close() error {
 	for _, level := range b.levels {
 		if err := level.Close(); err != nil {
 			return err

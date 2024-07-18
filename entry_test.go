@@ -23,6 +23,6 @@ func TestEntries(t *testing.T) {
 	em.Append(val)
 	first := em.Get("hello 15")
 	require.NotNil(t, first)
-	assert.Equal(t, "hello", first.PrimaryIdx)
-	assert.Equal(t, "hello 15", first.Key)
+	assert.Equal(t, "hello", first.PrimaryIndex())
+	assert.Equal(t, "hello 15", first.SecondaryIndex())
 }

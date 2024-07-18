@@ -9,7 +9,7 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies ...db.WalFlushStrategy[O, E]) (*LsmTree[O, E], error) {
+func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies ...db.WalFlushStrategy[O]) (*LsmTree[O, E], error) {
 	if cfg.LevelFilesystems == nil {
 		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
 		for i := 0; i < cfg.MaxLevels; i++ {
@@ -31,17 +31,17 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies 
 	}
 
 	if persistStrategies == nil {
-		persistStrategies = make([]db.WalFlushStrategy[O, E], 0)
+		persistStrategies = make([]db.WalFlushStrategy[O], 0)
 	}
 	// Create the WAL
-	l.wal = newNMMemoryWal(cfg, levels,
-		append(persistStrategies, []db.WalFlushStrategy[O, E]{
-			newItemLimitWalFlushStrategy[O, E](cfg.Wal.MaxItems),
-			newSizeLimitWalFlushStrategy[O, E](cfg.Wal.MaxSizeBytes),
+	l.wal = newNMMemoryWal[O, E](cfg, levels,
+		append(persistStrategies, []db.WalFlushStrategy[O]{
+			newItemLimitWalFlushStrategy[O](cfg.Wal.MaxItems),
+			newSizeLimitWalFlushStrategy[O](cfg.Wal.MaxSizeBytes),
 		}...)...)
 
 	compactionStrategies := &samePrimaryIndexCompactionStrategy[O]{and: &overlappingCompactionStrategy[O]{}}
-	l.compactor, err = NewTieredMultiFsCompactor(cfg, levels, compactionStrategies)
+	l.compactor, err = NewTieredMultiFsCompactor[O, E](cfg, levels, compactionStrategies)
 	if err != nil {
 		panic(err)
 	}
@@ -52,28 +52,38 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies 
 type LsmTree[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg *db.Config
 
-	compactor db.Compactor[O, E]
+	compactor db.Compactor[O]
 	wal       db.Wal[O, E]
-	levels    *fs.MultiFsLevels[O, E]
+	levels    *fs.MultiFsLevels[O]
 }
 
-func (l *LsmTree[O, E]) Append(d E) {
+func (l *LsmTree[O, E]) Append(d db.Entry[O]) {
 	err := l.wal.Append(d)
 	if err != nil {
 		log.WithError(err).Error("error appending to wal")
 	}
 }
 
-func (l *LsmTree[O, T]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
+func (l *LsmTree[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool, error) {
 	// Look in the WAL
 	if v, found := l.wal.Find(pIdx, sIdx, min, max); found {
 		return v, true, nil
 	}
 
-	return l.levels.Find(pIdx, sIdx, min, max)
+	entry, found, err := l.levels.Find(pIdx, sIdx, min, max)
+	if err != nil {
+		return *new(E), false, err
+	}
+	if !found {
+		return *new(E), false, nil
+	}
+
+	e, ok := entry.(E)
+
+	return e, ok, nil
 }
 
-func (l *LsmTree[O, T]) Close() (err error) {
+func (l *LsmTree[O, E]) Close() (err error) {
 	// Close the wal and write whatever is left in it
 	errs := make([]error, 0)
 
@@ -89,12 +99,12 @@ func (l *LsmTree[O, T]) Close() (err error) {
 	return errors.Join(errs...)
 }
 
-func (l *LsmTree[O, T]) Compact() error {
-	return l.compactor.Compact(getBlocksFromLevels(l.cfg.MaxLevels, l.levels))
+func (l *LsmTree[O, E]) Compact() error {
+	return l.compactor.Compact(getBlocksFromLevels[O](l.cfg.MaxLevels, l.levels))
 }
 
-func getBlocksFromLevels[O cmp.Ordered, E db.Entry[O]](maxLevels int, levels *fs.MultiFsLevels[O, E]) []*db.Fileblock[O, E] {
-	var blocks []*db.Fileblock[O, E]
+func getBlocksFromLevels[O cmp.Ordered](maxLevels int, levels *fs.MultiFsLevels[O]) []*db.Fileblock[O] {
+	var blocks []*db.Fileblock[O]
 	for i := 0; i < maxLevels; i++ {
 		level := levels.Level(i)
 		blocks = append(blocks, level.Fileblocks()...)

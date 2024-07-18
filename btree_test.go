@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockFilesystem[O cmp.Ordered, E Entry[O]] struct {
+type mockFilesystem[O cmp.Ordered] struct {
 	extra struct {
 		create               int
 		fillMetadataBuilder  int
@@ -17,12 +17,12 @@ type mockFilesystem[O cmp.Ordered, E Entry[O]] struct {
 		updateMetadata       int
 	}
 
-	es        EntriesMap[O, E]
+	es        EntriesMap[O]
 	builder   *MetadataBuilder[O]
-	listeners []FileblockListener[O, E]
+	listeners []FileblockListener[O]
 }
 
-func (m *mockFilesystem[O, E]) Create(cfg *Config, es EntriesMap[O, E], b *MetadataBuilder[O], ls []FileblockListener[O, E]) (*Fileblock[O, E], error) {
+func (m *mockFilesystem[O]) Create(cfg *Config, es EntriesMap[O], b *MetadataBuilder[O], ls []FileblockListener[O]) (*Fileblock[O], error) {
 	m.es = es
 	m.builder = b
 	m.listeners = ls
@@ -35,34 +35,34 @@ func (m *mockFilesystem[O, E]) Create(cfg *Config, es EntriesMap[O, E], b *Metad
 
 	return NewFileblock(cfg, meta, m), nil
 }
-func (m *mockFilesystem[O, E]) FillMetadataBuilder(meta *MetadataBuilder[O]) *MetadataBuilder[O] {
+func (m *mockFilesystem[O]) FillMetadataBuilder(meta *MetadataBuilder[O]) *MetadataBuilder[O] {
 	m.extra.fillMetadataBuilder++
 	return nil
 }
-func (m *mockFilesystem[O, E]) Load(*Fileblock[O, E]) (EntriesMap[O, E], error) {
+func (m *mockFilesystem[O]) Load(*Fileblock[O]) (EntriesMap[O], error) {
 	m.extra.load++
 	return nil, nil
 }
-func (m *mockFilesystem[O, E]) OpenMetaFilesInLevel([]FileblockListener[O, E]) error {
+func (m *mockFilesystem[O]) OpenMetaFilesInLevel([]FileblockListener[O]) error {
 	m.extra.openMetaFilesInLevel++
 	return nil
 }
-func (m *mockFilesystem[O, E]) Remove(*Fileblock[O, E], []FileblockListener[O, E]) error {
+func (m *mockFilesystem[O]) Remove(*Fileblock[O], []FileblockListener[O]) error {
 	m.extra.remove++
 	return nil
 }
-func (m *mockFilesystem[O, E]) UpdateMetadata(*Fileblock[O, E]) error {
+func (m *mockFilesystem[O]) UpdateMetadata(*Fileblock[O]) error {
 	m.extra.updateMetadata++
 	return nil
 }
 
-type FIK = Fileblock[int64, *Kv]
+type FIK = Fileblock[int64]
 type LLF = LinkedList[int64, *FIK]
 
-func createMockFileblock(p, s string, min int64, max int32) *Fileblock[int64, *Kv] {
+func createMockFileblock(p, s string, min int64, max int32) *Fileblock[int64] {
 	kv := NewKv(p, s, []int64{min}, []int32{max})
 	meta := &MetaFile[int64]{Min: kv.min, Max: kv.max, PrimaryIdx: p}
-	return NewFileblock(nil, meta, &mockFilesystem[int64, *Kv]{})
+	return NewFileblock(nil, meta, &mockFilesystem[int64]{})
 }
 
 func createMockIndex(t *testing.T) *BtreeWrapper[int64] {
@@ -111,7 +111,7 @@ func TestBtreeFileblock2(t *testing.T) {
 
 	t.Run("Find a range in the tree", func(t *testing.T) {
 		// Find the first entry in the btree
-		_, found, err := btree.AscendRange("instance1", "cpu", 1, 1)
+		_, found, err := btree.AscendRange("instance1", "cpu", 1, 2)
 		require.True(t, found)
 		require.Nil(t, err)
 

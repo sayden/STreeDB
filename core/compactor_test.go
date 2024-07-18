@@ -63,6 +63,8 @@ func TestCompactionMultiLevel(t *testing.T) {
 	es, err := mergedBlock.Load()
 	require.NoError(t, err)
 	require.Equal(t, 2, es.SecondaryIndicesLen())
-	require.Equal(t, 25, len(es.Get("cpu").Val))
-	require.Equal(t, 9, len(es.Get("mem").Val))
+	kv := es.Get("cpu").(*db.Kv)
+	require.Equal(t, 25, len(kv.Val))
+	kv = es.Get("mem").(*db.Kv)
+	require.Equal(t, 9, len(kv.Val))
 }

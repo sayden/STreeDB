@@ -8,28 +8,28 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-func newItemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](limit int) db.WalFlushStrategy[O, E] {
-	return &itemLimitWalFlushStrategy[O, E]{limit: limit}
+func newItemLimitWalFlushStrategy[O cmp.Ordered](limit int) db.WalFlushStrategy[O] {
+	return &itemLimitWalFlushStrategy[O]{limit: limit}
 }
 
-type itemLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct{ limit int }
+type itemLimitWalFlushStrategy[O cmp.Ordered] struct{ limit int }
 
-func (s *itemLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bool {
+func (s *itemLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
 	return es.LenAll() >= s.limit
 }
 
-func newTimeLimitWalFlushStrategy[E db.Entry[int64]](d time.Duration) db.WalFlushStrategy[int64, E] {
-	return &timeLimitWalFlushStrategy[E]{duration: d}
+func newTimeLimitWalFlushStrategy(d time.Duration) db.WalFlushStrategy[int64] {
+	return &timeLimitWalFlushStrategy{duration: d}
 }
 
-type timeLimitWalFlushStrategy[E db.Entry[int64]] struct {
+type timeLimitWalFlushStrategy struct {
 	duration time.Duration
 }
 
-func (s *timeLimitWalFlushStrategy[E]) ShouldFlush(es db.EntriesMap[int64, E]) bool {
+func (s *timeLimitWalFlushStrategy) ShouldFlush(es db.EntriesMap[int64]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
@@ -41,15 +41,15 @@ func (s *timeLimitWalFlushStrategy[E]) ShouldFlush(es db.EntriesMap[int64, E]) b
 	return since > s.duration
 }
 
-func newSizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]](s int) db.WalFlushStrategy[O, E] {
-	return &sizeLimitWalFlushStrategy[O, E]{maxSize: s}
+func newSizeLimitWalFlushStrategy[O cmp.Ordered](s int) db.WalFlushStrategy[O] {
+	return &sizeLimitWalFlushStrategy[O]{maxSize: s}
 }
 
-type sizeLimitWalFlushStrategy[O cmp.Ordered, E db.Entry[O]] struct {
+type sizeLimitWalFlushStrategy[O cmp.Ordered] struct {
 	maxSize int
 }
 
-func (s *sizeLimitWalFlushStrategy[O, E]) ShouldFlush(es db.EntriesMap[O, E]) bool {
+func (s *sizeLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}

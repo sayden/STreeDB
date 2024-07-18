@@ -16,7 +16,7 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func initS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O, E], error) {
+func initS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O], error) {
 	s3Cfg, err := s3config.LoadDefaultConfig(
 		context.TODO(),
 		s3config.WithRegion(cfg.S3Config.Region),
@@ -38,7 +38,7 @@ func initS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesys
 	return &s3fs, nil
 }
 
-func openS3[O cmp.Ordered, E db.Entry[O]](client *s3.Client, cfg *db.Config, p string, f db.Filesystem[O, E], listeners []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+func openS3[O cmp.Ordered](client *s3.Client, cfg *db.Config, p string, f db.Filesystem[O], listeners []db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	out, err := client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Key:    aws.String(p),
@@ -61,7 +61,7 @@ func openS3[O cmp.Ordered, E db.Entry[O]](client *s3.Client, cfg *db.Config, p s
 	return db.NewFileblock(cfg, meta, f), nil
 }
 
-func removeS3[O cmp.Ordered, E db.Entry[O]](client *s3.Client, cfg *db.Config, fb *db.Fileblock[O, E], listeners ...db.FileblockListener[O, E]) error {
+func removeS3[O cmp.Ordered](client *s3.Client, cfg *db.Config, fb *db.Fileblock[O], listeners ...db.FileblockListener[O]) error {
 	m := fb.Metadata()
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
 
@@ -89,7 +89,7 @@ func removeS3[O cmp.Ordered, E db.Entry[O]](client *s3.Client, cfg *db.Config, f
 	return nil
 }
 
-func openAllMetadataFilesInS3Folder[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[O, E], rootPath string, listeners ...db.FileblockListener[O, E]) error {
+func openAllMetadataFilesInS3Folder[O cmp.Ordered](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[O], rootPath string, listeners ...db.FileblockListener[O]) error {
 	listInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(cfg.S3Config.Bucket),
 		Prefix: aws.String(rootPath + "/meta_"),
@@ -108,7 +108,7 @@ func openAllMetadataFilesInS3Folder[O cmp.Ordered, E db.Entry[O]](cfg *db.Config
 		}
 
 		for _, object := range page.Contents {
-			if _, err = openS3(client, cfg, *object.Key, filesystem, listeners); err != nil {
+			if _, err = openS3[O](client, cfg, *object.Key, filesystem, listeners); err != nil {
 				return err
 			}
 		}
@@ -117,7 +117,7 @@ func openAllMetadataFilesInS3Folder[O cmp.Ordered, E db.Entry[O]](cfg *db.Config
 	return nil
 }
 
-func updateMetadataS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, client *s3.Client, m *db.MetaFile[O]) error {
+func updateMetadataS3[O cmp.Ordered](cfg *db.Config, client *s3.Client, m *db.MetaFile[O]) error {
 	byt, err := json.Marshal(m)
 	if err != nil {
 		return errors.Join(errors.New("error encoding entries"), err)

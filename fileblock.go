@@ -6,35 +6,35 @@ import (
 	"fmt"
 )
 
-type FileblockCreator[O cmp.Ordered, E Entry[O]] interface {
-	NewFileblock(es EntriesMap[O, E], builder *MetadataBuilder[O]) error
+type FileblockCreator[O cmp.Ordered] interface {
+	NewFileblock(es EntriesMap[O], builder *MetadataBuilder[O]) error
 }
 
-type FileblockListener[O cmp.Ordered, E Entry[O]] interface {
-	OnFileblockCreated(*Fileblock[O, E])
-	OnFileblockRemoved(*Fileblock[O, E])
+type FileblockListener[O cmp.Ordered] interface {
+	OnFileblockCreated(*Fileblock[O])
+	OnFileblockRemoved(*Fileblock[O])
 }
 
-func NewFileblock[O cmp.Ordered, E Entry[O]](cfg *Config, meta *MetaFile[O], filesystem Filesystem[O, E]) *Fileblock[O, E] {
-	return &Fileblock[O, E]{
+func NewFileblock[O cmp.Ordered](cfg *Config, meta *MetaFile[O], filesystem Filesystem[O]) *Fileblock[O] {
+	return &Fileblock[O]{
 		MetaFile:   *meta,
 		cfg:        cfg,
 		filesystem: filesystem,
 	}
 }
 
-type Fileblock[O cmp.Ordered, E Entry[O]] struct {
+type Fileblock[O cmp.Ordered] struct {
 	MetaFile[O]
 
 	cfg        *Config
-	filesystem Filesystem[O, E]
+	filesystem Filesystem[O]
 }
 
-func (l *Fileblock[O, E]) Load() (EntriesMap[O, E], error) {
+func (l *Fileblock[O]) Load() (EntriesMap[O], error) {
 	return l.filesystem.Load(l)
 }
 
-func (l *Fileblock[O, E]) Find(v Entry[O]) bool {
+func (l *Fileblock[O]) Find(v Entry[O]) bool {
 	for _, rowGroup := range l.Rows {
 		if EntryFallsInsideMinMax(rowGroup.Min, rowGroup.Max, v.Min()) {
 			return true
@@ -44,40 +44,44 @@ func (l *Fileblock[O, E]) Find(v Entry[O]) bool {
 	return false
 }
 
-func (l *Fileblock[O, E]) Metadata() *MetaFile[O] {
+func (l *Fileblock[O]) Metadata() *MetaFile[O] {
 	return &l.MetaFile
 }
 
-func (l *Fileblock[O, E]) Close() error {
+func (l *Fileblock[O]) Close() error {
 	return nil
 }
 
-func (l *Fileblock[O, E]) UUID() string {
+func (l *Fileblock[O]) UUID() string {
 	return l.Uuid
 }
 
-func (l *Fileblock[O, E]) PrimaryIndex() string {
+func (l *Fileblock[O]) PrimaryIndex() string {
 	return l.PrimaryIdx
 }
 
-func (l *Fileblock[O, E]) SecondaryIndex() string {
+func (l *Fileblock[O]) SecondaryIndex() string {
 	return ""
 }
 
-func (l *Fileblock[O, E]) Equals(other Comparable[O]) bool {
+func (l *Fileblock[O]) Equals(other Comparable[O]) bool {
 	return l.Uuid == other.UUID()
 }
 
-func (l *Fileblock[O, E]) LessThan(other Comparable[O]) bool {
+func (l *Fileblock[O]) LessThan(other Comparable[O]) bool {
 	if l.Min == nil {
 		return false
 	}
 
-	d := other.(O)
-	return *l.Min < d
+	f, ok := other.(*Fileblock[O])
+	if !ok {
+		return false
+	}
+
+	return *l.Min < *f.Min
 }
 
-func Merge[O cmp.Ordered, E Entry[O]](a, b *Fileblock[O, E]) (*MetadataBuilder[O], EntriesMap[O, E], error) {
+func Merge[O cmp.Ordered](a, b *Fileblock[O]) (*MetadataBuilder[O], EntriesMap[O], error) {
 	entries, err := a.Load()
 	if err != nil {
 		return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)

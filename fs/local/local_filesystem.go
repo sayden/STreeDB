@@ -11,7 +11,7 @@ import (
 	"github.com/thehivecorporation/log"
 )
 
-func initLocal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O, E], error) {
+func initLocal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O], error) {
 	rootPath := path.Join(cfg.DbPath, fmt.Sprintf("%02d", level))
 	if !path.IsAbs(rootPath) {
 		cwd, err := os.Getwd()
@@ -28,7 +28,7 @@ func initLocal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.File
 	return fs, nil
 }
 
-func open[O cmp.Ordered, T db.Entry[O]](cfg *db.Config, f db.Filesystem[O, T], p string, listeners ...db.FileblockListener[O, T]) (*db.Fileblock[O, T], error) {
+func open[O cmp.Ordered](cfg *db.Config, f db.Filesystem[O], p string, listeners ...db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	file, err := os.Open(p)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func open[O cmp.Ordered, T db.Entry[O]](cfg *db.Config, f db.Filesystem[O, T], p
 	return block, nil
 }
 
-func metaFilesInDir[O cmp.Ordered, T db.Entry[O]](cfg *db.Config, folder string, f db.Filesystem[O, T], listeners ...db.FileblockListener[O, T]) error {
+func metaFilesInDir[O cmp.Ordered](cfg *db.Config, folder string, f db.Filesystem[O], listeners ...db.FileblockListener[O]) error {
 	files, err := os.ReadDir(folder)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func metaFilesInDir[O cmp.Ordered, T db.Entry[O]](cfg *db.Config, folder string,
 			continue
 		}
 
-		_, err = open(cfg, f, path.Join(folder, file.Name()), listeners...)
+		_, err = open[O](cfg, f, path.Join(folder, file.Name()), listeners...)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func metaFilesInDir[O cmp.Ordered, T db.Entry[O]](cfg *db.Config, folder string,
 	return nil
 }
 
-func remove[O cmp.Ordered, E db.Entry[O]](fb *db.Fileblock[O, E], ls ...db.FileblockListener[O, E]) error {
+func remove[O cmp.Ordered](fb *db.Fileblock[O], ls ...db.FileblockListener[O]) error {
 	m := fb.Metadata()
 
 	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
@@ -94,7 +94,7 @@ func remove[O cmp.Ordered, E db.Entry[O]](fb *db.Fileblock[O, E], ls ...db.Fileb
 	return nil
 }
 
-func updateMetadata[O cmp.Ordered, E db.Entry[O]](meta *db.MetaFile[O]) error {
+func updateMetadata[O cmp.Ordered](meta *db.MetaFile[O]) error {
 	file, err := os.Create(meta.MetaFilepath)
 	if err != nil {
 		return err

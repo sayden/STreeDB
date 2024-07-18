@@ -2,8 +2,8 @@ package streedb
 
 import "cmp"
 
-type Compactor[O cmp.Ordered, E Entry[O]] interface {
-	Compact(block []*Fileblock[O,E]) error
+type Compactor[O cmp.Ordered] interface {
+	Compact(block []*Fileblock[O]) error
 }
 
 type LevelPromoter[O cmp.Ordered] interface {

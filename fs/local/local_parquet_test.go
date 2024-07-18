@@ -62,7 +62,7 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fsp)
 
-	entriesMap := db.NewEntriesMap[int64, *db.Kv]()
+	entriesMap := db.NewEntriesMap[int64]()
 	n := 2000
 	ints := make([]int32, 0, n)
 	ts := make([]int64, n)
@@ -82,7 +82,7 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	builder.WithEntry(key)
 	builder.WithEntry(key2)
 
-	var fb *db.Fileblock[int64, *db.Kv]
+	var fb *db.Fileblock[int64]
 	t.Run("Create", func(t *testing.T) {
 		fb, err = fsp.Create(cfg, entriesMap, builder, nil)
 		require.NoError(t, err)
@@ -114,15 +114,15 @@ func TestParquetLocalFilesystem(t *testing.T) {
 		require.NotNil(t, entries)
 
 		assert.Equal(t, 2, entries.SecondaryIndicesLen())
-		assert.Equal(t, "key", entries.Get("key").Key)
-		assert.Equal(t, "key2", entries.Get("key2").Key)
-		assert.Equal(t, 2000, len(entries.Get("key").Val))
-		assert.Equal(t, 2000, len(entries.Get("key2").Val))
+		assert.Equal(t, "key", entries.Get("key").SecondaryIndex())
+		assert.Equal(t, "key2", entries.Get("key2").SecondaryIndex())
+		assert.Equal(t, 2000, len(entries.Get("key").SecondaryIndex()))
+		assert.Equal(t, 2000, len(entries.Get("key2").SecondaryIndex()))
 	})
 
 	t.Run("OpenMetaFilesInLevel", func(t *testing.T) {
 		listener := &testFileblockListener{}
-		err := fsp.OpenMetaFilesInLevel([]db.FileblockListener[int64, *db.Kv]{listener})
+		err := fsp.OpenMetaFilesInLevel([]db.FileblockListener[int64]{listener})
 		require.NoError(t, err)
 		assert.Equal(t, 1, listener.created)
 		assert.Equal(t, 0, listener.removed)
@@ -130,7 +130,7 @@ func TestParquetLocalFilesystem(t *testing.T) {
 
 	t.Run("Remove", func(t *testing.T) {
 		listener := &testFileblockListener{}
-		err := fsp.Remove(fb, []db.FileblockListener[int64, *db.Kv]{listener})
+		err := fsp.Remove(fb, []db.FileblockListener[int64]{listener})
 		require.NoError(t, err)
 		assert.NoFileExists(t, fb.DataFilepath)
 		assert.NoFileExists(t, fb.MetaFilepath)
@@ -143,10 +143,10 @@ type testFileblockListener struct {
 	created, removed int
 }
 
-func (l *testFileblockListener) OnFileblockCreated(fb *db.Fileblock[int64, *db.Kv]) {
+func (l *testFileblockListener) OnFileblockCreated(fb *db.Fileblock[int64]) {
 	l.created++
 }
 
-func (l *testFileblockListener) OnFileblockRemoved(fb *db.Fileblock[int64, *db.Kv]) {
+func (l *testFileblockListener) OnFileblockRemoved(fb *db.Fileblock[int64]) {
 	l.removed++
 }

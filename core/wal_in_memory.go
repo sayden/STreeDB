@@ -7,9 +7,9 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.FileblockCreator[O, E], persistStrategies ...db.WalFlushStrategy[O, E]) db.Wal[O, E] {
+func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.FileblockCreator[O], persistStrategies ...db.WalFlushStrategy[O]) db.Wal[O, E] {
 	return &nmMemoryWal[O, E]{
-		entries:          make(map[string]db.EntriesMap[O, E]),
+		entries:          make(map[string]db.EntriesMap[O]),
 		cfg:              cfg,
 		fileblockCreator: fbc,
 		flushStrategies:  persistStrategies,
@@ -21,17 +21,17 @@ func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.Fileblo
 // a persist strategies is met or the WAL is closed (usually when
 // closing the database)
 type nmMemoryWal[O cmp.Ordered, E db.Entry[O]] struct {
-	entries          map[string]db.EntriesMap[O, E]
+	entries          map[string]db.EntriesMap[O]
 	cfg              *db.Config
-	fileblockCreator db.FileblockCreator[O, E]
-	flushStrategies  []db.WalFlushStrategy[O, E]
+	fileblockCreator db.FileblockCreator[O]
+	flushStrategies  []db.WalFlushStrategy[O]
 }
 
-func (w *nmMemoryWal[O, E]) Append(d E) (err error) {
+func (w *nmMemoryWal[O, _]) Append(d db.Entry[O]) (err error) {
 	fileEntries := w.entries[d.PrimaryIndex()]
 
 	if fileEntries == nil {
-		fileEntries = db.NewEntriesMap[O, E]()
+		fileEntries = db.NewEntriesMap[O]()
 		w.entries[d.PrimaryIndex()] = fileEntries
 	}
 	fileEntries.Append(d)
@@ -62,7 +62,17 @@ func (w *nmMemoryWal[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool) {
 		return *new(E), false
 	}
 
-	return fileEntries.Find(sIdx, min, max)
+	entry, found := fileEntries.Find(sIdx, min, max)
+	if !found {
+		return *new(E), false
+	}
+
+	e, ok := entry.(E)
+	if !ok {
+		return *new(E), false
+	}
+
+	return e, true
 }
 
 func (w *nmMemoryWal[O, E]) Close() error {

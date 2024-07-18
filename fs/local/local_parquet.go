@@ -15,7 +15,7 @@ import (
 
 // InitParquetLocal initializes a local filesystem destination. Writes the folder structure if required
 // and then read the medatada files that are already there.
-func InitParquetLocal[O cmp.Ordered, E db.Entry[O]](c *db.Config, level int) (db.Filesystem[O, E], error) {
+func InitParquetLocal[O cmp.Ordered, E db.Entry[O]](c *db.Config, level int) (db.Filesystem[O], error) {
 	return initLocal[O, E](c, level)
 }
 
@@ -24,12 +24,12 @@ type localParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 	rootPath string
 }
 
-func (f *localParquetFs[O, E]) UpdateMetadata(b *db.Fileblock[O, E]) error {
-	return updateMetadata[O, E](b.Metadata())
+func (f *localParquetFs[O, _]) UpdateMetadata(b *db.Fileblock[O]) error {
+	return updateMetadata[O](b.Metadata())
 }
 
 // Load the parquet file using the data stored in the metadata file
-func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.EntriesMap[O, E], error) {
+func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O]) (db.EntriesMap[O], error) {
 	pf, err := local.NewLocalFileReader(b.DataFilepath)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (f *localParquetFs[O, E]) Load(b *db.Fileblock[O, E]) (db.EntriesMap[O, E],
 	return db.NewSliceToMapWithMetadata(entries, &b.MetaFile), nil
 }
 
-func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O, E]) (*db.Fileblock[O, E], error) {
+func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -116,14 +116,14 @@ func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O, E], bu
 	return block, nil
 }
 
-func (f *localParquetFs[O, T]) Remove(b *db.Fileblock[O, T], ls []db.FileblockListener[O, T]) error {
-	return remove(b, ls...)
+func (f *localParquetFs[O, _]) Remove(b *db.Fileblock[O], ls []db.FileblockListener[O]) error {
+	return remove[O](b, ls...)
 }
 
-func (f *localParquetFs[O, T]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O, T]) error {
-	return metaFilesInDir(f.cfg, f.rootPath, f, listeners...)
+func (f *localParquetFs[O, _]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O]) error {
+	return metaFilesInDir[O](f.cfg, f.rootPath, f, listeners...)
 }
 
-func (f *localParquetFs[O, T]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
+func (f *localParquetFs[O, _]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
 	return meta.WithRootPath(f.rootPath).WithExtension(".parquet")
 }

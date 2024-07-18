@@ -29,13 +29,13 @@ type Entry[O cmp.Ordered] interface {
 	Overlap(O, O) (Entry[O], bool)
 }
 
-func NewEntriesMap[O cmp.Ordered, E Entry[O]]() EntriesMap[O, E] {
-	return make(EntriesMap[O, E])
+func NewEntriesMap[O cmp.Ordered]() EntriesMap[O] {
+	return make(EntriesMap[O])
 }
 
-type EntriesMap[O cmp.Ordered, E Entry[O]] map[string]E
+type EntriesMap[O cmp.Ordered] map[string]Entry[O]
 
-func (e EntriesMap[O, E]) SecondaryIndices() []string {
+func (e EntriesMap[O]) SecondaryIndices() []string {
 	indices := make([]string, 0, len(e))
 	for k := range e {
 		indices = append(indices, k)
@@ -43,7 +43,7 @@ func (e EntriesMap[O, E]) SecondaryIndices() []string {
 	return indices
 }
 
-func (em EntriesMap[O, E]) Append(entry E) {
+func (em EntriesMap[O]) Append(entry Entry[O]) {
 	secondaryIdx := entry.SecondaryIndex()
 
 	if _, ok := em[secondaryIdx]; !ok {
@@ -54,7 +54,7 @@ func (em EntriesMap[O, E]) Append(entry E) {
 	em[secondaryIdx].Append(entry)
 }
 
-func (e EntriesMap[O, E]) Merge(d EntriesMap[O, E]) (EntriesMap[O, E], error) {
+func (e EntriesMap[O]) Merge(d EntriesMap[O]) (EntriesMap[O], error) {
 	idxs := d.SecondaryIndices()
 
 	for _, idx := range idxs {
@@ -68,7 +68,7 @@ func (e EntriesMap[O, E]) Merge(d EntriesMap[O, E]) (EntriesMap[O, E], error) {
 	return e, nil
 }
 
-func (em EntriesMap[O, E]) Min() O {
+func (em EntriesMap[O]) Min() O {
 	if len(em) == 0 {
 		panic("no entries")
 	}
@@ -88,7 +88,7 @@ func (em EntriesMap[O, E]) Min() O {
 	return *min
 }
 
-func (em EntriesMap[O, E]) Max() O {
+func (em EntriesMap[O]) Max() O {
 	if len(em) == 0 {
 		panic("no entries")
 	}
@@ -108,11 +108,11 @@ func (em EntriesMap[O, E]) Max() O {
 	return *max
 }
 
-func (e EntriesMap[O, E]) Get(secondary string) E {
+func (e EntriesMap[O]) Get(secondary string) Entry[O] {
 	return e[secondary]
 }
 
-func (em EntriesMap[O, E]) LenAll() int {
+func (em EntriesMap[O]) LenAll() int {
 	l := 0
 
 	for _, es := range em {
@@ -122,7 +122,7 @@ func (em EntriesMap[O, E]) LenAll() int {
 	return l
 }
 
-func (em EntriesMap[O, E]) PrimaryIndex() string {
+func (em EntriesMap[O]) PrimaryIndex() string {
 	if len(em) == 0 {
 		return ""
 	}
@@ -134,26 +134,25 @@ func (em EntriesMap[O, E]) PrimaryIndex() string {
 	panic("unreachable")
 }
 
-func (em EntriesMap[O, E]) SecondaryIndicesLen() int {
+func (em EntriesMap[O]) SecondaryIndicesLen() int {
 	return len(em)
 }
 
-func (e EntriesMap[O, E]) Find(sIdx string, min, max O) (E, bool) {
+func (e EntriesMap[O]) Find(sIdx string, min, max O) (Entry[O], bool) {
 	if _, ok := e[sIdx]; !ok {
-		return *new(E), false
+		return nil, false
 	}
 
 	res, found := e[sIdx].Overlap(min, max)
 	if !found {
-		return *new(E), false
+		return nil, false
 	}
 
-	res_, ok := res.(E)
-	return res_, ok
+	return res, true
 }
 
-func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) EntriesMap[O, E] {
-	em := NewEntriesMap[O, E]()
+func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) EntriesMap[O] {
+	em := NewEntriesMap[O]()
 	for _, es := range e {
 		es.SetPrimaryIndex(m.PrimaryIdx)
 		em.Append(es)
@@ -162,8 +161,8 @@ func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O])
 	return em
 }
 
-func NewSliceToMap[O cmp.Ordered, E Entry[O]](e []E) EntriesMap[O, E] {
-	em := NewEntriesMap[O, E]()
+func NewSliceToMap[O cmp.Ordered, E Entry[O]](e []E) EntriesMap[O] {
+	em := NewEntriesMap[O]()
 	for _, es := range e {
 		em.Append(es)
 	}
