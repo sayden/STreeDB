@@ -83,6 +83,7 @@ func TestParquetLocalFilesystem(t *testing.T) {
 	builder.WithEntry(key2)
 
 	var fb *db.Fileblock[int64]
+
 	t.Run("Create", func(t *testing.T) {
 		fb, err = fsp.Create(cfg, entriesMap, builder, nil)
 		require.NoError(t, err)
@@ -116,8 +117,9 @@ func TestParquetLocalFilesystem(t *testing.T) {
 		assert.Equal(t, 2, entries.SecondaryIndicesLen())
 		assert.Equal(t, "key", entries.Get("key").SecondaryIndex())
 		assert.Equal(t, "key2", entries.Get("key2").SecondaryIndex())
-		assert.Equal(t, 2000, len(entries.Get("key").SecondaryIndex()))
-		assert.Equal(t, 2000, len(entries.Get("key2").SecondaryIndex()))
+		kv := entries.Get("key").(*db.Kv)
+		assert.Equal(t, 2000, len(kv.Ts))
+		assert.Equal(t, 2000, len(kv.Val))
 	})
 
 	t.Run("OpenMetaFilesInLevel", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,9 +60,9 @@ func (m *mockFilesystem[O]) UpdateMetadata(*Fileblock[O]) error {
 type FIK = Fileblock[int64]
 type LLF = LinkedList[int64, *FIK]
 
-func createMockFileblock(p, s string, min int64, max int32) *Fileblock[int64] {
-	kv := NewKv(p, s, []int64{min}, []int32{max})
-	meta := &MetaFile[int64]{Min: kv.min, Max: kv.max, PrimaryIdx: p}
+func createMockFileblock(p, s string, min int64, max int64) *Fileblock[int64] {
+	kv := NewKv(p, s, []int64{min, max}, []int32{1})
+	meta := &MetaFile[int64]{Min: kv.min, Max: kv.max, PrimaryIdx: p, Rows: []Row[int64]{{SecondaryIdx: s, Min: min, Max: max, ItemCount: 1}}}
 	return NewFileblock(nil, meta, &mockFilesystem[int64]{})
 }
 
@@ -112,12 +113,13 @@ func TestBtreeFileblock2(t *testing.T) {
 	t.Run("Find a range in the tree", func(t *testing.T) {
 		// Find the first entry in the btree
 		_, found, err := btree.AscendRange("instance1", "cpu", 1, 2)
-		require.True(t, found)
+		assert.True(t, found)
 		require.Nil(t, err)
 
 		// Find the second entry in the btree
-		_, found, err = btree.AscendRange("instance1", "cpu", 2, 2)
-		require.False(t, found)
-		require.NotNil(t, err)
+		data, found, err := btree.AscendRange("instance1", "cpu", 2, 2)
+		assert.False(t, found)
+		assert.Nil(t, err)
+		assert.Empty(t, data)
 	})
 }

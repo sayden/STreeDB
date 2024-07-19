@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 )
 
 type FileblockCreator[O cmp.Ordered] interface {
@@ -61,11 +63,18 @@ func (l *Fileblock[O]) PrimaryIndex() string {
 }
 
 func (l *Fileblock[O]) SecondaryIndex() string {
-	return ""
+	sIdx := make([]string, 0, len(l.Rows))
+	for _, row := range l.Rows {
+		sIdx = append(sIdx, row.SecondaryIdx)
+	}
+
+	slices.Sort(sIdx)
+
+	return strings.Join(sIdx, ",")
 }
 
 func (l *Fileblock[O]) Equals(other Comparable[O]) bool {
-	return l.Uuid == other.UUID()
+	return l.UUID() == other.UUID()
 }
 
 func (l *Fileblock[O]) LessThan(other Comparable[O]) bool {
