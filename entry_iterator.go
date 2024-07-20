@@ -21,11 +21,18 @@ func newIteratorWithData[O cmp.Ordered](data []*Fileblock[O]) *btreeWrapperItera
 }
 
 func newIteratorWithFilters[O cmp.Ordered](data []*Fileblock[O], filters []EntryFilter) *btreeWrapperIterator[O] {
+	sFilters := make([]EntryFilter, 0)
+	for _, filter := range filters {
+		if filter.Kind() == SecondaryIndexFilterKind {
+			sFilters = append(sFilters, filter)
+		}
+	}
+
 	tree := &btreeWrapperIterator[O]{
 		ch: make(chan Entry[O]),
 	}
 
-	tree.startFilters(data, filters)
+	tree.startFilters(data, sFilters)
 
 	return tree
 }

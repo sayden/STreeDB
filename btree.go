@@ -6,8 +6,16 @@ import (
 	"github.com/google/btree"
 )
 
+type EntryFilterKind int
+
+const (
+	PrimaryIndexFilterKind EntryFilterKind = iota
+	SecondaryIndexFilterKind
+)
+
 type EntryFilter interface {
 	Filter(Indexer) bool
+	Kind() EntryFilterKind
 }
 
 func PrimaryIndexFilter(pIdx string) EntryFilter {
@@ -20,6 +28,10 @@ func (p *primaryIndexFilter) Filter(c Indexer) bool {
 	return c.PrimaryIndex() == p.pIdx
 }
 
+func (p *primaryIndexFilter) Kind() EntryFilterKind {
+	return PrimaryIndexFilterKind
+}
+
 func SecondaryIndexFilter[O cmp.Ordered](sIdx string) EntryFilter {
 	return &secondaryIndexFilter[O]{sIdx: sIdx}
 }
@@ -27,14 +39,11 @@ func SecondaryIndexFilter[O cmp.Ordered](sIdx string) EntryFilter {
 type secondaryIndexFilter[O cmp.Ordered] struct{ sIdx string }
 
 func (p *secondaryIndexFilter[O]) Filter(c Indexer) bool {
-	switch t := c.(type) {
-	case *Fileblock[O]:
-		return false
-	case Entry[O]:
-		return t.SecondaryIndex() == p.sIdx
-	}
+	return c.SecondaryIndex() == p.sIdx
+}
 
-	return false
+func (p *secondaryIndexFilter[O]) Kind() EntryFilterKind {
+	return SecondaryIndexFilterKind
 }
 
 func LLFComp[O cmp.Ordered](a, b *btreeItem[O]) bool {
@@ -78,7 +87,14 @@ func (b *BtreeIndex[O]) Upsert(key O, value *Fileblock[O]) bool {
 }
 
 func (b *BtreeIndex[O]) AscendRangeWithFilters(min, max O, filters ...EntryFilter) (EntryIterator[O], bool, error) {
-	result, found, err := b.ascendRangeWithFilters(min, max, filters...)
+	pFilters := make([]EntryFilter, 0)
+	for _, filter := range filters {
+		if filter.Kind() == PrimaryIndexFilterKind {
+			pFilters = append(pFilters, filter)
+		}
+	}
+
+	result, found, err := b.ascendRangeWithFilters(min, max, pFilters...)
 	if err != nil {
 		return nil, false, err
 	}
