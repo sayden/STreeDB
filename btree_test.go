@@ -9,6 +9,7 @@ import (
 )
 
 type mockFilesystem[O cmp.Ordered] struct {
+	emap  EntriesMap[O]
 	extra struct {
 		create               int
 		fillMetadataBuilder  int
@@ -42,7 +43,7 @@ func (m *mockFilesystem[O]) FillMetadataBuilder(meta *MetadataBuilder[O]) *Metad
 }
 func (m *mockFilesystem[O]) Load(*Fileblock[O]) (EntriesMap[O], error) {
 	m.extra.load++
-	return nil, nil
+	return m.emap, nil
 }
 func (m *mockFilesystem[O]) OpenMetaFilesInLevel([]FileblockListener[O]) error {
 	m.extra.openMetaFilesInLevel++
@@ -61,19 +62,43 @@ type FIK = Fileblock[int64]
 type LLF = LinkedList[int64, *FIK]
 
 func createMockFileblock(p, s string, min int64, max int64) *Fileblock[int64] {
-	kv := NewKv(p, s, []int64{min, max}, []int32{1})
-	meta := &MetaFile[int64]{Min: kv.min, Max: kv.max, PrimaryIdx: p, Rows: []Row[int64]{{SecondaryIdx: s, Min: min, Max: max, ItemCount: 1}}}
-	return NewFileblock(nil, meta, &mockFilesystem[int64]{})
+	meta := &MetaFile[int64]{
+		ItemCount:  1,
+		Min:        &min,
+		Max:        &max,
+		PrimaryIdx: p,
+		Rows: []Row[int64]{
+			{
+				SecondaryIdx: s,
+				Min:          min,
+				Max:          max,
+				ItemCount:    1,
+			},
+		},
+	}
+
+	emap := make(EntriesMap[int64])
+	emap[s] = &Kv{
+		Ts:         []int64{1},
+		Val:        []int32{1},
+		max:        &max,
+		min:        &min,
+		Key:        s,
+		PrimaryIdx: p,
+	}
+	return NewFileblock(nil, meta, &mockFilesystem[int64]{emap: emap})
 }
 
-func createMockIndex(t *testing.T) *BtreeWrapper[int64] {
+func createMockIndex(t *testing.T) *BtreeIndex[int64] {
 	btree := NewBtreeIndex[int64](3, LLFComp)
 
 	// Build a LLF index Ts=1 with a single kv value: instance1:cpu
 	ins_1_cpu_fileblock := createMockFileblock("instance1", "cpu", 1, 4)
+	ins_1_cpu_fileblock2 := createMockFileblock("instance1", "cpu", 5, 9)
 
 	// Insert the LLF in index 1
 	btree.Upsert(1, ins_1_cpu_fileblock)
+	btree.Upsert(5, ins_1_cpu_fileblock2)
 
 	// Build a LLF index Ts=2 with a single kv value: instance2:cpu
 	ins_2_fileblock := createMockFileblock("instance2", "cpu", 2, 4)
@@ -110,16 +135,14 @@ func createMockIndex(t *testing.T) *BtreeWrapper[int64] {
 func TestBtreeFileblock2(t *testing.T) {
 	btree := createMockIndex(t)
 
-	t.Run("Find a range in the tree", func(t *testing.T) {
-		// Find the first entry in the btree
-		_, found, err := btree.AscendRange("instance1", "cpu", 1, 2)
-		assert.True(t, found)
-		require.Nil(t, err)
+	// Find the first entry in the btree
+	_, found, err := btree.ascendRange("instance1", "cpu", 1, 2)
+	assert.True(t, found)
+	require.Nil(t, err)
 
-		// Find the second entry in the btree
-		data, found, err := btree.AscendRange("instance1", "cpu", 2, 2)
-		assert.False(t, found)
-		assert.Nil(t, err)
-		assert.Empty(t, data)
-	})
+	// Find the second entry in the btree
+	data, found, err := btree.ascendRange("instance1", "cpu", 2, 2)
+	assert.False(t, found)
+	assert.Nil(t, err)
+	assert.Empty(t, data)
 }

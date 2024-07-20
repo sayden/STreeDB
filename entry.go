@@ -4,9 +4,13 @@ import (
 	"cmp"
 )
 
-type Comparable[O cmp.Ordered] interface {
+type Indexer interface {
 	PrimaryIndex() string
 	SecondaryIndex() string
+}
+
+type Comparable[O cmp.Ordered] interface {
+	Indexer
 	UUID() string
 
 	Equals(Comparable[O]) bool

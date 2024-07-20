@@ -58,7 +58,7 @@ type MultiFsLevels[O cmp.Ordered] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[O]
 	levels             map[int]*BasicLevel[O]
-	index              *db.BtreeWrapper[O]
+	index              *db.BtreeIndex[O]
 	fileblockListeners []db.FileblockListener[O]
 }
 
