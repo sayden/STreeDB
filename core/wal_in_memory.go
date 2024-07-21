@@ -75,7 +75,7 @@ func (w *nmMemoryWal[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool) {
 	return e, true
 }
 
-func (w *nmMemoryWal[O, E]) Close() error {
+func (w *nmMemoryWal[O, _]) Close() error {
 	for _, fileEntries := range w.entries {
 		if fileEntries.SecondaryIndicesLen() == 0 {
 			return nil

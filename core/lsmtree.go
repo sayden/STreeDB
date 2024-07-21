@@ -70,7 +70,7 @@ func (l *LsmTree[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool, error) {
 		return v, true, nil
 	}
 
-	entry, found, err := l.levels.Find(pIdx, sIdx, min, max)
+	entry, found, err := l.levels.FindSingle(pIdx, sIdx, min, max)
 	if err != nil {
 		return *new(E), false, err
 	}
@@ -100,15 +100,5 @@ func (l *LsmTree[O, E]) Close() (err error) {
 }
 
 func (l *LsmTree[O, E]) Compact() error {
-	return l.compactor.Compact(getBlocksFromLevels[O](l.cfg.MaxLevels, l.levels))
-}
-
-func getBlocksFromLevels[O cmp.Ordered](maxLevels int, levels *fs.MultiFsLevels[O]) []*db.Fileblock[O] {
-	var blocks []*db.Fileblock[O]
-	for i := 0; i < maxLevels; i++ {
-		level := levels.Level(i)
-		blocks = append(blocks, level.Fileblocks()...)
-	}
-
-	return blocks
+	return l.compactor.Compact(l.levels.Fileblocks())
 }

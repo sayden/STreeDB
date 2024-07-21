@@ -14,8 +14,9 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 		cfg:                cfg,
 		promoters:          promoter,
 		fileblockListeners: make([]db.FileblockListener[O], 0, 10),
-		index:              db.NewBtreeIndex(2, db.LLFComp[O]),
+		Index:              db.NewBtreeIndex(2, db.LLFComp[O]),
 	}
+
 	// add self to the listeners
 	levels.fileblockListeners = append(levels.fileblockListeners, levels)
 
@@ -58,16 +59,16 @@ type MultiFsLevels[O cmp.Ordered] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[O]
 	levels             map[int]*BasicLevel[O]
-	index              *db.BtreeIndex[O]
+	Index              *db.BtreeIndex[O]
 	fileblockListeners []db.FileblockListener[O]
 }
 
 func (b *MultiFsLevels[O]) OnFileblockCreated(block *db.Fileblock[O]) {
-	b.index.Upsert(*block.Metadata().Min, block)
+	b.Index.Upsert(*block.Metadata().Min, block)
 }
 
 func (b *MultiFsLevels[O]) OnFileblockRemoved(block *db.Fileblock[O]) {
-	b.index.Remove(*block.Metadata().Min, block)
+	b.Index.Remove(*block.Metadata().Min, block)
 }
 
 func (b *MultiFsLevels[O]) NewFileblock(es db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
@@ -105,87 +106,20 @@ func (b *MultiFsLevels[O]) Create(es db.EntriesMap[O], meta *db.MetadataBuilder[
 	return nil, errors.New("unreachable")
 }
 
-func (b *MultiFsLevels[O]) Find(pIdx, sIdx string, min, max O) (db.Entry[O], bool, error) {
-	// ll, found := b.index.AscendRange(pIdx, sIdx, min, max)
-	// ll, found := b.index.Get(min)
-	// if !found {
-	// 	return nil, false, nil
-	// }
-	// var targetEntry db.Comparable[O]
-	// ll.Each(func(i int, e db.Comparable[O]) bool {
-	// 	found = e.PrimaryIndex() == pIdx && e.SecondaryIndex() == sIdx
-	// 	if found {
-	// 		targetEntry = e
-	// 		return true
-	// 	}
-	//
-	// 	return false
-	// })
-	//
-	// return targetEntry.(db.Entry[O]), targetEntry != nil, nil
-
-	return nil, false, errors.New("not implemented")
+func (b *MultiFsLevels[O]) FindSingle(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool, error) {
+	return b.Index.AscendRangeWithFilters(min, max, db.PrimaryIndexFilter(pIdx), db.SecondaryIndexFilter[O](sIdx))
 }
-
-func (b *MultiFsLevels[O]) FindFileblock(d db.Entry[O]) (*db.Fileblock[O], bool, error) {
-	for i := 0; i < b.cfg.MaxLevels; i++ {
-		level := b.levels[i]
-		if v, found, err := level.FindFileblock(d); found {
-			return v, true, nil
-		} else if err != nil {
-			return nil, false, err
-		}
-	}
-
-	return nil, false, nil
-}
-
-// func (b *MultiFsLevels[O,T]) RangeIterator(begin, end T) (db.EntryIterator[O,T], bool, error) {
-// var (
-// fileblock *db.Fileblock[O,T]
-// found bool
-// err       error
-// )
-
-// for i := 0; i < b.cfg.MaxLevels; i++ {
-// 	level := b.levels[i]
-// 	if fileblock, found, err = level.FindFileblock(begin); found {
-// 		break
-// 	} else if err != nil {
-// 		return nil, false, err
-// 	}
-// }
-
-// 	iter, found := db.NewRangeIterator(&b.list, begin, end)
-// 	return iter, found, nil
-// }
-
-// func (b *MultiFsLevels[O,T]) ForwardIterator(d T) (db.EntryIterator[O,T], bool, error) {
-// var (
-// 	fileblock *db.Fileblock[O,T]
-// 	found     bool
-// 	err       error
-// )
-//
-// for i := 0; i < b.cfg.MaxLevels; i++ {
-// 	level := b.levels[i]
-// 	if fileblock, found, err = level.FindFileblock(d); found {
-// 		break
-// 	} else if err != nil {
-// 		return nil, false, err
-// 	}
-// }
-
-// 	iter, found := db.NewForwardIterator(&b.list, d)
-// 	return iter, found, nil
-// }
 
 func (b *MultiFsLevels[O]) Fileblocks() []*db.Fileblock[O] {
 	var blocks []*db.Fileblock[O]
-	for i := 0; i < b.cfg.MaxLevels; i++ {
-		level := b.levels[i]
-		blocks = append(blocks, level.Fileblocks()...)
-	}
+
+	b.Index.Ascend(func(i *db.BtreeItem[O]) bool {
+		ll := i.Val
+		for next, found := ll.Head(); next != nil && found; next = next.Next {
+			blocks = append(blocks, next.Val)
+		}
+		return true
+	})
 
 	return blocks
 }

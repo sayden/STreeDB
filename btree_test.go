@@ -122,12 +122,12 @@ func createMockIndex(t *testing.T) *BtreeIndex[int64] {
 
 	head, found := ins_1_btree_bis.Head()
 	require.True(t, found && head != nil)
-	require.Equal(t, ins_1_cpu_fileblock, head)
+	require.Equal(t, ins_1_cpu_fileblock, head.Val)
 
-	require.NotNil(t, ins_1_btree_bis.head.next)
-	head = ins_1_btree_bis.head.next.value
+	require.NotNil(t, ins_1_btree_bis.head.Next)
+	head = ins_1_btree_bis.head.Next
 	require.NotNil(t, head)
-	require.True(t, head != nil && ins_1_mem_fileblock == head)
+	require.True(t, head != nil && ins_1_mem_fileblock == head.Val)
 
 	return btree
 }

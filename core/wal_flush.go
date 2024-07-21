@@ -18,6 +18,7 @@ func (s *itemLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
 	if es.SecondaryIndicesLen() == 0 {
 		return false
 	}
+
 	return es.LenAll() >= s.limit
 }
 

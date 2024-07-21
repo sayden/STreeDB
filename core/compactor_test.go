@@ -30,33 +30,34 @@ func TestCompactionMultiLevel(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	require.Equal(t, 0, len(mlevel.levels.Fileblocks()))
-
 	ts := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	mlevel.Append(db.NewKv("instance1", "mem", ts, []int32{1, 2, 4, 5, 6, 3, 7, 8, 9}))
-	require.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
-	require.Equal(t, 0, len(mlevel.levels.Level(1).Fileblocks()))
+
+	require.Equal(t, 0, countFileblocks(mlevel, 0))
+
+	require.Equal(t, 0, countFileblocks(mlevel, 0))
+	require.Equal(t, 0, countFileblocks(mlevel, 1))
 	mlevel.Append(db.NewKv("instance1", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7, 7, 1, 2, 4, 5, 6, 3, 7, 7}))
-	require.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
-	require.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
+	require.Equal(t, 0, countFileblocks(mlevel, 0))
+	require.Equal(t, 1, countFileblocks(mlevel, 1))
 	mlevel.Append(db.NewKv("instance1", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7, 8, 11}))
-	require.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
-	require.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
+	require.Equal(t, 0, countFileblocks(mlevel, 0))
+	require.Equal(t, 1, countFileblocks(mlevel, 1))
 	mlevel.Append(db.NewKv("instance2", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7}))
-	require.Equal(t, 0, len(mlevel.levels.Level(0).Fileblocks()))
-	require.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
+	require.Equal(t, 0, countFileblocks(mlevel, 0))
+	require.Equal(t, 1, countFileblocks(mlevel, 1))
 
 	err = mlevel.Close()
-	require.Equal(t, 2, len(mlevel.levels.Level(0).Fileblocks()))
-	require.Equal(t, 1, len(mlevel.levels.Level(1).Fileblocks()))
+	require.Equal(t, 2, countFileblocks(mlevel, 0))
+	require.Equal(t, 1, countFileblocks(mlevel, 1))
 	require.NoError(t, err)
 
 	err = mlevel.Compact()
 	require.NoError(t, err)
 
-	blocks := mlevel.levels.Level(0).Fileblocks()
+	blocks := getFileblocksAtLevel(mlevel, 0)
 	require.Equal(t, 1, len(blocks))
-	blocks = mlevel.levels.Level(1).Fileblocks()
+	blocks = getFileblocksAtLevel(mlevel, 1)
 	mergedBlock := blocks[0]
 	meta := mergedBlock.Metadata()
 	require.Equal(t, 34, meta.ItemCount)
@@ -67,4 +68,36 @@ func TestCompactionMultiLevel(t *testing.T) {
 	require.Equal(t, 25, len(kv.Val))
 	kv = es.Get("mem").(*db.Kv)
 	require.Equal(t, 9, len(kv.Val))
+}
+
+func getFileblocksAtLevel(mlevel *LsmTree[int64, *db.Kv], level int) []*db.Fileblock[int64] {
+	blocks := make([]*db.Fileblock[int64], 0)
+
+	mlevel.levels.Index.Ascend(func(i *db.BtreeItem[int64]) bool {
+		ll := i.Val
+		for next, found := ll.Head(); next != nil && found; next = next.Next {
+			if next.Val.Metadata().Level == level {
+				blocks = append(blocks, next.Val)
+			}
+		}
+		return true
+	})
+
+	return blocks
+}
+
+func countFileblocks(mlevel *LsmTree[int64, *db.Kv], level int) int {
+	count := 0
+
+	mlevel.levels.Index.Ascend(func(i *db.BtreeItem[int64]) bool {
+		ll := i.Val
+		for next, found := ll.Head(); next != nil && found; next = next.Next {
+			if next.Val.Metadata().Level == level {
+				count++
+			}
+		}
+		return true
+	})
+
+	return count
 }

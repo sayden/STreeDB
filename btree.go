@@ -60,41 +60,41 @@ func (p *secondaryIndexFilter[O]) Kind() EntryFilterKind {
 	return SecondaryIndexFilterKind
 }
 
-func LLFComp[O cmp.Ordered](a, b *btreeItem[O]) bool {
-	return a.key < b.key
+func LLFComp[O cmp.Ordered](a, b *BtreeItem[O]) bool {
+	return a.Key < b.Key
 }
 
-func NewBtreeIndex[O cmp.Ordered](degree int, less btree.LessFunc[*btreeItem[O]]) *BtreeIndex[O] {
-	return &BtreeIndex[O]{BTreeG: btree.NewG[*btreeItem[O]](2, LLFComp)}
+func NewBtreeIndex[O cmp.Ordered](degree int, less btree.LessFunc[*BtreeItem[O]]) *BtreeIndex[O] {
+	return &BtreeIndex[O]{BTreeG: btree.NewG[*BtreeItem[O]](2, LLFComp)}
 }
 
-type btreeItem[O cmp.Ordered] struct {
-	key O
-	val *LinkedList[O, *Fileblock[O]]
+type BtreeItem[O cmp.Ordered] struct {
+	Key O
+	Val *LinkedList[O, *Fileblock[O]]
 }
 
 type BtreeIndex[O cmp.Ordered] struct {
-	*btree.BTreeG[*btreeItem[O]]
+	*btree.BTreeG[*BtreeItem[O]]
 }
 
 func (b *BtreeIndex[O]) Get(o O) (*LinkedList[O, *Fileblock[O]], bool) {
-	item, found := b.BTreeG.Get(&btreeItem[O]{key: o})
+	item, found := b.BTreeG.Get(&BtreeItem[O]{Key: o})
 	if item == nil {
 		return nil, false
 	}
 
-	return item.val, found
+	return item.Val, found
 }
 
 func (b *BtreeIndex[O]) Upsert(key O, value *Fileblock[O]) bool {
 	ll := &LinkedList[O, *Fileblock[O]]{}
 	ll.SetMin(value)
-	old, found := b.ReplaceOrInsert(&btreeItem[O]{key: key, val: ll})
+	old, found := b.ReplaceOrInsert(&BtreeItem[O]{Key: key, Val: ll})
 	if !found {
 		return found
 	}
 
-	old.val.SetMin(value)
+	old.Val.SetMin(value)
 	b.ReplaceOrInsert(old)
 
 	return true
@@ -124,12 +124,12 @@ func (b *BtreeIndex[O]) AscendRangeWithFilters(min, max O, filters ...EntryFilte
 func (b *BtreeIndex[O]) ascendRangeWithFilters(min, max O, filters ...EntryFilter) ([]*Fileblock[O], bool, error) {
 	result := make([]*Fileblock[O], 0)
 
-	b.BTreeG.AscendRange(
-		&btreeItem[O]{key: min},
-		&btreeItem[O]{key: max},
-		func(item *btreeItem[O]) bool {
-			for next := item.val.head; next != nil; next = next.next {
-				fileblock := next.value
+	b.AscendRange(
+		&BtreeItem[O]{Key: min},
+		&BtreeItem[O]{Key: max},
+		func(item *BtreeItem[O]) bool {
+			for next := item.Val.head; next != nil; next = next.Next {
+				fileblock := next.Val
 				for _, filter := range filters {
 					if filter.Filter(fileblock) {
 						result = append(result, fileblock)
@@ -147,15 +147,15 @@ func (b *BtreeIndex[O]) ascendRangeWithFilters(min, max O, filters ...EntryFilte
 func (b *BtreeIndex[O]) ascendRange(pIdx, sIdx string, min, max O) ([]*Fileblock[O], bool, error) {
 	result := make([]*Fileblock[O], 0)
 
-	b.BTreeG.AscendRange(
-		&btreeItem[O]{key: min},
-		&btreeItem[O]{key: max},
-		func(item *btreeItem[O]) bool {
-			for next := item.val.head; next != nil; next = next.next {
-				if pIdx == "" || next.value.PrimaryIndex() == pIdx {
-					for _, c := range next.value.Rows {
+	b.AscendRange(
+		&BtreeItem[O]{Key: min},
+		&BtreeItem[O]{Key: max},
+		func(item *BtreeItem[O]) bool {
+			for next := item.Val.head; next != nil; next = next.Next {
+				if pIdx == "" || next.Val.PrimaryIndex() == pIdx {
+					for _, c := range next.Val.Rows {
 						if sIdx == "" || c.SecondaryIdx == sIdx {
-							result = append(result, next.value)
+							result = append(result, next.Val)
 							break
 						}
 					}
@@ -169,13 +169,13 @@ func (b *BtreeIndex[O]) ascendRange(pIdx, sIdx string, min, max O) ([]*Fileblock
 }
 
 func (b *BtreeIndex[O]) Remove(key O, value *Fileblock[O]) bool {
-	btItem, found := b.BTreeG.Get(&btreeItem[O]{key: key})
+	btItem, found := b.BTreeG.Get(&BtreeItem[O]{Key: key})
 	if !found {
 		return false
 	}
 
-	btItem.val.Remove(value)
-	if btItem.val.head == nil {
+	btItem.Val.Remove(value)
+	if btItem.Val.head == nil {
 		_, found := b.Delete(btItem)
 		return found
 	}

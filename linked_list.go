@@ -7,20 +7,20 @@ import (
 // LinkedList is a LL with specific methods to order in ascending or descending order
 // it allows also duplicate values
 type LinkedList[O cmp.Ordered, T Comparable[O]] struct {
-	head *node[O, T]
+	head *LLNode[O, T]
 }
 
-// node represents a node in the doubly linked list
-type node[O cmp.Ordered, T Comparable[O]] struct {
-	value T
-	next  *node[O, T]
+// LLNode represents a LLNode in the doubly linked list
+type LLNode[O cmp.Ordered, T Comparable[O]] struct {
+	Val  T
+	Next *LLNode[O, T]
 }
 
-func (dll *LinkedList[O, T]) Head() (T, bool) {
+func (dll *LinkedList[O, T]) Head() (*LLNode[O, T], bool) {
 	if dll.head == nil {
-		return *(new(T)), false
+		return nil, false
 	}
-	return dll.head.value, true
+	return dll.head, true
 }
 
 func (dll *LinkedList[O, T]) Last() (T, bool) {
@@ -29,68 +29,68 @@ func (dll *LinkedList[O, T]) Last() (T, bool) {
 	}
 
 	current := dll.head
-	for current.next != nil {
-		current = current.next
+	for current.Next != nil {
+		current = current.Next
 	}
 
-	return current.value, true
+	return current.Val, true
 }
 
 func (dll *LinkedList[O, T]) SetMax(value T) {
-	newNode := &node[O, T]{value: value}
+	newNode := &LLNode[O, T]{Val: value}
 
 	if dll.head == nil {
 		dll.head = newNode
 		return
 	}
 
-	var last *node[O, T]
-	for current := dll.head; current != nil; current, last = current.next, current {
-		if current.value.LessThan(value) {
+	var last *LLNode[O, T]
+	for current := dll.head; current != nil; current, last = current.Next, current {
+		if current.Val.LessThan(value) {
 			// less than head value
 			if last == nil {
-				newNode.next = current
+				newNode.Next = current
 				dll.head = newNode
 				return
 			}
 
-			newNode.next = current
-			last.next = newNode
+			newNode.Next = current
+			last.Next = newNode
 
 			return
 		}
 	}
 
-	last.next = newNode
+	last.Next = newNode
 }
 
 func (dll *LinkedList[O, T]) SetMin(value T) {
-	newNode := &node[O, T]{value: value}
+	newNode := &LLNode[O, T]{Val: value}
 
 	if dll.head == nil {
 		dll.head = newNode
 		return
 	}
 
-	var last *node[O, T]
-	for current := dll.head; current != nil; current, last = current.next, current {
-		if value.LessThan(current.value) {
+	var last *LLNode[O, T]
+	for current := dll.head; current != nil; current, last = current.Next, current {
+		if value.LessThan(current.Val) {
 			// less than head value
 			if last == nil {
-				newNode.next = current
+				newNode.Next = current
 				dll.head = newNode
 				return
 			}
 
-			newNode.next = current
-			last.next = newNode
+			newNode.Next = current
+			last.Next = newNode
 
 			return
 		}
 	}
 
 	if last != nil {
-		last.next = newNode
+		last.Next = newNode
 	} else {
 		dll.head = newNode
 	}
@@ -98,23 +98,23 @@ func (dll *LinkedList[O, T]) SetMin(value T) {
 
 // Remove removes a node from the list
 func (dll *LinkedList[O, T]) Remove(value T) {
-	var last *node[O, T]
-	for current := dll.head; current != nil; current, last = current.next, current {
-		if value.Equals(current.value) {
+	var last *LLNode[O, T]
+	for current := dll.head; current != nil; current, last = current.Next, current {
+		if value.Equals(current.Val) {
 			// remove the head
 			if last == nil {
-				dll.head = current.next
+				dll.head = current.Next
 				return
 			}
 
 			// remove the last node
-			if current.next == nil {
-				last.next = nil
+			if current.Next == nil {
+				last.Next = nil
 				return
 			}
 
 			// remove a node in the middle
-			last.next = current.next
+			last.Next = current.Next
 
 			return
 		}
@@ -124,8 +124,8 @@ func (dll *LinkedList[O, T]) Remove(value T) {
 // TraverseForward traverses the list from head to tail
 func (dll *LinkedList[O, T]) Each(f func(int, T) bool) {
 	i := 0
-	for current := dll.head; current != nil; current, i = current.next, i+1 {
-		stop := f(i, current.value)
+	for current := dll.head; current != nil; current, i = current.Next, i+1 {
+		stop := f(i, current.Val)
 		if stop {
 			return
 		}
