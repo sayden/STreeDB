@@ -22,6 +22,9 @@ func (s *itemLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
 	return es.LenAll() >= s.limit
 }
 
+// Flush Wal after a time duration
+//
+// Deprecated: There is a need to a wrapper in the Wal to use a time based strategy
 func newTimeLimitWalFlushStrategy(d time.Duration) db.WalFlushStrategy[int64] {
 	return &timeLimitWalFlushStrategy{duration: d}
 }

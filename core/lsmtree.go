@@ -57,33 +57,23 @@ type LsmTree[O cmp.Ordered, E db.Entry[O]] struct {
 	levels    *fs.MultiFsLevels[O]
 }
 
-func (l *LsmTree[O, E]) Append(d db.Entry[O]) {
+func (l *LsmTree[O, _]) Append(d db.Entry[O]) {
 	err := l.wal.Append(d)
 	if err != nil {
 		log.WithError(err).Error("error appending to wal")
 	}
 }
 
-func (l *LsmTree[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool, error) {
+func (l *LsmTree[O, _]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool, error) {
 	// Look in the WAL
 	if v, found := l.wal.Find(pIdx, sIdx, min, max); found {
-		return v, true, nil
+		return db.NewSingleItemIterator(v), true, nil
 	}
 
-	entry, found, err := l.levels.FindSingle(pIdx, sIdx, min, max)
-	if err != nil {
-		return *new(E), false, err
-	}
-	if !found {
-		return *new(E), false, nil
-	}
-
-	e, ok := entry.(E)
-
-	return e, ok, nil
+	return l.levels.FindSingle(pIdx, sIdx, min, max)
 }
 
-func (l *LsmTree[O, E]) Close() (err error) {
+func (l *LsmTree[_, _]) Close() (err error) {
 	// Close the wal and write whatever is left in it
 	errs := make([]error, 0)
 
@@ -99,6 +89,6 @@ func (l *LsmTree[O, E]) Close() (err error) {
 	return errors.Join(errs...)
 }
 
-func (l *LsmTree[O, E]) Compact() error {
+func (l *LsmTree[_, _]) Compact() error {
 	return l.compactor.Compact(l.levels.Fileblocks())
 }

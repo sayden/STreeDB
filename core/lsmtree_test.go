@@ -4,14 +4,13 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/sayden/streedb"
 	db "github.com/sayden/streedb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thehivecorporation/log"
 )
@@ -25,18 +24,18 @@ func TestS3(t *testing.T) {
 	t.Skip()
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
-	defaultCfg := streedb.NewDefaultConfig()
+	defaultCfg := db.NewDefaultConfig()
 	defaultCfg.Wal.MaxItems = 10
 
-	testCfgs := []*streedb.Config{
+	testCfgs := []*db.Config{
 		{
 			Wal:              defaultCfg.Wal,
 			Compaction:       defaultCfg.Compaction,
-			Filesystem:       streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_S3],
+			Filesystem:       db.FilesystemTypeMap[db.FILESYSTEM_TYPE_S3],
 			MaxLevels:        5,
 			DbPath:           "/tmp/db/s3/parquet",
 			LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
-			S3Config: streedb.S3Config{
+			S3Config: db.S3Config{
 				Bucket: "parquet",
 				Region: "us-east-1",
 			},
@@ -59,13 +58,13 @@ func TestS3(t *testing.T) {
 func TestDBLocal(t *testing.T) {
 	log.SetLevel(log.LevelInfo)
 	t.Cleanup(cleanAll)
-	defaultCfg := streedb.NewDefaultConfig()
+	defaultCfg := db.NewDefaultConfig()
 	defaultCfg.Wal.MaxItems = 5
 
-	testCfgs := []*streedb.Config{
+	testCfgs := []*db.Config{
 		{
 			Wal:        defaultCfg.Wal,
-			Filesystem: streedb.FilesystemTypeMap[streedb.FILESYSTEM_TYPE_LOCAL],
+			Filesystem: db.FilesystemTypeMap[db.FILESYSTEM_TYPE_LOCAL],
 			MaxLevels:  5,
 			DbPath:     "/tmp/db/parquet",
 			Compaction: defaultCfg.Compaction,
@@ -83,12 +82,10 @@ func TestDBLocal(t *testing.T) {
 	}
 }
 
-func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact bool) {
-	tsWalFlush := newTimeLimitWalFlushStrategy(time.Duration(cfg.Wal.MaxElapsedTimeMs * 1000))
-	lsmtree, err := NewLsmTree[int64, *db.Kv](cfg, tsWalFlush)
-	if err != nil {
-		t.Fatal(err)
-	}
+func launchTestWithConfig(t *testing.T, cfg *db.Config, insertOrCompact bool) {
+	walFlushStrategy := newItemLimitWalFlushStrategy[int64](1000)
+	lsmtree, err := NewLsmTree[int64, *db.Kv](cfg, walFlushStrategy)
+	require.NoError(t, err)
 	defer lsmtree.Close()
 
 	keys := []int32{
@@ -113,13 +110,13 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 	}
 
 	if insertOrCompact {
-		lsmtree.Append(streedb.NewKv("instance1", "cpu", ts, keys))
-		lsmtree.Append(streedb.NewKv("instance1", "mem", ts, keys))
+		lsmtree.Append(db.NewKv("instance1", "cpu", ts, keys))
+		lsmtree.Append(db.NewKv("instance1", "mem", ts, keys))
 	}
 
 	if insertOrCompact {
-		lsmtree.Append(streedb.NewKv("instance1", "cpu", ts, keys))
-		lsmtree.Append(streedb.NewKv("instance1", "mem", ts, keys))
+		lsmtree.Append(db.NewKv("instance1", "cpu", ts, keys))
+		lsmtree.Append(db.NewKv("instance1", "mem", ts, keys))
 	}
 
 	lsmtree.Close()
@@ -129,12 +126,10 @@ func launchTestWithConfig(t *testing.T, cfg *streedb.Config, insertOrCompact boo
 		require.NoError(t, err)
 	}
 
-	// val, found, err := lsmtree.Find("instance1", "cpu", 1, 4)
-	// require.NoError(t, err)
-	// assert.True(t, found)
-	// if val == nil {
-	// 	t.Fatalf("value not found in '%s'", cfg.Filesystem)
-	// }
+	val, found, err := lsmtree.Find("instance1", "cpu", 1, 4)
+	require.NoError(t, err)
+	assert.True(t, found)
+	require.NotNil(t, val)
 
 	// t.Run("Iterators", func(t *testing.T) {
 	// 	t.Skip("TODO")

@@ -66,3 +66,22 @@ func (b *btreeWrapperIterator[O]) Next() (Entry[O], bool, error) {
 
 	return entry, true, nil
 }
+
+func NewSingleItemIterator[O cmp.Ordered](data Entry[O]) *singleItemIterator[O] {
+	return &singleItemIterator[O]{data: data}
+}
+
+type singleItemIterator[O cmp.Ordered] struct {
+	data Entry[O]
+}
+
+func (l *singleItemIterator[O]) Next() (Entry[O], bool, error) {
+	if l.data == nil {
+		return nil, false, nil
+	}
+
+	data := l.data
+	l.data = nil
+
+	return data, true, nil
+}
