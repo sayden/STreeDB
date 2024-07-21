@@ -6,10 +6,9 @@ import (
 
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/fs"
-	"github.com/thehivecorporation/log"
 )
 
-func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies ...db.WalFlushStrategy[O]) (*LsmTree[O, E], error) {
+func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], error) {
 	if cfg.LevelFilesystems == nil {
 		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
 		for i := 0; i < cfg.MaxLevels; i++ {
@@ -30,15 +29,11 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, persistStrategies 
 		cfg:    cfg,
 	}
 
-	if persistStrategies == nil {
-		persistStrategies = make([]db.WalFlushStrategy[O], 0)
-	}
 	// Create the WAL
 	l.wal = newNMMemoryWal[O, E](cfg, levels,
-		append(persistStrategies, []db.WalFlushStrategy[O]{
-			newItemLimitWalFlushStrategy[O](cfg.Wal.MaxItems),
-			newSizeLimitWalFlushStrategy[O](cfg.Wal.MaxSizeBytes),
-		}...)...)
+		newItemLimitWalFlushStrategy[O](cfg.Wal.MaxItems),
+		newSizeLimitWalFlushStrategy[O](cfg.Wal.MaxSizeBytes),
+	)
 
 	compactionStrategies := &samePrimaryIndexCompactionStrategy[O]{and: &overlappingCompactionStrategy[O]{}}
 	l.compactor, err = NewTieredMultiFsCompactor[O, E](cfg, levels, compactionStrategies)
@@ -57,11 +52,8 @@ type LsmTree[O cmp.Ordered, E db.Entry[O]] struct {
 	levels    *fs.MultiFsLevels[O]
 }
 
-func (l *LsmTree[O, _]) Append(d db.Entry[O]) {
-	err := l.wal.Append(d)
-	if err != nil {
-		log.WithError(err).Error("error appending to wal")
-	}
+func (l *LsmTree[O, _]) Append(d db.Entry[O]) error {
+	return l.wal.Append(d)
 }
 
 func (l *LsmTree[O, _]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool, error) {

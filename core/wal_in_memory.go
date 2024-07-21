@@ -36,8 +36,8 @@ func (w *nmMemoryWal[O, _]) Append(d db.Entry[O]) (err error) {
 	}
 	fileEntries.Append(d)
 
-	for _, s := range w.flushStrategies {
-		if s.ShouldFlush(fileEntries) {
+	for _, strategy := range w.flushStrategies {
+		if strategy.ShouldFlush(fileEntries) {
 			builder := db.NewMetadataBuilder[O](w.cfg).
 				WithPrimaryIndex(d.PrimaryIndex()).
 				WithLevel(0).

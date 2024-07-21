@@ -83,8 +83,7 @@ func TestDBLocal(t *testing.T) {
 }
 
 func launchTestWithConfig(t *testing.T, cfg *db.Config, insertOrCompact bool) {
-	walFlushStrategy := newItemLimitWalFlushStrategy[int64](1000)
-	lsmtree, err := NewLsmTree[int64, *db.Kv](cfg, walFlushStrategy)
+	lsmtree, err := NewLsmTree[int64, *db.Kv](cfg)
 	require.NoError(t, err)
 	defer lsmtree.Close()
 
@@ -110,67 +109,24 @@ func launchTestWithConfig(t *testing.T, cfg *db.Config, insertOrCompact bool) {
 	}
 
 	if insertOrCompact {
-		lsmtree.Append(db.NewKv("instance1", "cpu", ts, keys))
-		lsmtree.Append(db.NewKv("instance1", "mem", ts, keys))
+		err = lsmtree.Append(db.NewKv("instance1", "cpu", ts, keys))
+		require.NoError(t, err)
+		err = lsmtree.Append(db.NewKv("instance1", "mem", ts, keys))
+		require.NoError(t, err)
 	}
 
-	if insertOrCompact {
-		lsmtree.Append(db.NewKv("instance1", "cpu", ts, keys))
-		lsmtree.Append(db.NewKv("instance1", "mem", ts, keys))
-	}
-
-	lsmtree.Close()
+	err = lsmtree.Close()
+	require.NoError(t, err)
 
 	if !insertOrCompact {
 		err = lsmtree.Compact()
 		require.NoError(t, err)
 	}
 
-	val, found, err := lsmtree.Find("instance1", "cpu", 1, 4)
+	val, found, err := lsmtree.Find("instance1", "cpu", 0, 4)
 	require.NoError(t, err)
 	assert.True(t, found)
 	require.NotNil(t, val)
-
-	// t.Run("Iterators", func(t *testing.T) {
-	// 	t.Skip("TODO")
-	//
-	// 	begin := streedb.NewKv("hello 27", 0, "a")
-	//
-	// 	t.Run("ForwardIterator", func(t *testing.T) {
-	// 		iter, found, err := lsmtree.ForwardIterator(begin)
-	// 		assert.NoError(t, err)
-	// 		if !found {
-	// 			t.Fatalf("(ForwardIterator) value '%s' not found in '%s' using '%s'", begin.Key, cfg.Filesystem, cfg.Format)
-	// 		}
-	//
-	// 		for val, found, err = iter.Next(); err == nil && found; val, found, err = iter.Next() {
-	// 			t.Logf("val: %v", val)
-	// 		}
-	// 		if err != nil {
-	// 			if err != io.EOF {
-	// 				t.Fatalf("error iterating over values: %v", err)
-	// 			}
-	// 		}
-	// 	})
-	//
-	// 	t.Run("RangeIterators", func(t *testing.T) {
-	// 		end := streedb.NewKv("hello 39", 0, "a")
-	// 		iter, found, err := lsmtree.RangeIterator(begin, end)
-	// 		assert.NoError(t, err)
-	// 		if !found {
-	// 			t.Fatalf("(RangeIterator) value '%s' not found in '%s' using '%s'", begin.Key, cfg.Filesystem, cfg.Format)
-	// 		}
-	//
-	// 		for val, found, err = iter.Next(); err == nil && found; val, found, err = iter.Next() {
-	// 			t.Logf("val: %v", val)
-	// 		}
-	// 		if err != nil {
-	// 			if err != io.EOF {
-	// 				t.Fatalf("error iterating over values: %v", err)
-	// 			}
-	// 		}
-	// 	})
-	// })
 }
 
 func deleteBuckets() {

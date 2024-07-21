@@ -22,6 +22,25 @@ func (s *itemLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
 	return es.LenAll() >= s.limit
 }
 
+func newSizeLimitWalFlushStrategy[O cmp.Ordered](s int) db.WalFlushStrategy[O] {
+	return &sizeLimitWalFlushStrategy[O]{maxSize: s}
+}
+
+type sizeLimitWalFlushStrategy[O cmp.Ordered] struct {
+	maxSize int
+}
+
+func (s *sizeLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
+	if es.SecondaryIndicesLen() == 0 {
+		return false
+	}
+
+	// TODO: Optimistic way to get the size of a struct
+	size := int(unsafe.Sizeof(es))
+
+	return size*es.SecondaryIndicesLen() >= s.maxSize
+}
+
 // Flush Wal after a time duration
 //
 // Deprecated: There is a need to a wrapper in the Wal to use a time based strategy
@@ -43,23 +62,4 @@ func (s *timeLimitWalFlushStrategy) ShouldFlush(es db.EntriesMap[int64]) bool {
 	since := time.Since(inTimeMs)
 
 	return since > s.duration
-}
-
-func newSizeLimitWalFlushStrategy[O cmp.Ordered](s int) db.WalFlushStrategy[O] {
-	return &sizeLimitWalFlushStrategy[O]{maxSize: s}
-}
-
-type sizeLimitWalFlushStrategy[O cmp.Ordered] struct {
-	maxSize int
-}
-
-func (s *sizeLimitWalFlushStrategy[O]) ShouldFlush(es db.EntriesMap[O]) bool {
-	if es.SecondaryIndicesLen() == 0 {
-		return false
-	}
-
-	// TODO: Optimistic way to get the size of a struct
-	size := int(unsafe.Sizeof(es))
-
-	return size*es.SecondaryIndicesLen() >= s.maxSize
 }
