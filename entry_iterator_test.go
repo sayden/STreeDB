@@ -11,40 +11,33 @@ import (
 func TestEntryIterator(t *testing.T) {
 	log.SetLevel(log.LevelDebug)
 
-	f := func(iter EntryIterator[int64], found bool, err error) {
-		assert.True(t, found)
-		require.Nil(t, err)
-
-		entry, found, err := iter.Next()
-		assert.True(t, found)
-		require.Nil(t, err)
-		require.NotNil(t, entry)
-
-		// entry is an instance1:cpu entry
-		assert.Equal(t, "instance1", entry.PrimaryIndex())
-		assert.Equal(t, "cpu", entry.SecondaryIndex())
-		assert.Equal(t, int64(1), entry.Min())
-		assert.Equal(t, int64(4), entry.Max())
-		assert.Equal(t, 1, len(entry.(*Kv).Ts))
-
-		entry, found, err = iter.Next()
-		require.Nil(t, err)
-		require.True(t, found)
-
-		// entry is, again, an instance1:cpu entry, second kv from the test dataset
-		assert.Equal(t, "instance1", entry.PrimaryIndex())
-		assert.Equal(t, "cpu", entry.SecondaryIndex())
-		assert.Equal(t, int64(5), entry.Min())
-		assert.Equal(t, int64(9), entry.Max())
-	}
-
 	btree := createMockIndex(t)
 
-	iter, found, err := btree.AscendRange("instance1", "cpu", 1, 8)
-	f(iter, found, err)
+	iter, found, err := btree.AscendRangeWithFilters(1, 8, PrimaryIndexFilter("instance1"), SecondaryIndexFilter[int64]("cpu"))
+	assert.True(t, found)
+	require.Nil(t, err)
 
-	iter, found, err = btree.AscendRangeWithFilters(1, 8, PrimaryIndexFilter("instance1"), SecondaryIndexFilter[int64]("cpu"))
-	f(iter, found, err)
+	entry, found, err := iter.Next()
+	assert.True(t, found)
+	require.Nil(t, err)
+	require.NotNil(t, entry)
+
+	// entry is an instance1:cpu entry
+	assert.Equal(t, "instance1", entry.PrimaryIndex())
+	assert.Equal(t, "cpu", entry.SecondaryIndex())
+	assert.Equal(t, int64(1), entry.Min())
+	assert.Equal(t, int64(4), entry.Max())
+	assert.Equal(t, 1, len(entry.(*Kv).Ts))
+
+	entry, found, err = iter.Next()
+	require.Nil(t, err)
+	require.True(t, found)
+
+	// entry is, again, an instance1:cpu entry, second kv from the test dataset
+	assert.Equal(t, "instance1", entry.PrimaryIndex())
+	assert.Equal(t, "cpu", entry.SecondaryIndex())
+	assert.Equal(t, int64(5), entry.Min())
+	assert.Equal(t, int64(9), entry.Max())
 
 	// By just requesting the instance1:cpu entries, we should get a total of 3 entries: 2 for cpu and 1 for mem
 	// But the btree actually contains 4 entries, one extra for instance2:cpu
@@ -71,26 +64,15 @@ func TestEntryIterator(t *testing.T) {
 			instance2Total++
 		}
 	}
-	entry, found, err := iter.Next()
-	assert.True(t, found)
-	require.Nil(t, err)
-	require.NotNil(t, entry)
-	assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
-	counterSecondary(entry)
 
-	entry, found, err = iter.Next()
-	assert.True(t, found)
-	require.Nil(t, err)
-	require.NotNil(t, entry)
-	assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
-	counterSecondary(entry)
-
-	entry, found, err = iter.Next()
-	assert.True(t, found)
-	require.Nil(t, err)
-	require.NotNil(t, entry)
-	assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
-	counterSecondary(entry)
+	for i := 0; i < 4; i++ {
+		entry, found, err = iter.Next()
+		assert.True(t, found)
+		require.Nil(t, err)
+		require.NotNil(t, entry)
+		assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
+		counterSecondary(entry)
+	}
 
 	assert.Equal(t, 2, cpuTotal)
 	assert.Equal(t, 1, memTotal)
@@ -108,27 +90,49 @@ func TestEntryIterator(t *testing.T) {
 	cpuTotal = 0
 	memTotal = 0
 
-	ft := func(entry Entry[int64]) {
+	f := func(entry Entry[int64]) {
 		assert.True(t, found)
 		require.Nil(t, err)
 		require.NotNil(t, entry)
-		assert.Equal(t, "cpu", entry.SecondaryIndex())
-		assert.True(t, entry.PrimaryIndex() == "instance1" || entry.PrimaryIndex() == "instance2")
 		counterSecondary(entry)
 		counterPrimary(entry)
 	}
 
 	entry, found, err = iter.Next()
-	ft(entry)
+	f(entry)
+	assert.Equal(t, "cpu", entry.SecondaryIndex())
+	assert.True(t, entry.PrimaryIndex() == "instance1" || entry.PrimaryIndex() == "instance2")
 
 	entry, found, err = iter.Next()
-	ft(entry)
+	f(entry)
+	assert.Equal(t, "cpu", entry.SecondaryIndex())
+	assert.True(t, entry.PrimaryIndex() == "instance1" || entry.PrimaryIndex() == "instance2")
 
 	entry, found, err = iter.Next()
-	ft(entry)
+	f(entry)
+	assert.Equal(t, "cpu", entry.SecondaryIndex())
+	assert.True(t, entry.PrimaryIndex() == "instance1" || entry.PrimaryIndex() == "instance2")
 
 	assert.Equal(t, 3, cpuTotal)
 	assert.Equal(t, 0, memTotal)
 	assert.Equal(t, 2, instance1Total)
 	assert.Equal(t, 1, instance2Total)
+
+	iter, found, err = btree.AscendRangeWithFilters(1, 8)
+	assert.True(t, found)
+	require.Nil(t, err)
+	cpuTotal = 0
+	memTotal = 0
+
+	for i := 0; i < 4; i++ {
+		entry, found, err = iter.Next()
+		f(entry)
+		assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
+		assert.True(t, entry.PrimaryIndex() == "instance1" || entry.PrimaryIndex() == "instance2")
+	}
+
+	entry, found, err = iter.Next()
+	assert.False(t, found)
+	assert.Nil(t, err)
+	assert.Nil(t, entry)
 }

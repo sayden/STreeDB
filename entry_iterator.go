@@ -10,16 +10,6 @@ type EntryIterator[O cmp.Ordered] interface {
 
 type IteratorFilter[O cmp.Ordered] func(EntriesMap[O]) bool
 
-func newIteratorWithData[O cmp.Ordered](data []*Fileblock[O]) *btreeWrapperIterator[O] {
-	tree := &btreeWrapperIterator[O]{
-		ch: make(chan Entry[O]),
-	}
-
-	tree.start(data)
-
-	return tree
-}
-
 func newIteratorWithFilters[O cmp.Ordered](data []*Fileblock[O], filters []EntryFilter) *btreeWrapperIterator[O] {
 	sFilters := make([]EntryFilter, 0)
 	for _, filter := range filters {
@@ -63,23 +53,6 @@ func (b *btreeWrapperIterator[O]) startFilters(data []*Fileblock[O], filters []E
 				if valid {
 					b.ch <- entry
 				}
-			}
-		}
-	}()
-}
-
-func (b *btreeWrapperIterator[O]) start(data []*Fileblock[O]) {
-	go func() {
-		defer close(b.ch)
-
-		for _, e := range data {
-			entriesMap, err := e.Load()
-			if err != nil {
-				return
-			}
-
-			for _, entry := range entriesMap {
-				b.ch <- entry
 			}
 		}
 	}()

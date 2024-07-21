@@ -144,15 +144,6 @@ func (b *BtreeIndex[O]) ascendRangeWithFilters(min, max O, filters ...EntryFilte
 	return result, len(result) > 0, nil
 }
 
-func (b *BtreeIndex[O]) AscendRange(pIdx, sIdx string, min, max O) (EntryIterator[O], bool, error) {
-	result, found, err := b.ascendRange(pIdx, sIdx, min, max)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return newIteratorWithData(result), found, nil
-}
-
 func (b *BtreeIndex[O]) ascendRange(pIdx, sIdx string, min, max O) ([]*Fileblock[O], bool, error) {
 	result := make([]*Fileblock[O], 0)
 
