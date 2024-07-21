@@ -45,4 +45,90 @@ func TestEntryIterator(t *testing.T) {
 
 	iter, found, err = btree.AscendRangeWithFilters(1, 8, PrimaryIndexFilter("instance1"), SecondaryIndexFilter[int64]("cpu"))
 	f(iter, found, err)
+
+	// By just requesting the instance1:cpu entries, we should get a total of 3 entries: 2 for cpu and 1 for mem
+	// But the btree actually contains 4 entries, one extra for instance2:cpu
+	iter, found, err = btree.AscendRangeWithFilters(1, 8, PrimaryIndexFilter("instance1"))
+	assert.True(t, found)
+	require.Nil(t, err)
+
+	cpuTotal := 0
+	memTotal := 0
+	instance1Total := 0
+	instance2Total := 0
+
+	counterSecondary := func(entry Entry[int64]) {
+		if entry.SecondaryIndex() == "cpu" {
+			cpuTotal++
+		} else {
+			memTotal++
+		}
+	}
+	counterPrimary := func(entry Entry[int64]) {
+		if entry.PrimaryIndex() == "instance1" {
+			instance1Total++
+		} else {
+			instance2Total++
+		}
+	}
+	entry, found, err := iter.Next()
+	assert.True(t, found)
+	require.Nil(t, err)
+	require.NotNil(t, entry)
+	assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
+	counterSecondary(entry)
+
+	entry, found, err = iter.Next()
+	assert.True(t, found)
+	require.Nil(t, err)
+	require.NotNil(t, entry)
+	assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
+	counterSecondary(entry)
+
+	entry, found, err = iter.Next()
+	assert.True(t, found)
+	require.Nil(t, err)
+	require.NotNil(t, entry)
+	assert.True(t, entry.SecondaryIndex() == "cpu" || entry.SecondaryIndex() == "mem")
+	counterSecondary(entry)
+
+	assert.Equal(t, 2, cpuTotal)
+	assert.Equal(t, 1, memTotal)
+
+	entry, found, err = iter.Next()
+	assert.False(t, found)
+	assert.Nil(t, err)
+	assert.Nil(t, entry)
+
+	// By just requesting the cpu entries, we should get a total of 3 entries: 2 for instance1 and 1 for instance2
+	// But the btree actually contains 4 entries, one extra for instance1:mem
+	iter, found, err = btree.AscendRangeWithFilters(1, 8, SecondaryIndexFilter[int64]("cpu"))
+	assert.True(t, found)
+	require.Nil(t, err)
+	cpuTotal = 0
+	memTotal = 0
+
+	ft := func(entry Entry[int64]) {
+		assert.True(t, found)
+		require.Nil(t, err)
+		require.NotNil(t, entry)
+		assert.Equal(t, "cpu", entry.SecondaryIndex())
+		assert.True(t, entry.PrimaryIndex() == "instance1" || entry.PrimaryIndex() == "instance2")
+		counterSecondary(entry)
+		counterPrimary(entry)
+	}
+
+	entry, found, err = iter.Next()
+	ft(entry)
+
+	entry, found, err = iter.Next()
+	ft(entry)
+
+	entry, found, err = iter.Next()
+	ft(entry)
+
+	assert.Equal(t, 3, cpuTotal)
+	assert.Equal(t, 0, memTotal)
+	assert.Equal(t, 2, instance1Total)
+	assert.Equal(t, 1, instance2Total)
 }

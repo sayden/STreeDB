@@ -18,6 +18,20 @@ type EntryFilter interface {
 	Kind() EntryFilterKind
 }
 
+func AlwaysTrueIndexFilter() EntryFilter {
+	return &alwaysTrueIndexFilter{}
+}
+
+type alwaysTrueIndexFilter struct{}
+
+func (a *alwaysTrueIndexFilter) Filter(c Indexer) bool {
+	return true
+}
+
+func (a *alwaysTrueIndexFilter) Kind() EntryFilterKind {
+	return PrimaryIndexFilterKind
+}
+
 func PrimaryIndexFilter(pIdx string) EntryFilter {
 	return &primaryIndexFilter{pIdx: pIdx}
 }
@@ -92,6 +106,11 @@ func (b *BtreeIndex[O]) AscendRangeWithFilters(min, max O, filters ...EntryFilte
 		if filter.Kind() == PrimaryIndexFilterKind {
 			pFilters = append(pFilters, filter)
 		}
+	}
+
+	// When no primary index filter is provided, we provice a mock one
+	if len(pFilters) == 0 {
+		pFilters = append(pFilters, AlwaysTrueIndexFilter())
 	}
 
 	result, found, err := b.ascendRangeWithFilters(min, max, pFilters...)
