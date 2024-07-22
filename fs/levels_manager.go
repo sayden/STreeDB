@@ -6,6 +6,7 @@ import (
 
 	db "github.com/sayden/streedb"
 	local "github.com/sayden/streedb/fs/local"
+	memory "github.com/sayden/streedb/fs/memory"
 	fss3 "github.com/sayden/streedb/fs/s3"
 )
 
@@ -22,9 +23,17 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 
 	result := make(map[int]*BasicLevel[O])
 
-	if len(cfg.LevelFilesystems) == 0 {
-		panic("LevelFilesystems must have at least one entry")
+	if len(cfg.LevelFilesystems) == 0 && cfg.Filesystem == "" {
+		panic("'LevelFilesystems' must have at least one entry or 'Filesystem' must be set in the config")
 	}
+
+	if len(cfg.LevelFilesystems) == 0 {
+		cfg.LevelFilesystems = make([]string, cfg.MaxLevels)
+		for i := 0; i < cfg.MaxLevels; i++ {
+			cfg.LevelFilesystems[i] = cfg.Filesystem
+		}
+	}
+
 	if cfg.MaxLevels != len(cfg.LevelFilesystems) {
 		panic("MaxLevels number and LevelFilesystems lenght must be the same")
 	}
@@ -45,6 +54,9 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 			if fs, err = fss3.InitParquetS3[O, E](cfg, levelIdx); err != nil {
 				return nil, err
 			}
+			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
+		case db.FILESYSTEM_TYPE_MEMORY:
+			fs = memory.NewMemoryFs[O](cfg)
 			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
 		default:
 			return nil, db.ErrUnknownFilesystemType

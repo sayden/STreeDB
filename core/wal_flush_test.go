@@ -33,12 +33,12 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 	ts2 := ts[:2]
 
 	t.Run("ItemLimitFlushStrategy", func(t *testing.T) {
-		IWal := newNMMemoryWal[int64, *db.Kv](
+		IWal := newNMMemoryWal(
 			cfg,
 			fbcreator,
 			newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
 
-		wal := IWal.(*nmMemoryWal[int64, *db.Kv])
+		wal := IWal.(*nmMemoryWal[int64])
 
 		fbcreator.newFileblockCount = 0
 		wal.flushStrategies = []db.WalFlushStrategy[int64]{newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems)}
@@ -54,7 +54,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 
 		fbcreator.newFileblock = func(es db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
 			require.Equal(t, 1, es.SecondaryIndicesLen())
-			require.Equal(t, 5, es.Get("wal_cpu").Len())
+			require.Equal(t, 4, es.Get("wal_cpu").Len())
 			return nil
 		}
 		wal.Append(db.NewKv("wal_instance1", "wal_cpu", ts, []int32{5, 6, 7, 8, 9}))
@@ -62,12 +62,12 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 	})
 
 	t.Run("SizeLimitWalFlushStrategy", func(t *testing.T) {
-		IWal := newNMMemoryWal[int64, *db.Kv](
+		IWal := newNMMemoryWal(
 			cfg,
 			fbcreator,
 			newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
 
-		wal := IWal.(*nmMemoryWal[int64, *db.Kv])
+		wal := IWal.(*nmMemoryWal[int64])
 
 		cfg.Wal.MaxItems = 100
 		fbcreator.newFileblockCount = 0
@@ -91,12 +91,12 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 	t.Run("TimeLimitWalFlushStrategy", func(t *testing.T) {
 		t.Skip("TODO")
 
-		IWal := newNMMemoryWal[int64, *db.Kv](
+		IWal := newNMMemoryWal(
 			cfg,
 			fbcreator,
 			newTimeLimitWalFlushStrategy(time.Millisecond))
 
-		wal := IWal.(*nmMemoryWal[int64, *db.Kv])
+		wal := IWal.(*nmMemoryWal[int64])
 
 		cfg.Wal.MaxItems = 100
 		fbcreator.newFileblockCount = 0

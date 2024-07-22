@@ -1,7 +1,6 @@
 package fss3
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -61,34 +60,6 @@ func openS3[O cmp.Ordered](client *s3.Client, cfg *db.Config, p string, f db.Fil
 	return db.NewFileblock(cfg, meta, f), nil
 }
 
-func removeS3[O cmp.Ordered](client *s3.Client, cfg *db.Config, fb *db.Fileblock[O], listeners ...db.FileblockListener[O]) error {
-	m := fb.Metadata()
-	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
-
-	_, err := client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
-		Bucket: aws.String(cfg.S3Config.Bucket),
-		Key:    aws.String(m.DataFilepath),
-	})
-	if err != nil {
-		log.WithError(err).Error("error deleting data file")
-	}
-
-	log.Debugf("Removing parquet block's meta in '%s'", m.MetaFilepath)
-
-	if _, err = client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
-		Bucket: aws.String(cfg.S3Config.Bucket),
-		Key:    aws.String(m.MetaFilepath),
-	}); err != nil {
-		log.WithError(err).Error("error deleting meta file")
-	}
-
-	for _, listener := range listeners {
-		listener.OnFileblockRemoved(fb)
-	}
-
-	return nil
-}
-
 func openAllMetadataFilesInS3Folder[O cmp.Ordered](cfg *db.Config, client *s3.Client, filesystem db.Filesystem[O], rootPath string, listeners ...db.FileblockListener[O]) error {
 	listInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(cfg.S3Config.Bucket),
@@ -108,28 +79,10 @@ func openAllMetadataFilesInS3Folder[O cmp.Ordered](cfg *db.Config, client *s3.Cl
 		}
 
 		for _, object := range page.Contents {
-			if _, err = openS3[O](client, cfg, *object.Key, filesystem, listeners); err != nil {
+			if _, err = openS3(client, cfg, *object.Key, filesystem, listeners); err != nil {
 				return err
 			}
 		}
-	}
-
-	return nil
-}
-
-func updateMetadataS3[O cmp.Ordered](cfg *db.Config, client *s3.Client, m *db.MetaFile[O]) error {
-	byt, err := json.Marshal(m)
-	if err != nil {
-		return errors.Join(errors.New("error encoding entries"), err)
-	}
-
-	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket: aws.String(cfg.S3Config.Bucket),
-		Key:    aws.String(m.MetaFilepath),
-		Body:   bytes.NewReader(byt),
-	})
-	if err != nil {
-		return errors.Join(errors.New("error updating obj to S3"), err)
 	}
 
 	return nil

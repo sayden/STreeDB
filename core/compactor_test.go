@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	db "github.com/sayden/streedb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,13 +38,13 @@ func TestCompactionMultiLevel(t *testing.T) {
 
 	require.Equal(t, 0, countFileblocks(mlevel, 0))
 	require.Equal(t, 0, countFileblocks(mlevel, 1))
-	mlevel.Append(db.NewKv("instance1", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7, 7, 1, 2, 4, 5, 6, 3, 7, 7}))
+	mlevel.Append(db.NewKv("instance1", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7, 7, 1}))
 	require.Equal(t, 0, countFileblocks(mlevel, 0))
 	require.Equal(t, 1, countFileblocks(mlevel, 1))
 	mlevel.Append(db.NewKv("instance1", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7, 8, 11}))
 	require.Equal(t, 0, countFileblocks(mlevel, 0))
 	require.Equal(t, 1, countFileblocks(mlevel, 1))
-	mlevel.Append(db.NewKv("instance2", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7}))
+	mlevel.Append(db.NewKv("instance2", "cpu", ts, []int32{1, 2, 4, 5, 6, 3, 7, 8, 11}))
 	require.Equal(t, 0, countFileblocks(mlevel, 0))
 	require.Equal(t, 1, countFileblocks(mlevel, 1))
 
@@ -60,14 +61,14 @@ func TestCompactionMultiLevel(t *testing.T) {
 	blocks = getFileblocksAtLevel(mlevel, 1)
 	mergedBlock := blocks[0]
 	meta := mergedBlock.Metadata()
-	require.Equal(t, 34, meta.ItemCount)
+	assert.Equal(t, 27, meta.ItemCount)
 	es, err := mergedBlock.Load()
 	require.NoError(t, err)
-	require.Equal(t, 2, es.SecondaryIndicesLen())
+	assert.Equal(t, 2, es.SecondaryIndicesLen())
 	kv := es.Get("cpu").(*db.Kv)
-	require.Equal(t, 25, len(kv.Val))
+	assert.Equal(t, 18, len(kv.Val))
 	kv = es.Get("mem").(*db.Kv)
-	require.Equal(t, 9, len(kv.Val))
+	assert.Equal(t, 9, len(kv.Val))
 }
 
 func getFileblocksAtLevel(mlevel *LsmTree[int64, *db.Kv], level int) []*db.Fileblock[int64] {

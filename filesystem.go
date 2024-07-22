@@ -20,13 +20,15 @@ const (
 var ErrUnknownFilesystemType = errors.New("unknown filesystem type")
 
 var FilesystemTypeMap = map[FilesystemType]string{
-	FILESYSTEM_TYPE_LOCAL: "local",
-	FILESYSTEM_TYPE_S3:    "s3",
+	FILESYSTEM_TYPE_LOCAL:  "local",
+	FILESYSTEM_TYPE_S3:     "s3",
+	FILESYSTEM_TYPE_MEMORY: "memory",
 }
 
 var FilesystemTypeReverseMap = map[string]FilesystemType{
-	"local": FILESYSTEM_TYPE_LOCAL,
-	"s3":    FILESYSTEM_TYPE_S3,
+	"local":  FILESYSTEM_TYPE_LOCAL,
+	"s3":     FILESYSTEM_TYPE_S3,
+	"memory": FILESYSTEM_TYPE_MEMORY,
 }
 
 type Filesystem[O cmp.Ordered] interface {

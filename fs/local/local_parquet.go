@@ -4,7 +4,9 @@ import (
 	"cmp"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"path"
 
 	db "github.com/sayden/streedb"
 	"github.com/thehivecorporation/log"
@@ -15,8 +17,21 @@ import (
 
 // InitParquetLocal initializes a local filesystem destination. Writes the folder structure if required
 // and then read the medatada files that are already there.
-func InitParquetLocal[O cmp.Ordered, E db.Entry[O]](c *db.Config, level int) (db.Filesystem[O], error) {
-	return initLocal[O, E](c, level)
+func InitParquetLocal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O], error) {
+	rootPath := path.Join(cfg.DbPath, fmt.Sprintf("%02d", level))
+	if !path.IsAbs(rootPath) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		rootPath = path.Join(cwd, cfg.DbPath)
+	}
+
+	os.MkdirAll(rootPath, 0755)
+
+	fs := &localParquetFs[O, E]{cfg: cfg, rootPath: rootPath}
+
+	return fs, nil
 }
 
 type localParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
@@ -25,7 +40,23 @@ type localParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 }
 
 func (f *localParquetFs[O, _]) UpdateMetadata(b *db.Fileblock[O]) error {
-	return updateMetadata[O](b.Metadata())
+	meta := b.Metadata()
+
+	file, err := os.Create(meta.MetaFilepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err = file.Truncate(0); err != nil {
+		return err
+	}
+
+	if err = json.NewEncoder(file).Encode(meta); err != nil {
+		return err
+	}
+
+	return file.Sync()
 }
 
 // Load the parquet file using the data stored in the metadata file
@@ -116,14 +147,72 @@ func (f *localParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], build
 	return block, nil
 }
 
-func (f *localParquetFs[O, _]) Remove(b *db.Fileblock[O], ls []db.FileblockListener[O]) error {
-	return remove[O](b, ls...)
+func (f *localParquetFs[O, _]) Remove(fb *db.Fileblock[O], ls []db.FileblockListener[O]) error {
+	m := fb.Metadata()
+
+	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
+	if err := os.Remove(m.DataFilepath); err != nil {
+		return err
+	}
+
+	log.Debugf("Removing parquet block's meta in '%s'", m.MetaFilepath)
+	if err := os.Remove(m.MetaFilepath); err != nil {
+		return err
+	}
+
+	for _, listener := range ls {
+		listener.OnFileblockRemoved(fb)
+	}
+
+	return nil
 }
 
 func (f *localParquetFs[O, _]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O]) error {
-	return metaFilesInDir[O](f.cfg, f.rootPath, f, listeners...)
+	folder := f.rootPath
+	files, err := os.ReadDir(folder)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			panic("folder not expected")
+		}
+
+		if path.Ext(file.Name()) != ".json" {
+			continue
+		}
+
+		if _, err = open(f.cfg, f, path.Join(folder, file.Name()), listeners...); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func (f *localParquetFs[O, _]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {
 	return meta.WithRootPath(f.rootPath).WithExtension(".parquet")
+}
+
+func open[O cmp.Ordered](cfg *db.Config, f db.Filesystem[O], p string, listeners ...db.FileblockListener[O]) (*db.Fileblock[O], error) {
+	file, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	meta := &db.MetaFile[O]{MetaFilepath: p}
+
+	if err = json.NewDecoder(file).Decode(&meta); err != nil {
+		return nil, err
+	}
+
+	block := db.NewFileblock(cfg, meta, f)
+	for _, listener := range listeners {
+		listener.OnFileblockCreated(block)
+	}
+
+	return block, nil
 }

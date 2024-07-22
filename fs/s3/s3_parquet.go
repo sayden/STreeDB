@@ -7,12 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 
 	s3config "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go/aws"
 	db "github.com/sayden/streedb"
+	"github.com/thehivecorporation/log"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go-source/s3v2"
 	"github.com/xitongsys/parquet-go/reader"
@@ -20,7 +23,26 @@ import (
 )
 
 func InitParquetS3[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, level int) (db.Filesystem[O], error) {
-	return initS3[O, E](cfg, level)
+	s3Cfg, err := s3config.LoadDefaultConfig(
+		context.TODO(),
+		s3config.WithRegion(cfg.S3Config.Region),
+		// TODO: remove dummy credentials
+		s3config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "")),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	client := s3.NewFromConfig(s3Cfg, func(o *s3.Options) {
+		// TODO: remove hardcoded endpoint
+		o.BaseEndpoint = aws.String("http://127.0.0.1:8080")
+		o.UsePathStyle = true // S3ninja typically requires path-style addresing
+	})
+
+	rootPath := fmt.Sprintf("%02d", level)
+	s3fs := s3ParquetFs[O, E]{cfg, &s3Cfg, client, rootPath}
+
+	return &s3fs, nil
 }
 
 type s3ParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
@@ -83,7 +105,21 @@ func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O]) (db.EntriesMap[O], error) {
 }
 
 func (f *s3ParquetFs[O, _]) UpdateMetadata(b *db.Fileblock[O]) error {
-	return updateMetadataS3[O](f.cfg, f.client, b.Metadata())
+	byt, err := json.Marshal(b.Metadata())
+	if err != nil {
+		return errors.Join(errors.New("error encoding entries"), err)
+	}
+
+	_, err = f.client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String(f.cfg.S3Config.Bucket),
+		Key:    aws.String(b.Metadata().MetaFilepath),
+		Body:   bytes.NewReader(byt),
+	})
+	if err != nil {
+		return errors.Join(errors.New("error updating obj to S3"), err)
+	}
+
+	return nil
 }
 
 func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
@@ -157,12 +193,36 @@ func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], builder 
 	return block, nil
 }
 
-func (f *s3ParquetFs[O, _]) Remove(b *db.Fileblock[O], listeners []db.FileblockListener[O]) error {
-	return removeS3[O](f.client, f.cfg, b, listeners...)
+func (f *s3ParquetFs[O, _]) Remove(fb *db.Fileblock[O], listeners []db.FileblockListener[O]) error {
+	m := fb.Metadata()
+	log.Debugf("Removing parquet block data in '%s'", m.DataFilepath)
+
+	_, err := f.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+		Bucket: aws.String(f.cfg.S3Config.Bucket),
+		Key:    aws.String(m.DataFilepath),
+	})
+	if err != nil {
+		log.WithError(err).Error("error deleting data file")
+	}
+
+	log.Debugf("Removing parquet block's meta in '%s'", m.MetaFilepath)
+
+	if _, err = f.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+		Bucket: aws.String(f.cfg.S3Config.Bucket),
+		Key:    aws.String(m.MetaFilepath),
+	}); err != nil {
+		log.WithError(err).Error("error deleting meta file")
+	}
+
+	for _, listener := range listeners {
+		listener.OnFileblockRemoved(fb)
+	}
+
+	return nil
 }
 
 func (f *s3ParquetFs[O, _]) OpenMetaFilesInLevel(listeners []db.FileblockListener[O]) error {
-	return openAllMetadataFilesInS3Folder[O](f.cfg, f.client, f, f.rootPath, listeners...)
+	return openAllMetadataFilesInS3Folder(f.cfg, f.client, f, f.rootPath, listeners...)
 }
 
 func (f *s3ParquetFs[O, E]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db.MetadataBuilder[O] {

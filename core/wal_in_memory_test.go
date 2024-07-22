@@ -11,7 +11,7 @@ func TestWal(t *testing.T) {
 	cfg := db.NewDefaultConfig()
 
 	fbc := &mockFileblockCreator[int64]{}
-	wal := newNMMemoryWal[int64, *db.Kv](cfg, fbc, newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
+	wal := newNMMemoryWal[int64](cfg, fbc, newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
 	require.NotNil(t, wal)
 
 	err := wal.Append(db.NewKv("hello", "hello 15", []int64{11, 12, 13, 14, 15}, []int32{1, 2, 3, 4, 5}))
@@ -34,8 +34,15 @@ func TestWal(t *testing.T) {
 		{"hello", "hello 13", 11, 14, false},
 	}
 
-	kv, found := wal.Find("hello", "hello 15", 12, 14)
+	iter, found := wal.Find("hello", "hello 15", 12, 14)
 	require.True(t, found)
+	entry, found, err := iter.Next()
+	require.NoError(t, err)
+	require.True(t, found)
+
+	kv, ok := entry.(*db.Kv)
+	require.True(t, ok)
+
 	require.NotNil(t, kv)
 	require.Equal(t, "hello", kv.PrimaryIndex())
 	require.Equal(t, "hello 15", kv.SecondaryIndex())
