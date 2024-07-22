@@ -176,14 +176,14 @@ func (l *Kv) IsAdjacent(a Comparable[int64]) bool {
 	return false
 }
 
+func (l *Kv) String() string {
+	return fmt.Sprintf("'%s'", l.Key)
+}
+
 // Helper function to calculate absolute value
 func abs(n int) int {
 	if n < 0 {
 		return -n
 	}
 	return n
-}
-
-func (l *Kv) String() string {
-	return fmt.Sprintf("'%s'", l.Key)
 }
