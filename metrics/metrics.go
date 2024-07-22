@@ -12,9 +12,10 @@ import (
 
 func New[O cmp.Ordered, E db.Entry[O]](ops db.LsmTreeOps[O, E]) (*Metrics[O, E], error) {
 	cfg := db.NewDefaultConfig()
+	cfg.LevelFilesystems = nil
+	cfg.MaxLevels = 3
+	cfg.Filesystem = "memory"
 	cfg.DbPath = path.Join(cfg.DbPath, "metrics")
-	cfg.Filesystem = "local"
-	cfg.LevelFilesystems = []string{"local"}
 	cfg.MaxLevels = 1
 
 	metrics, err := core.NewLsmTree[int64, *MetricsEntry](cfg)
@@ -37,14 +38,14 @@ func (m *Metrics[O, E]) Append(d db.Entry[O]) error {
 	now := time.Now()
 	defer func() {
 		elapsed := time.Since(now)
-		log.Debug().
-			Fields(map[string]interface{}{
-				"elapsed":      elapsed,
-				"primaryIdx":   d.PrimaryIndex(),
-				"secondaryIdx": d.SecondaryIndex()}).
+		log.Debug().Fields(map[string]interface{}{
+			"elapsed":      elapsed,
+			"primaryIdx":   d.PrimaryIndex(),
+			"secondaryIdx": d.SecondaryIndex()}).
 			Msg("Append")
+
 		if err := m.Metrics.Append(
-			NewMetric("append", "elapsed_ms", time.Now().UnixMilli(), elapsed.Milliseconds())); err != nil {
+			NewMetric("append", "elapsed_micro", time.Now().UnixMilli(), elapsed.Microseconds())); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 	}()
@@ -55,13 +56,13 @@ func (m *Metrics[O, E]) Append(d db.Entry[O]) error {
 func (m *Metrics[O, E]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool, error) {
 	now := time.Now()
 	defer func() {
-		log.Debug().
-			Fields(map[string]interface{}{
-				"elapsed":      time.Since(now),
-				"primaryIdx":   pIdx,
-				"secondaryIdx": sIdx}).
+		elapsed := time.Since(now)
+		log.Debug().Fields(map[string]interface{}{
+			"elapsed":      elapsed,
+			"primaryIdx":   pIdx,
+			"secondaryIdx": sIdx}).
 			Msg("Find")
-		if err := m.Metrics.Append(NewMetric("find", "elapsed_ms", time.Now().UnixMilli(), 1)); err != nil {
+		if err := m.Metrics.Append(NewMetric("find", "elapsed_micro", time.Now().UnixMilli(), elapsed.Microseconds())); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 	}()
@@ -72,8 +73,9 @@ func (m *Metrics[O, E]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O]
 func (m *Metrics[O, E]) Close() error {
 	now := time.Now()
 	defer func() {
-		log.Debug().Str("elapsed", time.Since(now).String()).Msg("Close")
-		if err := m.Metrics.Append(NewMetric("close", "elapsed_ms", time.Now().UnixMilli(), 1)); err != nil {
+		elapsed := time.Since(now)
+		log.Debug().Str("elapsed", elapsed.String()).Msg("Close")
+		if err := m.Metrics.Append(NewMetric("close", "elapsed_micro", time.Now().UnixMilli(), elapsed.Microseconds())); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 		m.Metrics.Close()
@@ -91,8 +93,9 @@ func (m *Metrics[O, E]) Close() error {
 func (m *Metrics[O, E]) Compact() error {
 	now := time.Now()
 	defer func() {
-		log.Debug().Str("elapsed", time.Since(now).String()).Msg("Compact")
-		if err := m.Metrics.Append(NewMetric("compact", "elapsed_ms", time.Now().UnixMilli(), 1)); err != nil {
+		elapsed := time.Since(now)
+		log.Debug().Str("elapsed", elapsed.String()).Msg("Compact")
+		if err := m.Metrics.Append(NewMetric("compact", "elapsed_micro", time.Now().UnixMilli(), elapsed.Microseconds())); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 	}()

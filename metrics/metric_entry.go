@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
+	"sort"
 
 	db "github.com/sayden/streedb"
 	"github.com/spaolacci/murmur3"
@@ -35,7 +35,20 @@ func (m *MetricsEntry) Merge(a db.Entry[int64]) error {
 }
 
 func (m *MetricsEntry) Sort() {
-	slices.Sort(m.Val)
+	if sort.IsSorted(m) {
+		return
+	}
+
+	sort.Sort(m)
+}
+
+func (m *MetricsEntry) Less(i, j int) bool {
+	return m.Ts[i] < m.Ts[j]
+}
+
+func (m *MetricsEntry) Swap(i, j int) {
+	m.Ts[i], m.Ts[j] = m.Ts[j], m.Ts[i]
+	m.Val[i], m.Val[j] = m.Val[j], m.Val[i]
 }
 
 func (m *MetricsEntry) Overlap(min, max int64) (db.Entry[int64], bool) {
@@ -53,6 +66,7 @@ func (m *MetricsEntry) Append(a db.Entry[int64]) error {
 		return errors.New("invalid type")
 	}
 
+	m.Ts = append(m.Ts, a_.Ts...)
 	m.Val = append(m.Val, a_.Val...)
 
 	m.min = nil
