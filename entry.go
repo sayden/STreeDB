@@ -142,7 +142,18 @@ func (em EntriesMap[O]) SecondaryIndicesLen() int {
 	return len(em)
 }
 
-func (e EntriesMap[O]) Find(sIdx string, min, max O) (Entry[O], bool) {
+func (e EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
+	if sIdx == "" {
+		entries := make([]Entry[O], 0)
+		for _, entry := range e {
+			if _, isOverlapped := entry.Overlap(min, max); isOverlapped {
+				entries = append(entries, entry)
+			}
+		}
+
+		return NewListIterator(entries), len(entries) > 0
+	}
+
 	if _, ok := e[sIdx]; !ok {
 		return nil, false
 	}
@@ -152,7 +163,7 @@ func (e EntriesMap[O]) Find(sIdx string, min, max O) (Entry[O], bool) {
 		return nil, false
 	}
 
-	return res, true
+	return NewSingleItemIterator(res), true
 }
 
 func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) EntriesMap[O] {

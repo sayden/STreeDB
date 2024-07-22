@@ -30,7 +30,7 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], e
 	}
 
 	// Create the WAL
-	l.wal = newNMMemoryWal[O, E](cfg, levels,
+	l.wal = newNMMemoryWal[O](cfg, levels,
 		newItemLimitWalFlushStrategy[O](cfg.Wal.MaxItems),
 		newSizeLimitWalFlushStrategy[O](cfg.Wal.MaxSizeBytes),
 	)
@@ -48,7 +48,7 @@ type LsmTree[O cmp.Ordered, E db.Entry[O]] struct {
 	cfg *db.Config
 
 	compactor db.Compactor[O]
-	wal       db.Wal[O, E]
+	wal       db.Wal[O]
 	levels    *fs.MultiFsLevels[O]
 }
 
@@ -56,13 +56,24 @@ func (l *LsmTree[O, _]) Append(d db.Entry[O]) error {
 	return l.wal.Append(d)
 }
 
-func (l *LsmTree[O, _]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool, error) {
+func (l *LsmTree[O, E]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool, error) {
 	// Look in the WAL
-	if v, found := l.wal.Find(pIdx, sIdx, min, max); found {
-		return db.NewSingleItemIterator(v), true, nil
+	walIter, walFound := l.wal.Find(pIdx, sIdx, min, max)
+
+	dbIter, dbFound, err := l.levels.FindSingle(pIdx, sIdx, min, max)
+	if err != nil {
+		return nil, false, err
+	}
+	if walFound && dbFound {
+		walIter = db.NewIteratorMerger[O](walIter, dbIter)
+		return walIter, true, nil
 	}
 
-	return l.levels.FindSingle(pIdx, sIdx, min, max)
+	if walFound {
+		return walIter, true, nil
+	}
+
+	return dbIter, dbFound, nil
 }
 
 func (l *LsmTree[_, _]) Close() (err error) {

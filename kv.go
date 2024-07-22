@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
+	"sort"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -34,7 +34,24 @@ func (l *Kv) Merge(a Entry[int64]) error {
 }
 
 func (l *Kv) Sort() {
-	slices.Sort(l.Val)
+	if sort.IsSorted(l) {
+		return
+	}
+
+	sort.Sort(l)
+}
+
+func (l *Kv) Len() int {
+	return len(l.Ts)
+}
+
+func (l *Kv) Less(i, j int) bool {
+	return l.Ts[i] < l.Ts[j]
+}
+
+func (l *Kv) Swap(i, j int) {
+	l.Ts[i], l.Ts[j] = l.Ts[j], l.Ts[i]
+	l.Val[i], l.Val[j] = l.Val[j], l.Val[i]
 }
 
 func (l *Kv) Overlap(min, max int64) (Entry[int64], bool) {
@@ -43,6 +60,7 @@ func (l *Kv) Overlap(min, max int64) (Entry[int64], bool) {
 
 	isOverlapped := (lMin < max || lMin == max) &&
 		(min < lMax || min == lMax)
+
 	return l, isOverlapped
 }
 
@@ -52,6 +70,7 @@ func (l *Kv) Append(a Entry[int64]) error {
 		return errors.New("invalid type")
 	}
 
+	l.Ts = append(l.Ts, a_.Ts...)
 	l.Val = append(l.Val, a_.Val...)
 
 	l.min = nil
@@ -118,10 +137,6 @@ func (l *Kv) PrimaryIndex() string {
 
 func (l *Kv) SecondaryIndex() string {
 	return l.Key
-}
-
-func (l *Kv) Len() int {
-	return len(l.Val)
 }
 
 func (l *Kv) UUID() string {

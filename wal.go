@@ -2,9 +2,9 @@ package streedb
 
 import "cmp"
 
-type Wal[O cmp.Ordered, E Entry[O]] interface {
+type Wal[O cmp.Ordered] interface {
 	Append(d Entry[O]) error
-	Find(pIdx string, sIdx string, min, max O) (E, bool)
+	Find(pIdx string, sIdx string, min, max O) (EntryIterator[O], bool)
 	Close() error
 }
 

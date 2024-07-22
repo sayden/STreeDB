@@ -10,7 +10,7 @@ import (
 	"github.com/sayden/streedb/core"
 )
 
-func New[O cmp.Ordered, E db.Entry[O]](ops db.LsmTreeOps[O, E]) (db.LsmTreeOps[O, E], error) {
+func New[O cmp.Ordered, E db.Entry[O]](ops db.LsmTreeOps[O, E]) (*Metrics[O, E], error) {
 	cfg := db.NewDefaultConfig()
 	cfg.DbPath = path.Join(cfg.DbPath, "metrics")
 	cfg.Filesystem = "local"
@@ -43,7 +43,8 @@ func (m *Metrics[O, E]) Append(d db.Entry[O]) error {
 				"primaryIdx":   d.PrimaryIndex(),
 				"secondaryIdx": d.SecondaryIndex()}).
 			Msg("Append")
-		if err := m.Metrics.Append(NewMetric("elapsed_ms", "append", time.Now().UnixMilli(), elapsed.Milliseconds())); err != nil {
+		if err := m.Metrics.Append(
+			NewMetric("append", "elapsed_ms", time.Now().UnixMilli(), elapsed.Milliseconds())); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 	}()
@@ -60,7 +61,7 @@ func (m *Metrics[O, E]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O]
 				"primaryIdx":   pIdx,
 				"secondaryIdx": sIdx}).
 			Msg("Find")
-		if err := m.Metrics.Append(NewMetric("elapsed_ms", "find", time.Now().UnixMilli(), 1)); err != nil {
+		if err := m.Metrics.Append(NewMetric("find", "elapsed_ms", time.Now().UnixMilli(), 1)); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 	}()
@@ -72,7 +73,7 @@ func (m *Metrics[O, E]) Close() error {
 	now := time.Now()
 	defer func() {
 		log.Debug().Str("elapsed", time.Since(now).String()).Msg("Close")
-		if err := m.Metrics.Append(NewMetric("elapsed_ms", "close", time.Now().UnixMilli(), 1)); err != nil {
+		if err := m.Metrics.Append(NewMetric("close", "elapsed_ms", time.Now().UnixMilli(), 1)); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 		m.Metrics.Close()
@@ -91,10 +92,14 @@ func (m *Metrics[O, E]) Compact() error {
 	now := time.Now()
 	defer func() {
 		log.Debug().Str("elapsed", time.Since(now).String()).Msg("Compact")
-		if err := m.Metrics.Append(NewMetric("elapsed_ms", "compact", time.Now().UnixMilli(), 1)); err != nil {
+		if err := m.Metrics.Append(NewMetric("compact", "elapsed_ms", time.Now().UnixMilli(), 1)); err != nil {
 			log.Err(err).Msg("Failed to append metric")
 		}
 	}()
 
 	return m.db.Compact()
+}
+
+func (m *Metrics[O, E]) GetMetrics() (db.EntryIterator[int64], bool, error) {
+	return m.Metrics.Find("", "", 0, time.Now().UnixMilli()+10000)
 }

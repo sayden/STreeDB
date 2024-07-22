@@ -7,8 +7,8 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.FileblockCreator[O], persistStrategies ...db.WalFlushStrategy[O]) db.Wal[O, E] {
-	return &nmMemoryWal[O, E]{
+func newNMMemoryWal[O cmp.Ordered](cfg *db.Config, fbc db.FileblockCreator[O], persistStrategies ...db.WalFlushStrategy[O]) db.Wal[O] {
+	return &nmMemoryWal[O]{
 		entries:          make(map[string]db.EntriesMap[O]),
 		cfg:              cfg,
 		fileblockCreator: fbc,
@@ -20,14 +20,14 @@ func newNMMemoryWal[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, fbc db.Fileblo
 // That means that the entries are not persisted to disk until the
 // a persist strategies is met or the WAL is closed (usually when
 // closing the database)
-type nmMemoryWal[O cmp.Ordered, E db.Entry[O]] struct {
+type nmMemoryWal[O cmp.Ordered] struct {
 	entries          map[string]db.EntriesMap[O]
 	cfg              *db.Config
 	fileblockCreator db.FileblockCreator[O]
 	flushStrategies  []db.WalFlushStrategy[O]
 }
 
-func (w *nmMemoryWal[O, _]) Append(d db.Entry[O]) (err error) {
+func (w *nmMemoryWal[O]) Append(d db.Entry[O]) (err error) {
 	fileEntries := w.entries[d.PrimaryIndex()]
 
 	if fileEntries == nil {
@@ -56,26 +56,30 @@ func (w *nmMemoryWal[O, _]) Append(d db.Entry[O]) (err error) {
 	return nil
 }
 
-func (w *nmMemoryWal[O, E]) Find(pIdx, sIdx string, min, max O) (E, bool) {
+func (w *nmMemoryWal[O]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O], bool) {
+	if pIdx == "" {
+		entries := make([]db.Entry[O], 0)
+		for _, fileEntries := range w.entries {
+			for _, entry := range fileEntries {
+				if sIdx == "" || entry.SecondaryIndex() == sIdx {
+					entry.Sort()
+					entries = append(entries, entry)
+				}
+			}
+		}
+
+		return db.NewListIterator(entries), len(entries) > 0
+	}
+
 	fileEntries := w.entries[pIdx]
 	if fileEntries == nil {
-		return *new(E), false
+		return nil, false
 	}
 
-	entry, found := fileEntries.Find(sIdx, min, max)
-	if !found {
-		return *new(E), false
-	}
-
-	e, ok := entry.(E)
-	if !ok {
-		return *new(E), false
-	}
-
-	return e, true
+	return fileEntries.Find(sIdx, min, max)
 }
 
-func (w *nmMemoryWal[O, _]) Close() error {
+func (w *nmMemoryWal[O]) Close() error {
 	for _, fileEntries := range w.entries {
 		if fileEntries.SecondaryIndicesLen() == 0 {
 			return nil

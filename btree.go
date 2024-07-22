@@ -39,7 +39,7 @@ func PrimaryIndexFilter(pIdx string) EntryFilter {
 type primaryIndexFilter struct{ pIdx string }
 
 func (p *primaryIndexFilter) Filter(c Indexer) bool {
-	return c.PrimaryIndex() == p.pIdx
+	return p.pIdx == "" || c.PrimaryIndex() == p.pIdx
 }
 
 func (p *primaryIndexFilter) Kind() EntryFilterKind {
@@ -53,7 +53,7 @@ func SecondaryIndexFilter[O cmp.Ordered](sIdx string) EntryFilter {
 type secondaryIndexFilter[O cmp.Ordered] struct{ sIdx string }
 
 func (p *secondaryIndexFilter[O]) Filter(c Indexer) bool {
-	return c.SecondaryIndex() == p.sIdx
+	return p.sIdx == "" || c.SecondaryIndex() == p.sIdx
 }
 
 func (p *secondaryIndexFilter[O]) Kind() EntryFilterKind {

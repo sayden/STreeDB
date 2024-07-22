@@ -12,7 +12,7 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-func NewMetric(name, category string, ts int64, val int64) *MetricsEntry {
+func NewMetric(category, name string, ts int64, val int64) *MetricsEntry {
 	return &MetricsEntry{
 		MetricName:     name,
 		MetricCategory: category,

@@ -67,7 +67,7 @@ func (b *btreeWrapperIterator[O]) Next() (Entry[O], bool, error) {
 	return entry, true, nil
 }
 
-func NewSingleItemIterator[O cmp.Ordered](data Entry[O]) *singleItemIterator[O] {
+func NewSingleItemIterator[O cmp.Ordered](data Entry[O]) EntryIterator[O] {
 	return &singleItemIterator[O]{data: data}
 }
 
@@ -84,4 +84,47 @@ func (l *singleItemIterator[O]) Next() (Entry[O], bool, error) {
 	l.data = nil
 
 	return data, true, nil
+}
+
+func NewListIterator[O cmp.Ordered](data []Entry[O]) *listIterator[O] {
+	return &listIterator[O]{data: data}
+}
+
+type listIterator[O cmp.Ordered] struct {
+	data  []Entry[O]
+	index int
+}
+
+func (l *listIterator[O]) Next() (Entry[O], bool, error) {
+	if l.index >= len(l.data) {
+		return nil, false, nil
+	}
+
+	data := l.data[l.index]
+	l.index++
+
+	return data, true, nil
+}
+
+func NewIteratorMerger[O cmp.Ordered](iterators ...EntryIterator[O]) *iteratorMerger[O] {
+	return &iteratorMerger[O]{iterators: iterators}
+}
+
+type iteratorMerger[O cmp.Ordered] struct {
+	iterators []EntryIterator[O]
+}
+
+func (m *iteratorMerger[O]) Next() (Entry[O], bool, error) {
+	for _, it := range m.iterators {
+		entry, found, err := it.Next()
+		if err != nil {
+			return nil, false, err
+		}
+
+		if found {
+			return entry, true, nil
+		}
+	}
+
+	return nil, false, nil
 }
