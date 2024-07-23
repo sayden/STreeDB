@@ -29,6 +29,21 @@ func (s *ServerMetrics[_, _]) GETIndex(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.html", em)
 }
 
+func (s *ServerMetrics[_, _]) GETMetrics(c *gin.Context) {
+	em, found, err := s.getMetrics()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
+		return
+	}
+
+	c.HTML(http.StatusOK, "metrics.html", em)
+}
+
 func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 	pIdx := c.Param("pIdx")
 	sIdx := c.Param("sIdx")

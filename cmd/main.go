@@ -49,6 +49,7 @@ func main() {
 
 	router := gin.Default()
 
+	router.GET("/metrics", metricsServer.GETMetrics)
 	router.GET("/ping", metricsServer.Ping)
 	router.GET("/api/metrics", metricsServer.GETMetricsAPI)
 	router.GET("/api/:pIdx", metricsServer.GETPrimaryAndSecondaryIndex)
