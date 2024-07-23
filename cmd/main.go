@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -48,60 +47,13 @@ func main() {
 	// Start the metrics server
 	metricsServer := &ServerMetrics[int64, *db.Kv]{db: dbWrapper}
 
-	r := gin.Default()
+	router := gin.Default()
 
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
+	router.GET("/ping", metricsServer.Ping)
+	router.GET("/api/metrics", metricsServer.GETMetricsAPI)
+	router.GET("/api/:pIdx", metricsServer.GETPrimaryAndSecondaryIndex)
+	router.GET("/api/:pIdx/:sIdx", metricsServer.GETPrimaryAndSecondaryIndex)
+	router.GET("/", metricsServer.GETIndex)
 
-	r.GET("/metrics", metricsServer.GetMetrics)
-
-	r.GET("/:pIdx", func(c *gin.Context) {
-		pIdx := c.Param("pIdx")
-		iter, found, err := dbWrapper.Find(pIdx, "", 0, time.Now().UnixMilli())
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		if !found {
-			c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
-			return
-		}
-
-		// Accumulate the metrics using the iterator
-		em := db.NewEntriesMap[int64]()
-		for entry, found, err := iter.Next(); entry != nil && found && err == nil; entry, found, err = iter.Next() {
-			em.Append(entry)
-		}
-
-		c.JSON(http.StatusOK, em)
-	})
-
-	r.GET("/:pIdx/:sIdx", func(c *gin.Context) {
-		pIdx := c.Param("pIdx")
-		sIdx := c.Param("sIdx")
-		iter, found, err := dbWrapper.Find(pIdx, sIdx, 0, time.Now().UnixMilli())
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		if !found {
-			c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
-			return
-		}
-
-		// Accumulate the metrics using the iterator
-		em := db.NewEntriesMap[int64]()
-		for entry, found, err := iter.Next(); entry != nil && found && err == nil; entry, found, err = iter.Next() {
-			em.Append(entry)
-		}
-
-		c.JSON(http.StatusOK, em)
-	})
-
-	r.Run()
+	router.Run()
 }

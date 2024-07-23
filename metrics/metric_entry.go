@@ -12,20 +12,20 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
-func NewMetric(category, name string, ts int64, val int64) *MetricsEntry {
+func NewMetric(category, name string, ts int64, val float64) *MetricsEntry {
 	return &MetricsEntry{
 		MetricName:     name,
 		MetricCategory: category,
 		Ts:             []int64{ts},
-		Val:            []int64{val},
+		Val:            []float64{val},
 	}
 }
 
 type MetricsEntry struct {
-	MetricName     string  `parquet:"name=metric_name, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
-	MetricCategory string  `parquet:"name=metric_category, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
-	Ts             []int64 `parquet:"name=ts, type=INT64, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
-	Val            []int64 `parquet:"name=val, type=INT64, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
+	MetricName     string    `parquet:"name=metric_name, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
+	MetricCategory string    `parquet:"name=metric_category, type=BYTE_ARRAY, convertedtype=UTF8, encoding=DELTA_LENGTH_BYTE_ARRAY"`
+	Ts             []int64   `parquet:"name=ts, type=INT64, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
+	Val            []float64 `parquet:"name=val, type=INT64, encoding=DELTA_BINARY_PACKED, repetitiontype=REPEATED"`
 	min            *int64
 	max            *int64
 }
