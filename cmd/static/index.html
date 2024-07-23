@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<h1>
+    {{ .title }}
+</h1>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+</head>
+
+<body>
+    <h1 class="text-3xl font-bold underline">
+        <div id="chart"></div>
+        <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+        <script>
+            // Data
+            const xData = [1, 2, 3, 4, 5];
+            const yData = [10, 15, 13, 17, 20];
+
+            // Set up dimensions
+            const margin = {top: 20, right: 20, bottom: 30, left: 40};
+            const width = 600 - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            // Create SVG
+            const svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Set up scales
+            const xScale = d3.scaleLinear()
+                .domain(d3.extent(xData))
+                .range([0, width]);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(yData)])
+                .range([height, 0]);
+
+            // Create line generator
+            const line = d3.line()
+                .x((d, i) => xScale(xData[i]))
+                .y(d => yScale(d));
+
+            // Add X axis
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale));
+
+            // Add Y axis
+            svg.append("g")
+                .call(d3.axisLeft(yScale));
+
+            // Add the line
+            svg.append("path")
+                .datum(yData)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", line);
+
+            // Add dots
+            svg.selectAll(".dot")
+                .data(yData)
+                .enter().append("circle")
+                .attr("class", "dot")
+                .attr("cx", (d, i) => xScale(xData[i]))
+                .attr("cy", d => yScale(d))
+                .attr("r", 4)
+                .attr("fill", "steelblue");
+        </script>
+
+        </script>
+    </h1>
+</body>
+
+</html>
