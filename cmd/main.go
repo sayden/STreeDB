@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/a-h/templ/examples/integration-gin/gintemplrenderer"

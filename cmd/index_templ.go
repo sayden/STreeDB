@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 func Chart(ts []int64, values []float64) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_Chart_2bb5`,
-		Function: `function __templ_Chart_2bb5(ts, values){// Data
+		Name: `__templ_Chart_f4ba`,
+		Function: `function __templ_Chart_f4ba(ts, values){// Data
 const xData = ts;
 const yData = values;
 // Set up dimensions
@@ -56,22 +56,16 @@ svg.append("g")
 .call(d3.axisLeft(yScale)
 .ticks(5)
 .tickFormat(d => {
-if (d < 1e3) return ` + "`" + `${d} ns` + "`" + `; // Nanoseconds 
-if (d < 1e6) return ` + "`" + `${d / 1e3} µs` + "`" + `; // Microseconds 
-return ` + "`" + `${d / 1e6}ms` + "`" + `; // Milliseconds 
-})); 
-// Add the line 
-svg.append("path") .datum(yData) .attr("fill", "none" )
-	.attr("stroke", "steelblue" ) .attr("stroke-width", 1.5) .attr("d", line); 
-// Add dots 
-svg.selectAll(".dot")
+if (d < 1e3) return ` + "`" + `${d} ns` + "`" + `; // Nanoseconds if (d < 1e6) return ` + "`" + `${d / 1e3} µs` + "`" + `; // Microseconds return ` + "`" + `${d /
+	1e6}ms` + "`" + `; // Milliseconds })); // Add the line svg.append("path") .datum(yData) .attr("fill", "none" )
+	.attr("stroke", "steelblue" ) .attr("stroke-width", 1.5) .attr("d", line); // Add dots svg.selectAll(".dot")
 	.data(yData) .enter().append("circle") .attr("class", "dot" ) .attr("cx", (d, i)=> xScale(xData[i]))
 	.attr("cy", d => yScale(d))
 	.attr("r", 4)
 	.attr("fill", "steelblue");
 	}`,
-		Call:       templ.SafeScript(`__templ_Chart_2bb5`, ts, values),
-		CallInline: templ.SafeScriptInline(`__templ_Chart_2bb5`, ts, values),
+		Call:       templ.SafeScript(`__templ_Chart_f4ba`, ts, values),
+		CallInline: templ.SafeScriptInline(`__templ_Chart_f4ba`, ts, values),
 	}
 }
 
@@ -100,7 +94,7 @@ func Index(title string, ts []int64, values []float64) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `index.templ`, Line: 77, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `index.templ`, Line: 71, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {

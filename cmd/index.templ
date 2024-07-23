@@ -4,6 +4,7 @@ script Chart(ts []int64, values []float64) {
 // Data
 const xData = ts;
 const yData = values;
+
 // Set up dimensions
 const margin = {top: 20, right: 20, bottom: 40, left: 60};
 const width = 600 - margin.left - margin.right;
@@ -11,11 +12,11 @@ const height = 400 - margin.top - margin.bottom;
 
 // Create SVG
 const svg = d3.select("#chart")
-.append("svg")
-.attr("width", width + margin.left + margin.right)
-.attr("height", height + margin.top + margin.bottom)
-.append("g")
-.attr("transform", `translate(${margin.left},${margin.top})`);
+	.append("svg")
+	.attr("width", width + margin.left + margin.right)
+	.attr("height", height + margin.top + margin.bottom)
+	.append("g")
+	.attr("transform", `translate(${margin.left},${margin.top})`);
 
 // Set up scales
 const xScale = d3.scaleTime()
@@ -23,57 +24,75 @@ const xScale = d3.scaleTime()
 .range([0, width]);
 
 const yScale = d3.scaleLinear()
-.domain([0, d3.max(yData)])
-.range([height, 0]);
+	.domain([0, d3.max(yData)])
+	.range([height, 0]);
 
 // Create line generator
 const line = d3.line()
-.x((d, i) => xScale(xData[i]))
-.y(d => yScale(d));
+	.x((d, i) => xScale(xData[i]))
+	.y(d => yScale(d));
 
 // Add X axis
 svg.append("g")
-.attr("transform", `translate(0,${height})`)
-.call(d3.axisBottom(xScale)
-.ticks(5)
-.tickFormat(d3.timeFormat("%H:%M:%S")))
-.selectAll("text")
-.attr("transform", "rotate(-45)")
-.style("text-anchor", "end");
+	.attr("transform", `translate(0,${height})`)
+	.call(d3.axisBottom(xScale)
+	.ticks(5)
+	.tickFormat(d3.timeFormat("%H:%M:%S")))
+	.selectAll("text")
+	.attr("transform", "rotate(-45)")
+	.style("text-anchor", "end");
 
-// Add Y axis with custom formatting
+function tickFormatting(d) {
+	if (d < 1e3) {
+		return `${d} ns`; 
+	} else if (d < 1e6) {
+		return `${d / 1e3} µs` 
+	} else {
+		return `${d /1e6}ms` 
+	}
+}
+
+// Add Y axis with custom formatting 
 svg.append("g")
-.call(d3.axisLeft(yScale)
-.ticks(5)
-.tickFormat(d => {
-if (d < 1e3) return `${d} ns`; // Nanoseconds if (d < 1e6) return `${d / 1e3} µs`; // Microseconds return `${d /
-	1e6}ms`; // Milliseconds })); // Add the line svg.append("path") .datum(yData) .attr("fill", "none" )
-	.attr("stroke", "steelblue" ) .attr("stroke-width", 1.5) .attr("d", line); // Add dots svg.selectAll(".dot")
-	.data(yData) .enter().append("circle") .attr("class", "dot" ) .attr("cx", (d, i)=> xScale(xData[i]))
+	.call(d3.axisLeft(yScale) 
+	.ticks(5) 
+	.tickFormat(tickFormatting)); 
+
+// Add the line 
+svg.append("path")
+	.datum(yData)
+	.attr("fill", "none" )
+	.attr("stroke", "steelblue" )
+	.attr("stroke-width",1.5)
+	.attr("d", line); 
+
+// Add dots 
+svg.selectAll(".dot") 
+	.data(yData) 
+	.enter().append("circle") 
+	.attr("class", "dot")
+	.attr("cx", (d, i)=> xScale(xData[i]))
 	.attr("cy", d => yScale(d))
 	.attr("r", 4)
 	.attr("fill", "steelblue");
-	}
+}
 
-	templ Index(title string, ts []int64, values []float64) {
+templ Index(title string, ts []int64, values []float64) {
 	<!DOCTYPE html>
 	<html>
-
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<script src="https://cdn.tailwindcss.com"></script>
-		<script src="https://unpkg.com/htmx.org@2.0.1"></script>
-		<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-	</head>
-
-	<body>
-		<h1>Hello, { title } </h1>
-		<div id="chart"></div>
-		<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-		@Chart(ts, values)
-		;
-	</body>
-
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script src="https://unpkg.com/htmx.org@2.0.1"></script>
+			<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+		</head>
+		<body>
+			<h1>Hello, { title } </h1>
+			<div id="chart"></div>
+			<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+			@Chart(ts, values)
+			;
+		</body>
 	</html>
-	}
+}
