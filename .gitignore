@@ -6,4 +6,5 @@ tmp
 cmd/cmd
 .vscode
 thehivecorporation-streedb-datasource/node_modules
+thehivecorporation-streedb-datasource/dist/module.js
 

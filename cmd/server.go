@@ -10,6 +10,11 @@ import (
 	"github.com/sayden/streedb/metrics"
 )
 
+type FromTo struct {
+	From int64 `json:"from"`
+	To   int64 `json:"to"`
+}
+
 type ServerMetrics[O cmp.Ordered, E db.Entry[O]] struct {
 	db *metrics.LSMMetrics[O, E]
 }
@@ -34,8 +39,13 @@ func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 	sIdx := c.Param("sIdx")
 	now := time.Now().UnixMilli()
 
+	fromTo := FromTo{}
+	if err := c.ShouldBindQuery(&fromTo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
 	// FIXME: This is a hack to get the min and max values
-	min := O(0)
+	min := O(fromTo.From)
 	max := O(now)
 
 	iter, found, err := s.db.Find(pIdx, sIdx, min, max)
