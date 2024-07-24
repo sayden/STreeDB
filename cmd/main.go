@@ -3,6 +3,8 @@ package main
 import (
 	"time"
 
+	"math/rand"
+
 	"github.com/gin-gonic/gin"
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/core"
@@ -24,12 +26,13 @@ func main() {
 	defer dbWrapper.Close()
 
 	go func() {
+
 		// Create one kv
 		ts := make([]int64, 0, 100)
 		vals := make([]int32, 0, 100)
 		for i := 0; i < 100; i++ {
 			ts = append(ts, time.Now().UnixMilli())
-			vals = append(vals, int32(i))
+			vals = append(vals, int32(rand.Intn(1000)))
 			time.Sleep(time.Millisecond)
 		}
 
@@ -38,6 +41,11 @@ func main() {
 			panic(err)
 		}
 
+		vals = make([]int32, 0, 100)
+		for i := 0; i < 100; i++ {
+			vals = append(vals, int32(rand.Intn(1000)))
+			time.Sleep(time.Millisecond)
+		}
 		kv = db.NewKv("instance1", "mem", ts, vals)
 		if err = dbWrapper.Append(kv); err != nil {
 			panic(err)

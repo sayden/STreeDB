@@ -3,27 +3,29 @@ import { DataQuery } from '@grafana/schema';
 
 export interface MyQuery extends DataQuery {
   queryText?: string;
-  constant: number;
+  primaryIdx?: string;
+  secondaryIdx?: string;
 }
 
 export const DEFAULT_QUERY: Partial<MyQuery> = {
-  constant: 6.5,
 };
 
-export interface DataPoint {
-  Time: number;
-  Value: number;
+export interface Entry {
+  PrimaryIdx: string;
+  Key: string;
+  Ts: [number];
+  Val: [number];
 }
 
 export interface DataSourceResponse {
-  datapoints: DataPoint[];
+  cpu: Entry;
 }
 
 /**
  * These are options configured for each DataSource instance
  */
 export interface MyDataSourceOptions extends DataSourceJsonData {
-  path?: string;
+  url?: string;
 }
 
 /**

@@ -1,14 +1,13 @@
-import { getBackendSrv, isFetchError } from '@grafana/runtime';
 import {
   CoreApp,
   DataQueryRequest,
   DataQueryResponse,
   DataSourceApi,
   DataSourceInstanceSettings,
-  MutableDataFrame,
+  DataFrame,
   FieldType,
 } from '@grafana/data';
-
+import { getBackendSrv, isFetchError } from '@grafana/runtime';
 import { MyQuery, MyDataSourceOptions, DEFAULT_QUERY, DataSourceResponse } from './types';
 import { lastValueFrom } from 'rxjs';
 import _ from 'lodash';
@@ -17,6 +16,7 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
   baseUrl: string;
 
   constructor(instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
+    console.log('instanceSettings', instanceSettings);
     super(instanceSettings);
     this.baseUrl = instanceSettings.url!;
   }
@@ -35,18 +35,25 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
     const from = range!.from.valueOf();
     const to = range!.to.valueOf();
 
-    // Return a constant for each query.
-    const data = options.targets.map((target) => {
-      return new MutableDataFrame({
-        refId: target.refId,
-        fields: [
-          { name: 'Time', values: [from, to], type: FieldType.time },
-          { name: 'Value', values: [target.constant, target.constant], type: FieldType.number },
-        ],
-      });
+
+    const data = options.targets.map(async (target) => {
+      console.log('target', target);
+      return this.request(`/api/${target.primaryIdx}/${target.secondaryIdx}`, `from=${from}&to=${to}`)
+        .then((response) => {
+          const frame: DataFrame = {
+            length: response.data.cpu.Ts.length,
+            refId: target.refId,
+            fields: [
+              { name: 'Ts', type: FieldType.time, values: response.data.cpu.Ts, config: {} },
+              { name: 'Val', type: FieldType.number, values: response.data.cpu.Val, config: {} },
+            ],
+          };
+
+          return frame;
+        });
     });
 
-    return { data };
+    return { data: await Promise.all(data) };
   }
 
   async request(url: string, params?: string) {
@@ -63,7 +70,7 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
     const defaultErrorMessage = 'Cannot connect to API';
 
     try {
-      const response = await this.request('/health');
+      const response = await this.request('/ping');
       if (response.status === 200) {
         return {
           status: 'success',
