@@ -5,3 +5,5 @@ cmd/tmp
 tmp
 cmd/cmd
 .vscode
+thehivecorporation-streedb-datasource/node_modules
+
