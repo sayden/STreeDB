@@ -37,15 +37,15 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
 
 
     const data = options.targets.map(async (target) => {
-      console.log('target', target);
-      return this.request(`/api/${target.primaryIdx}/${target.secondaryIdx}`, `from=${from}&to=${to}`)
+      return this.request(`/api/${target.path}${target.primaryIdx}/${target.secondaryIdx}`, `from=${from}&to=${to}`)
         .then((response) => {
           const frame: DataFrame = {
-            length: response.data.cpu.Ts.length,
+            name: response.data.MetricName,
+            length: response.data.Ts.length,
             refId: target.refId,
             fields: [
-              { name: 'Ts', type: FieldType.time, values: response.data.cpu.Ts, config: {} },
-              { name: 'Val', type: FieldType.number, values: response.data.cpu.Val, config: {} },
+              { name: 'Ts', type: FieldType.time, values: response.data.Ts, config: {} },
+              { name: 'Val', type: FieldType.number, values: response.data.Val, config: {} },
             ],
           };
 

@@ -1,15 +1,25 @@
 package main
 
 import (
+	"strings"
 	"time"
 
-	"math/rand"
+	rmetrics "runtime/metrics"
 
 	"github.com/gin-gonic/gin"
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/core"
 	"github.com/sayden/streedb/metrics"
 )
+
+func cleanSampleName(s string) string {
+	s = strings.ReplaceAll(s, "/", " ")
+	s = strings.ReplaceAll(s, ":", " ")
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, " ", "_")
+
+	return s
+}
 
 func main() {
 	cfg := db.NewDefaultConfig()
@@ -26,29 +36,37 @@ func main() {
 	defer dbWrapper.Close()
 
 	go func() {
+		for {
+			// Create a slice to hold the metrics you want to read
+			samples := []rmetrics.Sample{
+				{Name: "/memory/classes/heap/free:bytes"},
+				{Name: "/gc/cycles/total:gc-cycles"},
+				{Name: "/cpu/classes/total:cpu-seconds"},
+				{Name: "/memory/classes/heap/objects:objects"},
+				{Name: "/memory/classes/heap/alloc:bytes"},
+				{Name: "/sched/goroutines:goroutines"},
+			}
 
-		// Create one kv
-		ts := make([]int64, 0, 100)
-		vals := make([]int32, 0, 100)
-		for i := 0; i < 100; i++ {
-			ts = append(ts, time.Now().UnixMilli())
-			vals = append(vals, int32(rand.Intn(1000)))
-			time.Sleep(time.Millisecond)
-		}
+			// Read the metrics
+			rmetrics.Read(samples)
 
-		kv := db.NewKv("instance1", "cpu", ts, vals)
-		if err = dbWrapper.Append(kv); err != nil {
-			panic(err)
-		}
+			// Process the results
+			for _, sample := range samples {
+				switch sample.Value.Kind() {
+				case rmetrics.KindUint64:
+					metric := metrics.NewMetric("go_perf", cleanSampleName(sample.Name), time.Now().UnixMilli(), float64(sample.Value.Uint64()))
+					if err = dbWrapper.Metrics.Append(metric); err != nil {
+						panic(err)
+					}
+				case rmetrics.KindFloat64:
+					metric := metrics.NewMetric("go_perf", cleanSampleName(sample.Name), time.Now().UnixMilli(), sample.Value.Float64())
+					if err = dbWrapper.Metrics.Append(metric); err != nil {
+						panic(err)
+					}
+				}
+			}
 
-		vals = make([]int32, 0, 100)
-		for i := 0; i < 100; i++ {
-			vals = append(vals, int32(rand.Intn(1000)))
-			time.Sleep(time.Millisecond)
-		}
-		kv = db.NewKv("instance1", "mem", ts, vals)
-		if err = dbWrapper.Append(kv); err != nil {
-			panic(err)
+			time.Sleep(30 * time.Second)
 		}
 	}()
 
@@ -59,9 +77,10 @@ func main() {
 
 	router.GET("/ping", metricsServer.Ping)
 	router.GET("/api/metrics", metricsServer.GETMetricsAPI)
+	router.GET("/api/metrics/:pIdx", metricsServer.GETMetricsAPI)
+	router.GET("/api/metrics/:pIdx/:sIdx", metricsServer.GETMetricsAPI)
 	router.GET("/api/:pIdx", metricsServer.GETPrimaryAndSecondaryIndex)
 	router.GET("/api/:pIdx/:sIdx", metricsServer.GETPrimaryAndSecondaryIndex)
-	router.GET("/", metricsServer.GETIndex)
 
 	router.Run()
 }

@@ -19,21 +19,6 @@ type ServerMetrics[O cmp.Ordered, E db.Entry[O]] struct {
 	db *metrics.LSMMetrics[O, E]
 }
 
-func (s *ServerMetrics[_, _]) GETIndex(c *gin.Context) {
-	em, found, err := s.getMetrics()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
-		return
-	}
-
-	c.HTML(http.StatusOK, "index.html", em)
-}
-
 func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 	pIdx := c.Param("pIdx")
 	sIdx := c.Param("sIdx")
@@ -50,12 +35,12 @@ func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 
 	iter, found, err := s.db.Find(pIdx, sIdx, min, max)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "data not found", "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
@@ -65,24 +50,49 @@ func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 		em.Append(entry)
 	}
 
-	c.JSON(http.StatusOK, em)
+	if sIdx == "" {
+		c.JSON(http.StatusOK, em)
+		return
+	}
+
+	c.JSON(http.StatusOK, em.Get(sIdx))
 }
 
-func (s *ServerMetrics[_, _]) GETMetricsAPI(c *gin.Context) {
-	em, found, err := s.getMetrics()
+func (s *ServerMetrics[O, _]) GETMetricsAPI(c *gin.Context) {
+	pIdx := c.Param("pIdx")
+	sIdx := c.Param("sIdx")
+	now := time.Now().UnixMilli()
+
+	fromTo := FromTo{}
+	if err := c.ShouldBindQuery(&fromTo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	min := fromTo.From
+	max := now
+
+	iter, found, err := s.db.Metrics.Find(pIdx, sIdx, min, max)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "data not found", "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"metrics": em,
-	})
+	em := db.NewEntriesMap[int64]()
+	for entry, found, err := iter.Next(); entry != nil && found && err == nil; entry, found, err = iter.Next() {
+		em.Append(entry)
+	}
+
+	if sIdx == "" {
+		c.JSON(http.StatusOK, em)
+		return
+	}
+
+	c.JSON(http.StatusOK, em.Get(sIdx))
 }
 
 func (s *ServerMetrics[O, E]) Ping(c *gin.Context) {
