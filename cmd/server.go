@@ -3,16 +3,15 @@ package main
 import (
 	"cmp"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/metrics"
 )
 
-type FromTo struct {
-	From int64 `json:"from"`
-	To   int64 `json:"to"`
+type FromTo[O cmp.Ordered] struct {
+	From O `json:"from"`
+	To   O `json:"to"`
 }
 
 type ServerMetrics[O cmp.Ordered, E db.Entry[O]] struct {
@@ -22,16 +21,15 @@ type ServerMetrics[O cmp.Ordered, E db.Entry[O]] struct {
 func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 	pIdx := c.Param("pIdx")
 	sIdx := c.Param("sIdx")
-	now := time.Now().UnixMilli()
 
-	fromTo := FromTo{}
+	fromTo := FromTo[O]{}
 	if err := c.ShouldBindQuery(&fromTo); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	// FIXME: This is a hack to get the min and max values
-	min := O(fromTo.From)
-	max := O(now)
+	min := fromTo.From
+	max := fromTo.To
 
 	iter, found, err := s.db.Find(pIdx, sIdx, min, max)
 	if err != nil {
@@ -61,15 +59,14 @@ func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 func (s *ServerMetrics[O, _]) GETMetricsAPI(c *gin.Context) {
 	pIdx := c.Param("pIdx")
 	sIdx := c.Param("sIdx")
-	now := time.Now().UnixMilli()
 
-	fromTo := FromTo{}
+	fromTo := FromTo[int64]{}
 	if err := c.ShouldBindQuery(&fromTo); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	min := fromTo.From
-	max := now
+	max := fromTo.To
 
 	iter, found, err := s.db.Metrics.Find(pIdx, sIdx, min, max)
 	if err != nil {
@@ -101,7 +98,7 @@ func (s *ServerMetrics[O, E]) Ping(c *gin.Context) {
 	})
 }
 
-func (s *ServerMetrics[O, _]) getMetrics() (db.EntriesMap[int64], bool, error) {
+func (s *ServerMetrics[O, _]) getMetrics() (*db.EntriesMap[int64], bool, error) {
 	iter, found, err := s.db.GetMetrics()
 	if err != nil {
 		return nil, found, err

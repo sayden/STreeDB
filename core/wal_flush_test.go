@@ -12,10 +12,10 @@ import (
 
 type mockFileblockCreator[O cmp.Ordered] struct {
 	newFileblockCount int
-	newFileblock      func(es db.EntriesMap[O], builder *db.MetadataBuilder[O]) error
+	newFileblock      func(es *db.EntriesMap[O], builder *db.MetadataBuilder[O]) error
 }
 
-func (m *mockFileblockCreator[O]) NewFileblock(es db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
+func (m *mockFileblockCreator[O]) NewFileblock(es *db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
 	m.newFileblockCount++
 	return m.newFileblock(es, builder)
 }
@@ -43,7 +43,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 		fbcreator.newFileblockCount = 0
 		wal.flushStrategies = []db.WalFlushStrategy[int64]{newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems)}
 
-		fbcreator.newFileblock = func(es db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
+		fbcreator.newFileblock = func(es *db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
 			require.Equal(t, 2, es.SecondaryIndicesLen())
 			require.Equal(t, 2, es.Get("wal_cpu").Len())
 			return nil
@@ -52,7 +52,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 		wal.Append(db.NewKv("wal_instance1", "wal_mem", ts2, []int32{3, 4}))
 		require.Equal(t, 1, fbcreator.newFileblockCount)
 
-		fbcreator.newFileblock = func(es db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
+		fbcreator.newFileblock = func(es *db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
 			require.Equal(t, 1, es.SecondaryIndicesLen())
 			require.Equal(t, 4, es.Get("wal_cpu").Len())
 			return nil
@@ -79,7 +79,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 
 		wal.flushStrategies = []db.WalFlushStrategy[int64]{
 			newSizeLimitWalFlushStrategy[int64](1)}
-		fbcreator.newFileblock = func(es db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
+		fbcreator.newFileblock = func(es *db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
 			require.Equal(t, 1, es.SecondaryIndicesLen())
 			require.Equal(t, 7, es.Get("wal_cpu").Len())
 			return nil
@@ -107,7 +107,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 		wal.flushStrategies = []db.WalFlushStrategy[int64]{
 			newTimeLimitWalFlushStrategy(time.Millisecond),
 		}
-		fbcreator.newFileblock = func(es db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
+		fbcreator.newFileblock = func(es *db.EntriesMap[int64], builder *db.MetadataBuilder[int64]) error {
 			require.Equal(t, 1, es.SecondaryIndicesLen())
 			return nil
 		}

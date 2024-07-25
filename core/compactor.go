@@ -37,7 +37,7 @@ func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O]) e
 		err          error
 		a            *db.Fileblock[O]
 		b            *db.Fileblock[O]
-		entries      db.EntriesMap[O]
+		entries      *db.EntriesMap[O]
 		builder      *db.MetadataBuilder[O]
 		blocksToSkip = make(map[string]struct{})
 	)
@@ -49,11 +49,19 @@ func (mf *TieredMultiFsCompactor[O, E]) Compact(fileblocks []*db.Fileblock[O]) e
 			continue
 		}
 		j = i + 1
+		if a.Metadata().Level == mf.cfg.MaxLevels {
+			i++
+			continue
+		}
 
 	jLoop:
 		for j < len(fileblocks) {
 			b = fileblocks[j]
 			if _, ok := blocksToSkip[b.Metadata().UUID()]; ok {
+				j++
+				continue
+			}
+			if b.Metadata().Level == mf.cfg.MaxLevels {
 				j++
 				continue
 			}

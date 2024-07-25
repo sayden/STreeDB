@@ -32,9 +32,9 @@ var FilesystemTypeReverseMap = map[string]FilesystemType{
 }
 
 type Filesystem[O cmp.Ordered] interface {
-	Create(cfg *Config, entries EntriesMap[O], builder *MetadataBuilder[O], listeners []FileblockListener[O]) (*Fileblock[O], error)
+	Create(cfg *Config, entries *EntriesMap[O], builder *MetadataBuilder[O], listeners []FileblockListener[O]) (*Fileblock[O], error)
 	FillMetadataBuilder(meta *MetadataBuilder[O]) *MetadataBuilder[O]
-	Load(*Fileblock[O]) (EntriesMap[O], error)
+	Load(*Fileblock[O]) (*EntriesMap[O], error)
 	OpenMetaFilesInLevel([]FileblockListener[O]) error
 	Remove(*Fileblock[O], []FileblockListener[O]) error
 	UpdateMetadata(*Fileblock[O]) error

@@ -52,7 +52,7 @@ type s3ParquetFs[O cmp.Ordered, E db.Entry[O]] struct {
 	rootPath string
 }
 
-func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O]) (db.EntriesMap[O], error) {
+func (f *s3ParquetFs[O, E]) Load(b *db.Fileblock[O]) (*db.EntriesMap[O], error) {
 	out, err := f.client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(f.cfg.S3Config.Bucket),
 		Key:    aws.String(b.Metadata().DataFilepath),
@@ -122,7 +122,7 @@ func (f *s3ParquetFs[O, _]) UpdateMetadata(b *db.Fileblock[O]) error {
 	return nil
 }
 
-func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
+func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es *db.EntriesMap[O], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	if es.SecondaryIndicesLen() == 0 {
 		return nil, errors.New("empty data")
 	}
@@ -146,9 +146,13 @@ func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es db.EntriesMap[O], builder 
 		return nil, err
 	}
 
-	for _, entry := range es {
-		parquetWriter.Write(entry)
-	}
+	es.Range(func(key, value any) bool {
+		parquetWriter.Write(value.(E))
+		return true
+	})
+	// for _, entry := range es {
+	// 	parquetWriter.Write(entry)
+	// }
 	if err = parquetWriter.WriteStop(); err != nil {
 		fw.Close()
 		return nil, err

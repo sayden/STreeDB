@@ -34,7 +34,7 @@ func TestCompactionMultiLevel(t *testing.T) {
 	ts := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	mlevel.Append(db.NewKv("instance1", "mem", ts, []int32{1, 2, 4, 5, 6, 3, 7, 8, 9}))
 
-	require.Equal(t, 0, countFileblocks(mlevel, 0))
+	require.Equal(t, 0, countFileblocks(mlevel, 1))
 
 	require.Equal(t, 0, countFileblocks(mlevel, 0))
 	require.Equal(t, 0, countFileblocks(mlevel, 1))
@@ -61,12 +61,12 @@ func TestCompactionMultiLevel(t *testing.T) {
 	blocks = getFileblocksAtLevel(mlevel, 1)
 	mergedBlock := blocks[0]
 	meta := mergedBlock.Metadata()
-	assert.Equal(t, 27, meta.ItemCount)
+	assert.Equal(t, 18, meta.ItemCount)
 	es, err := mergedBlock.Load()
 	require.NoError(t, err)
 	assert.Equal(t, 2, es.SecondaryIndicesLen())
 	kv := es.Get("cpu").(*db.Kv)
-	assert.Equal(t, 18, len(kv.Val))
+	assert.Equal(t, 9, len(kv.Val))
 	kv = es.Get("mem").(*db.Kv)
 	assert.Equal(t, 9, len(kv.Val))
 }

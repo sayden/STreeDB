@@ -31,10 +31,13 @@ type BasicLevel[O cmp.Ordered] struct {
 	fileblockListeners []db.FileblockListener[O]
 }
 
-func (b *BasicLevel[O]) Create(es db.EntriesMap[O], builder *db.MetadataBuilder[O]) (*db.Fileblock[O], error) {
+func (b *BasicLevel[O]) Create(es *db.EntriesMap[O], builder *db.MetadataBuilder[O]) (*db.Fileblock[O], error) {
 	fileblock, err := b.filesystem.Create(b.cfg, es, builder, b.fileblockListeners)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("error creating block at level: "), err)
+	}
+	if fileblock == nil {
+		return nil, nil
 	}
 
 	return fileblock, nil

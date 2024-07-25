@@ -83,9 +83,12 @@ func (b *MultiFsLevels[O]) OnFileblockRemoved(block *db.Fileblock[O]) {
 	b.Index.Remove(*block.Metadata().Min, block)
 }
 
-func (b *MultiFsLevels[O]) NewFileblock(es db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
+func (b *MultiFsLevels[O]) NewFileblock(es *db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
 	for _, secIdx := range es.SecondaryIndices() {
 		entry := es.Get(secIdx)
+		if entry.Len() == 0 {
+			continue
+		}
 		entry.Sort()
 		builder.WithEntry(entry)
 	}
@@ -114,7 +117,7 @@ func (b *MultiFsLevels[O]) Open(p string) (*db.Fileblock[O], error) {
 	return nil, errors.New("unreachable")
 }
 
-func (b *MultiFsLevels[O]) Create(es db.EntriesMap[O], meta *db.MetadataBuilder[O]) (*db.Fileblock[O], error) {
+func (b *MultiFsLevels[O]) Create(es *db.EntriesMap[O], meta *db.MetadataBuilder[O]) (*db.Fileblock[O], error) {
 	return nil, errors.New("unreachable")
 }
 

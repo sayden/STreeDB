@@ -9,7 +9,7 @@ import (
 
 func newNMMemoryWal[O cmp.Ordered](cfg *db.Config, fbc db.FileblockCreator[O], persistStrategies ...db.WalFlushStrategy[O]) db.Wal[O] {
 	return &nmMemoryWal[O]{
-		entries:          make(map[string]db.EntriesMap[O]),
+		entries:          make(map[string]*db.EntriesMap[O]),
 		cfg:              cfg,
 		fileblockCreator: fbc,
 		flushStrategies:  persistStrategies,
@@ -21,7 +21,7 @@ func newNMMemoryWal[O cmp.Ordered](cfg *db.Config, fbc db.FileblockCreator[O], p
 // a persist strategies is met or the WAL is closed (usually when
 // closing the database)
 type nmMemoryWal[O cmp.Ordered] struct {
-	entries          map[string]db.EntriesMap[O]
+	entries          map[string]*db.EntriesMap[O]
 	cfg              *db.Config
 	fileblockCreator db.FileblockCreator[O]
 	flushStrategies  []db.WalFlushStrategy[O]
@@ -60,12 +60,17 @@ func (w *nmMemoryWal[O]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O
 	if pIdx == "" {
 		entries := make([]db.Entry[O], 0)
 		for _, fileEntries := range w.entries {
-			for _, entry := range fileEntries {
+			fileEntries.Range(func(key, value any) bool {
+				entry := value.(db.Entry[O])
+
+				// for _, entry := range fileEntries {
 				if sIdx == "" || entry.SecondaryIndex() == sIdx {
 					entry.Sort()
 					entries = append(entries, entry)
 				}
-			}
+				// }
+				return true
+			})
 		}
 
 		return db.NewListIterator(entries), len(entries) > 0

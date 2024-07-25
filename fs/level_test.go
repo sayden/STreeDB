@@ -18,12 +18,12 @@ type mockFilesystem[O cmp.Ordered] struct {
 		updateMetadata       int
 	}
 
-	es        db.EntriesMap[O]
+	es        *db.EntriesMap[O]
 	builder   *db.MetadataBuilder[O]
 	listeners []db.FileblockListener[O]
 }
 
-func (m *mockFilesystem[O]) Create(cfg *db.Config, es db.EntriesMap[O], b *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
+func (m *mockFilesystem[O]) Create(cfg *db.Config, es *db.EntriesMap[O], b *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
 	m.es = es
 	m.builder = b
 	m.listeners = ls
@@ -40,7 +40,7 @@ func (m *mockFilesystem[O]) FillMetadataBuilder(meta *db.MetadataBuilder[O]) *db
 	m.extra.fillMetadataBuilder++
 	return nil
 }
-func (m *mockFilesystem[O]) Load(*db.Fileblock[O]) (db.EntriesMap[O], error) {
+func (m *mockFilesystem[O]) Load(*db.Fileblock[O]) (*db.EntriesMap[O], error) {
 	m.extra.load++
 	return nil, nil
 }
