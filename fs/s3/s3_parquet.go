@@ -146,8 +146,8 @@ func (f *s3ParquetFs[O, E]) Create(cfg *db.Config, es *db.EntriesMap[O], builder
 		return nil, err
 	}
 
-	es.Range(func(key, value any) bool {
-		parquetWriter.Write(value.(E))
+	es.Range(func(key string, value db.Entry[O]) bool {
+		parquetWriter.Write(value)
 		return true
 	})
 	// for _, entry := range es {

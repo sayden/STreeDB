@@ -30,7 +30,7 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], e
 	}
 
 	// Create the WAL
-	l.wal = newNMMemoryWal[O](cfg, levels,
+	l.wal = newNMMemoryWal(cfg, levels,
 		newItemLimitWalFlushStrategy[O](cfg.Wal.MaxItems),
 		newSizeLimitWalFlushStrategy[O](cfg.Wal.MaxSizeBytes),
 	)

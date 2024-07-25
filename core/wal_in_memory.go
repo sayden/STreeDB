@@ -60,15 +60,11 @@ func (w *nmMemoryWal[O]) Find(pIdx, sIdx string, min, max O) (db.EntryIterator[O
 	if pIdx == "" {
 		entries := make([]db.Entry[O], 0)
 		for _, fileEntries := range w.entries {
-			fileEntries.Range(func(key, value any) bool {
-				entry := value.(db.Entry[O])
-
-				// for _, entry := range fileEntries {
+			fileEntries.Range(func(key string, entry db.Entry[O]) bool {
 				if sIdx == "" || entry.SecondaryIndex() == sIdx {
 					entry.Sort()
 					entries = append(entries, entry)
 				}
-				// }
 				return true
 			})
 		}

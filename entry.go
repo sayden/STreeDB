@@ -2,7 +2,8 @@ package streedb
 
 import (
 	"cmp"
-	"sync"
+
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 type Indexer interface {
@@ -35,17 +36,20 @@ type Entry[O cmp.Ordered] interface {
 }
 
 func NewEntriesMap[O cmp.Ordered]() *EntriesMap[O] {
-	return &EntriesMap[O]{}
+	return &EntriesMap[O]{
+		MapOf: xsync.NewMapOf[string, Entry[O]](),
+	}
 }
 
 type EntriesMap[O cmp.Ordered] struct {
-	sync.Map
+	// sync.Map
+	*xsync.MapOf[string, Entry[O]]
 }
 
 func (e *EntriesMap[O]) SecondaryIndices() []string {
 	indices := make([]string, 0)
-	e.Range(func(key any, value any) bool {
-		indices = append(indices, key.(string))
+	e.Range(func(key string, value Entry[O]) bool {
+		indices = append(indices, key)
 		return true
 	})
 
@@ -61,7 +65,7 @@ func (em *EntriesMap[O]) Append(entry Entry[O]) {
 		return
 	}
 
-	err := oldEntry.(Entry[O]).Append(entry)
+	err := oldEntry.Append(entry)
 	if err != nil {
 		panic(err)
 	}
@@ -71,8 +75,8 @@ func (em *EntriesMap[O]) Append(entry Entry[O]) {
 
 func (e *EntriesMap[O]) Merge(d *EntriesMap[O]) (*EntriesMap[O], error) {
 	idxs := d.SecondaryIndices()
-	e.Range(func(key any, value any) bool {
-		idxs = append(idxs, key.(string))
+	e.Range(func(key string, value Entry[O]) bool {
+		idxs = append(idxs, key)
 		return true
 	})
 
@@ -81,16 +85,15 @@ func (e *EntriesMap[O]) Merge(d *EntriesMap[O]) (*EntriesMap[O], error) {
 
 func (em *EntriesMap[O]) Min() O {
 	var min *O
-	em.Range(func(key any, value any) bool {
-		val := value.(Entry[O])
+	em.Range(func(key string, value Entry[O]) bool {
 		if min == nil {
-			m := val.Min()
+			m := value.Min()
 			min = &m
 			return true
 		}
 
-		if val.Min() < *min {
-			*min = val.Min()
+		if value.Min() < *min {
+			*min = value.Min()
 		}
 
 		return true
@@ -101,8 +104,7 @@ func (em *EntriesMap[O]) Min() O {
 
 func (em *EntriesMap[O]) Max() O {
 	var max *O
-	em.Range(func(key any, value any) bool {
-		val := value.(Entry[O])
+	em.Range(func(key string, val Entry[O]) bool {
 		if max == nil {
 			m := val.Max()
 			max = &m
@@ -120,14 +122,14 @@ func (em *EntriesMap[O]) Max() O {
 
 func (em *EntriesMap[O]) Get(secondary string) Entry[O] {
 	val, _ := em.Load(secondary)
-	return val.(Entry[O])
+	return val
 }
 
 func (em *EntriesMap[O]) LenAll() int {
 	l := 0
 
-	em.Range(func(key any, value any) bool {
-		l += value.(Entry[O]).Len()
+	em.Range(func(key string, value Entry[O]) bool {
+		l += value.Len()
 		return true
 	})
 
@@ -136,8 +138,8 @@ func (em *EntriesMap[O]) LenAll() int {
 
 func (em *EntriesMap[O]) PrimaryIndex() string {
 	res := ""
-	em.Range(func(key, value any) bool {
-		res = value.(Entry[O]).PrimaryIndex()
+	em.Range(func(key string, value Entry[O]) bool {
+		res = value.PrimaryIndex()
 		return false
 	})
 
@@ -146,7 +148,7 @@ func (em *EntriesMap[O]) PrimaryIndex() string {
 
 func (em *EntriesMap[O]) SecondaryIndicesLen() int {
 	count := 0
-	em.Map.Range(func(key, value any) bool {
+	em.Range(func(key string, value Entry[O]) bool {
 		count++
 		return true
 	})
@@ -157,8 +159,7 @@ func (e *EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
 
 	if sIdx == "" {
 		entries := make([]Entry[O], 0)
-		e.Range(func(key any, value any) bool {
-			entry := value.(Entry[O])
+		e.Range(func(key string, entry Entry[O]) bool {
 			if _, isOverlapped := entry.Overlap(min, max); isOverlapped {
 				entries = append(entries, entry)
 			}

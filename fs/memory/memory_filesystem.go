@@ -3,22 +3,22 @@ package fsmemory
 import (
 	"cmp"
 	"errors"
-	"sync"
 
+	"github.com/puzpuzpuz/xsync/v3"
 	db "github.com/sayden/streedb"
 )
 
 func NewMemoryFs[O cmp.Ordered](cfg *db.Config) db.Filesystem[O] {
 	return &memoryFs[O]{
-		cfg: cfg,
-		// data: make(map[string]*db.EntriesMap[O]),
+		cfg:  cfg,
+		data: xsync.NewMapOf[string, *db.EntriesMap[O]](),
 	}
 }
 
 type memoryFs[O cmp.Ordered] struct {
 	cfg *db.Config
 	// data map[string]*db.EntriesMap[O]
-	data sync.Map
+	data *xsync.MapOf[string, *db.EntriesMap[O]]
 }
 
 func (m *memoryFs[O]) Create(cfg *db.Config, es *db.EntriesMap[O], builder *db.MetadataBuilder[O], ls []db.FileblockListener[O]) (*db.Fileblock[O], error) {
@@ -52,8 +52,7 @@ func (m *memoryFs[O]) Load(fb *db.Fileblock[O]) (*db.EntriesMap[O], error) {
 		return nil, errors.New("fileblock not found")
 	}
 
-	return val.(*db.EntriesMap[O]), nil
-	// return m.data[fb.Metadata().Uuid], nil
+	return val, nil
 }
 
 func (m *memoryFs[O]) OpenMetaFilesInLevel([]db.FileblockListener[O]) error {
@@ -62,7 +61,6 @@ func (m *memoryFs[O]) OpenMetaFilesInLevel([]db.FileblockListener[O]) error {
 
 func (m *memoryFs[O]) Remove(fb *db.Fileblock[O], listeners []db.FileblockListener[O]) error {
 	m.data.Delete(fb.Metadata().Uuid)
-	// delete(m.data, fb.Metadata().Uuid)
 
 	for _, listener := range listeners {
 		listener.OnFileblockRemoved(fb)

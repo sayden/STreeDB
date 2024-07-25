@@ -42,8 +42,7 @@ func (b *btreeWrapperIterator[O]) startFilters(data []*Fileblock[O], filters []E
 				return
 			}
 
-			entriesMap.Range(func(key any, value any) bool {
-				entry := value.(Entry[O])
+			entriesMap.Range(func(key string, entry Entry[O]) bool {
 				valid := true
 				for _, filter := range filters {
 					if !filter.Filter(entry) {
