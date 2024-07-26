@@ -89,18 +89,50 @@ func (s *sizeLimitPromoter[O, E]) calculateBlockSizes() {
 // TODO: Add growth factor for exponential growth
 // TODO: Add checks for config values
 func newItemLimitPromoter[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) db.LevelPromoter[O] {
-	return &itemLimitPromoter[O, E]{
+	promoter := &itemLimitPromoter[O, E]{
 		cfg: cfg,
 	}
+	promoter.calculateBlockSizes()
+
+	return promoter
 }
 
 // itemLimitPromoter promotes a fileblock based on the number of items in the wal
 type itemLimitPromoter[O cmp.Ordered, E db.Entry[O]] struct {
-	cfg *db.Config
+	cfg        *db.Config
+	blockSizes []int64
 }
 
-func (i *itemLimitPromoter[O, E]) Promote(builder *db.MetadataBuilder[O]) error {
-	realLevel := builder.ItemCount / i.cfg.Compaction.Promoters.ItemLimit.MaxItems
-	builder.WithLevel(realLevel)
+func (s *itemLimitPromoter[O, E]) calculateBlockSizes() {
+	blockSizes := make([]int64, 0, s.cfg.MaxLevels)
+
+	for i := 0; i < s.cfg.MaxLevels; i++ {
+		var blockSize int64
+		if i == 0 {
+			blockSize = int64(s.cfg.Compaction.Promoters.ItemLimit.FirstBlockItemCount) // 1 MB
+		} else {
+			blockSize = blockSizes[i-1] * int64(s.cfg.Compaction.Promoters.ItemLimit.GrowthFactor)
+			if blockSize > int64(s.cfg.Compaction.Promoters.ItemLimit.MaxItems) {
+				blockSize = int64(s.cfg.Compaction.Promoters.ItemLimit.MaxItems)
+			}
+		}
+
+		blockSizes = append(blockSizes, blockSize)
+	}
+
+	s.blockSizes = blockSizes
+}
+
+func (l *itemLimitPromoter[O, E]) Promote(builder *db.MetadataBuilder[O]) error {
+	// realLevel := builder.ItemCount / l.cfg.Compaction.Promoters.ItemLimit.MaxItems
+
+	for i, size := range l.blockSizes {
+		if int64(builder.ItemCount) >= size {
+			builder.WithLevel(i + 1)
+		} else {
+			break
+		}
+	}
+
 	return nil
 }
