@@ -11,7 +11,7 @@ func TestWal(t *testing.T) {
 	cfg := db.NewDefaultConfig()
 
 	fbc := &mockFileblockCreator[int64]{}
-	wal := newNMMemoryWal[int64](cfg, fbc, newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
+	wal := newNMMemoryWal(cfg, fbc, newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
 	require.NotNil(t, wal)
 
 	err := wal.Append(db.NewKv("hello", "hello 15", []int64{11, 12, 13, 14, 15}, []int32{1, 2, 3, 4, 5}))
