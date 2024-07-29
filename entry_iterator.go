@@ -42,7 +42,7 @@ func (b *btreeWrapperIterator[O]) startFilters(data []*Fileblock[O], filters []E
 				return
 			}
 
-			for _, entry := range entriesMap {
+			entriesMap.Range(func(key string, entry Entry[O]) bool {
 				valid := true
 				for _, filter := range filters {
 					if !filter.Filter(entry) {
@@ -53,7 +53,9 @@ func (b *btreeWrapperIterator[O]) startFilters(data []*Fileblock[O], filters []E
 				if valid {
 					b.ch <- entry
 				}
-			}
+
+				return true
+			})
 		}
 	}()
 }

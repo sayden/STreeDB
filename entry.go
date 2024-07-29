@@ -2,6 +2,8 @@ package streedb
 
 import (
 	"cmp"
+
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 type Indexer interface {
@@ -33,132 +35,151 @@ type Entry[O cmp.Ordered] interface {
 	Overlap(O, O) (Entry[O], bool)
 }
 
-func NewEntriesMap[O cmp.Ordered]() EntriesMap[O] {
-	return make(EntriesMap[O])
+func NewEntriesMap[O cmp.Ordered]() *EntriesMap[O] {
+	return &EntriesMap[O]{
+		MapOf: xsync.NewMapOf[string, Entry[O]](),
+	}
 }
 
-type EntriesMap[O cmp.Ordered] map[string]Entry[O]
+type EntriesMap[O cmp.Ordered] struct {
+	*xsync.MapOf[string, Entry[O]]
+}
 
-func (e EntriesMap[O]) SecondaryIndices() []string {
-	indices := make([]string, 0, len(e))
-	for k := range e {
-		indices = append(indices, k)
-	}
+func (em *EntriesMap[O]) SecondaryIndices() []string {
+	indices := make([]string, 0)
+	em.Range(func(key string, value Entry[O]) bool {
+		indices = append(indices, key)
+		return true
+	})
+
 	return indices
 }
 
-func (em EntriesMap[O]) Append(entry Entry[O]) {
+func (em *EntriesMap[O]) Append(entry Entry[O]) {
 	secondaryIdx := entry.SecondaryIndex()
 
-	if _, ok := em[secondaryIdx]; !ok {
-		em[secondaryIdx] = entry
+	oldEntry, found := em.LoadOrStore(secondaryIdx, entry)
+	if !found {
 		return
 	}
 
-	em[secondaryIdx].Append(entry)
-}
-
-func (e EntriesMap[O]) Merge(d EntriesMap[O]) (EntriesMap[O], error) {
-	idxs := d.SecondaryIndices()
-
-	for _, idx := range idxs {
-		if _, ok := e[idx]; !ok {
-			e[idx] = d.Get(idx)
-		} else {
-			e[idx].Merge(d.Get(idx))
-		}
+	err := oldEntry.Append(entry)
+	if err != nil {
+		panic(err)
 	}
 
-	return e, nil
+	// em.Store(secondaryIdx, oldEntry)
 }
 
-func (em EntriesMap[O]) Min() O {
-	if len(em) == 0 {
-		panic("no entries")
-	}
+// FIXME: This is doing nothing at the moment
+func (em *EntriesMap[O]) Merge(d *EntriesMap[O]) (*EntriesMap[O], error) {
+	dest := NewEntriesMap[O]()
 
+	d.Range(func(key string, value Entry[O]) bool {
+		dest.Append(value)
+		return true
+	})
+
+	em.Range(func(key string, value Entry[O]) bool {
+		dest.Append(value)
+		return true
+	})
+
+	return dest, nil
+}
+
+func (em *EntriesMap[O]) Min() O {
 	var min *O
-	for _, e := range em {
+	em.Range(func(key string, value Entry[O]) bool {
 		if min == nil {
-			m := e.Min()
+			m := value.Min()
 			min = &m
-			continue
+			return true
 		}
-		if e.Min() < *min {
-			*min = e.Min()
+
+		if value.Min() < *min {
+			*min = value.Min()
 		}
-	}
+
+		return true
+	})
 
 	return *min
 }
 
-func (em EntriesMap[O]) Max() O {
-	if len(em) == 0 {
-		panic("no entries")
-	}
-
+func (em *EntriesMap[O]) Max() O {
 	var max *O
-	for _, e := range em {
+	em.Range(func(key string, val Entry[O]) bool {
 		if max == nil {
-			m := e.Max()
+			m := val.Max()
 			max = &m
-			continue
+			return true
 		}
-		if e.Max() > *max {
-			*max = e.Max()
+		if val.Max() > *max {
+			*max = val.Max()
 		}
-	}
+
+		return true
+	})
 
 	return *max
 }
 
-func (e EntriesMap[O]) Get(secondary string) Entry[O] {
-	return e[secondary]
+func (em *EntriesMap[O]) Get(secondary string) Entry[O] {
+	val, _ := em.Load(secondary)
+	return val
 }
 
-func (em EntriesMap[O]) LenAll() int {
+func (em *EntriesMap[O]) LenAll() int {
 	l := 0
 
-	for _, es := range em {
-		l += es.Len()
-	}
+	em.Range(func(key string, value Entry[O]) bool {
+		l += value.Len()
+		return true
+	})
 
 	return l
 }
 
-func (em EntriesMap[O]) PrimaryIndex() string {
-	if len(em) == 0 {
-		return ""
-	}
+func (em *EntriesMap[O]) PrimaryIndex() string {
+	res := ""
+	em.Range(func(key string, value Entry[O]) bool {
+		res = value.PrimaryIndex()
+		return false
+	})
 
-	for _, es := range em {
-		return es.PrimaryIndex()
-	}
-
-	panic("unreachable")
+	return res
 }
 
-func (em EntriesMap[O]) SecondaryIndicesLen() int {
-	return len(em)
+func (em *EntriesMap[O]) SecondaryIndicesLen() int {
+	count := 0
+	em.Range(func(key string, value Entry[O]) bool {
+		count++
+		return true
+	})
+	return count
 }
 
-func (e EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
+func (em *EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
+
 	if sIdx == "" {
 		entries := make([]Entry[O], 0)
-		for _, entry := range e {
+		em.Range(func(key string, entry Entry[O]) bool {
 			if _, isOverlapped := entry.Overlap(min, max); isOverlapped {
 				entries = append(entries, entry)
 			}
-		}
+			return true
+		})
 
 		return NewListIterator(entries), len(entries) > 0
 	}
 
-	if _, ok := e[sIdx]; !ok {
+	data, found := em.Load(sIdx)
+	if !found {
 		return nil, false
 	}
 
-	res, found := e[sIdx].Overlap(min, max)
+	res, found := data.Overlap(min, max)
 	if !found {
 		return nil, false
 	}
@@ -166,7 +187,7 @@ func (e EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
 	return NewSingleItemIterator(res), true
 }
 
-func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) EntriesMap[O] {
+func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O]) *EntriesMap[O] {
 	em := NewEntriesMap[O]()
 	for _, es := range e {
 		es.SetPrimaryIndex(m.PrimaryIdx)
@@ -176,7 +197,7 @@ func NewSliceToMapWithMetadata[O cmp.Ordered, E Entry[O]](e []E, m *MetaFile[O])
 	return em
 }
 
-func NewSliceToMap[O cmp.Ordered, E Entry[O]](e []E) EntriesMap[O] {
+func NewSliceToMap[O cmp.Ordered, E Entry[O]](e []E) *EntriesMap[O] {
 	em := NewEntriesMap[O]()
 	for _, es := range e {
 		em.Append(es)

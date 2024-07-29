@@ -9,7 +9,7 @@ import (
 )
 
 type mockFilesystem[O cmp.Ordered] struct {
-	emap  EntriesMap[O]
+	emap  *EntriesMap[O]
 	extra struct {
 		create               int
 		fillMetadataBuilder  int
@@ -19,12 +19,12 @@ type mockFilesystem[O cmp.Ordered] struct {
 		updateMetadata       int
 	}
 
-	es        EntriesMap[O]
+	es        *EntriesMap[O]
 	builder   *MetadataBuilder[O]
 	listeners []FileblockListener[O]
 }
 
-func (m *mockFilesystem[O]) Create(cfg *Config, es EntriesMap[O], b *MetadataBuilder[O], ls []FileblockListener[O]) (*Fileblock[O], error) {
+func (m *mockFilesystem[O]) Create(cfg *Config, es *EntriesMap[O], b *MetadataBuilder[O], ls []FileblockListener[O]) (*Fileblock[O], error) {
 	m.es = es
 	m.builder = b
 	m.listeners = ls
@@ -41,7 +41,7 @@ func (m *mockFilesystem[O]) FillMetadataBuilder(meta *MetadataBuilder[O]) *Metad
 	m.extra.fillMetadataBuilder++
 	return nil
 }
-func (m *mockFilesystem[O]) Load(*Fileblock[O]) (EntriesMap[O], error) {
+func (m *mockFilesystem[O]) Load(*Fileblock[O]) (*EntriesMap[O], error) {
 	m.extra.load++
 	return m.emap, nil
 }
@@ -77,15 +77,15 @@ func createMockFileblock(p, s string, min int64, max int64) *Fileblock[int64] {
 		},
 	}
 
-	emap := make(EntriesMap[int64])
-	emap[s] = &Kv{
+	emap := NewEntriesMap[int64]()
+	emap.Store(s, &Kv{
 		Ts:         []int64{1},
 		Val:        []int32{1},
 		max:        &max,
 		min:        &min,
 		Key:        s,
 		PrimaryIdx: p,
-	}
+	})
 	return NewFileblock(nil, meta, &mockFilesystem[int64]{emap: emap})
 }
 

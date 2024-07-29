@@ -15,7 +15,7 @@ func TestMultiLevelFs(t *testing.T) {
 	cfg := db.NewDefaultConfig()
 	// fs := mockFilesystem[int32, *db.Kv]{}
 
-	levels, err := NewLeveledFilesystem[int64, *db.Kv](cfg)
+	levels, err := NewLeveledFilesystem[int64, *db.Kv](cfg, nil)
 	assert.NoError(t, err)
 	_ = levels
 }

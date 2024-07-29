@@ -3,59 +3,42 @@ package main
 import (
 	"cmp"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	db "github.com/sayden/streedb"
 	"github.com/sayden/streedb/metrics"
 )
 
-type FromTo struct {
-	From int64 `json:"from"`
-	To   int64 `json:"to"`
+type FromTo[O cmp.Ordered] struct {
+	From O `json:"from"`
+	To   O `json:"to"`
 }
 
 type ServerMetrics[O cmp.Ordered, E db.Entry[O]] struct {
 	db *metrics.LSMMetrics[O, E]
 }
 
-func (s *ServerMetrics[_, _]) GETIndex(c *gin.Context) {
-	em, found, err := s.getMetrics()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
-		return
-	}
-
-	c.HTML(http.StatusOK, "index.html", em)
-}
-
 func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 	pIdx := c.Param("pIdx")
 	sIdx := c.Param("sIdx")
-	now := time.Now().UnixMilli()
 
-	fromTo := FromTo{}
+	fromTo := FromTo[O]{}
 	if err := c.ShouldBindQuery(&fromTo); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
 	// FIXME: This is a hack to get the min and max values
-	min := O(fromTo.From)
-	max := O(now)
+	min := fromTo.From
+	max := fromTo.To
 
 	iter, found, err := s.db.Find(pIdx, sIdx, min, max)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "data not found", "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
@@ -65,24 +48,48 @@ func (s *ServerMetrics[O, _]) GETPrimaryAndSecondaryIndex(c *gin.Context) {
 		em.Append(entry)
 	}
 
-	c.JSON(http.StatusOK, em)
+	if sIdx == "" {
+		c.JSON(http.StatusOK, em)
+		return
+	}
+
+	c.JSON(http.StatusOK, em.Get(sIdx))
 }
 
-func (s *ServerMetrics[_, _]) GETMetricsAPI(c *gin.Context) {
-	em, found, err := s.getMetrics()
+func (s *ServerMetrics[O, _]) GETMetricsAPI(c *gin.Context) {
+	pIdx := c.Param("pIdx")
+	sIdx := c.Param("sIdx")
+
+	fromTo := FromTo[int64]{}
+	if err := c.ShouldBindQuery(&fromTo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	min := fromTo.From
+	max := fromTo.To
+
+	iter, found, err := s.db.Metrics.Find(pIdx, sIdx, min, max)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "metrics not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "data not found", "primary_index": pIdx, "secondary_index": sIdx, "from": min, "to": max})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"metrics": em,
-	})
+	em := db.NewEntriesMap[int64]()
+	for entry, found, err := iter.Next(); entry != nil && found && err == nil; entry, found, err = iter.Next() {
+		em.Append(entry)
+	}
+
+	if sIdx == "" {
+		c.JSON(http.StatusOK, em)
+		return
+	}
+
+	c.JSON(http.StatusOK, em.Get(sIdx))
 }
 
 func (s *ServerMetrics[O, E]) Ping(c *gin.Context) {
@@ -91,7 +98,7 @@ func (s *ServerMetrics[O, E]) Ping(c *gin.Context) {
 	})
 }
 
-func (s *ServerMetrics[O, _]) getMetrics() (db.EntriesMap[int64], bool, error) {
+func (s *ServerMetrics[O, _]) getMetrics() (*db.EntriesMap[int64], bool, error) {
 	iter, found, err := s.db.GetMetrics()
 	if err != nil {
 		return nil, found, err

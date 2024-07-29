@@ -131,25 +131,6 @@ func (b *MetadataBuilder[O]) WithEntry(e Entry[O]) *MetadataBuilder[O] {
 	return b
 }
 
-// func (b *MetadataBuilder[O]) WithEntries(s string, es Entries[O, Entry[O]]) *MetadataBuilder[O] {
-// 	var min, max Entry[O]
-//
-// 	if es.Len() > 1 {
-// 		min = es.Get(0)
-// 		max = es.Last()
-// 	} else if es.Len() == 1 {
-// 		min = es.Get(0)
-// 		max = es.Get(0)
-// 	}
-// 	b.PIdx = es.Get(0).PrimaryIndex()
-//
-// 	b.ItemCount += es.Len()
-// 	b.Rows = append(b.Rows,
-// 		Rows[O]{Name: s, Min: min.(T), Max: max.(T), ItemCount: es.Len()})
-//
-// 	return b
-// }
-
 func (b *MetadataBuilder[O]) WithFilename(s string) *MetadataBuilder[O] {
 	b.Uuid = s
 	return b
