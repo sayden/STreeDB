@@ -38,7 +38,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 			fbcreator,
 			newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
 
-		wal := IWal.(*nmMemoryWal[int64])
+		wal := IWal.(*memoryWal[int64])
 
 		fbcreator.newFileblockCount = 0
 		wal.flushStrategies = []db.WalFlushStrategy[int64]{newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems)}
@@ -67,7 +67,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 			fbcreator,
 			newItemLimitWalFlushStrategy[int64](cfg.Wal.MaxItems))
 
-		wal := IWal.(*nmMemoryWal[int64])
+		wal := IWal.(*memoryWal[int64])
 
 		cfg.Wal.MaxItems = 100
 		fbcreator.newFileblockCount = 0
@@ -96,7 +96,7 @@ func TestInMemoryWalFlushStrategy(t *testing.T) {
 			fbcreator,
 			newTimeLimitWalFlushStrategy(time.Millisecond))
 
-		wal := IWal.(*nmMemoryWal[int64])
+		wal := IWal.(*memoryWal[int64])
 
 		cfg.Wal.MaxItems = 100
 		fbcreator.newFileblockCount = 0

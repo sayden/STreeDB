@@ -9,7 +9,7 @@ func NewDefaultConfig() *Config {
 		Filesystem:       FilesystemTypeMap[FILESYSTEM_TYPE_LOCAL],
 		LevelFilesystems: []string{"local", "local", "local", "local", "local"},
 		Wal: WalCfg{
-			MaxItems:         100,
+			MaxItems:         128,
 			MaxElapsedTimeMs: time.Hour.Milliseconds() * 1000,
 			MaxSizeBytes:     32 * 1024,
 		},
@@ -26,7 +26,10 @@ func NewDefaultConfig() *Config {
 				},
 				ItemLimit: ItemLimitPromoterCfg{
 					GrowthFactor: 8,
-					MaxItems:     1000,
+					MaxItems:     1024 * 8 * 8 * 5,
+
+					// Be careful with setting this value to something related to WAL max items
+					FirstBlockItemCount: 512,
 				},
 			},
 		},
@@ -67,8 +70,9 @@ type SizeLimitPromoterCfg struct {
 }
 
 type ItemLimitPromoterCfg struct {
-	GrowthFactor int
-	MaxItems     int
+	GrowthFactor        int
+	FirstBlockItemCount int
+	MaxItems            int
 }
 
 type TimeLimitPromoterCfg struct {

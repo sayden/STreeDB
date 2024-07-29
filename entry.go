@@ -42,13 +42,12 @@ func NewEntriesMap[O cmp.Ordered]() *EntriesMap[O] {
 }
 
 type EntriesMap[O cmp.Ordered] struct {
-	// sync.Map
 	*xsync.MapOf[string, Entry[O]]
 }
 
-func (e *EntriesMap[O]) SecondaryIndices() []string {
+func (em *EntriesMap[O]) SecondaryIndices() []string {
 	indices := make([]string, 0)
-	e.Range(func(key string, value Entry[O]) bool {
+	em.Range(func(key string, value Entry[O]) bool {
 		indices = append(indices, key)
 		return true
 	})
@@ -59,9 +58,8 @@ func (e *EntriesMap[O]) SecondaryIndices() []string {
 func (em *EntriesMap[O]) Append(entry Entry[O]) {
 	secondaryIdx := entry.SecondaryIndex()
 
-	oldEntry, ok := em.Load(secondaryIdx)
-	if !ok {
-		em.Store(secondaryIdx, entry)
+	oldEntry, found := em.LoadOrStore(secondaryIdx, entry)
+	if !found {
 		return
 	}
 
@@ -70,17 +68,24 @@ func (em *EntriesMap[O]) Append(entry Entry[O]) {
 		panic(err)
 	}
 
-	em.Store(secondaryIdx, oldEntry)
+	// em.Store(secondaryIdx, oldEntry)
 }
 
-func (e *EntriesMap[O]) Merge(d *EntriesMap[O]) (*EntriesMap[O], error) {
-	idxs := d.SecondaryIndices()
-	e.Range(func(key string, value Entry[O]) bool {
-		idxs = append(idxs, key)
+// FIXME: This is doing nothing at the moment
+func (em *EntriesMap[O]) Merge(d *EntriesMap[O]) (*EntriesMap[O], error) {
+	dest := NewEntriesMap[O]()
+
+	d.Range(func(key string, value Entry[O]) bool {
+		dest.Append(value)
 		return true
 	})
 
-	return e, nil
+	em.Range(func(key string, value Entry[O]) bool {
+		dest.Append(value)
+		return true
+	})
+
+	return dest, nil
 }
 
 func (em *EntriesMap[O]) Min() O {
@@ -155,11 +160,11 @@ func (em *EntriesMap[O]) SecondaryIndicesLen() int {
 	return count
 }
 
-func (e *EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
+func (em *EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
 
 	if sIdx == "" {
 		entries := make([]Entry[O], 0)
-		e.Range(func(key string, entry Entry[O]) bool {
+		em.Range(func(key string, entry Entry[O]) bool {
 			if _, isOverlapped := entry.Overlap(min, max); isOverlapped {
 				entries = append(entries, entry)
 			}
@@ -169,12 +174,12 @@ func (e *EntriesMap[O]) Find(sIdx string, min, max O) (EntryIterator[O], bool) {
 		return NewListIterator(entries), len(entries) > 0
 	}
 
-	data, found := e.Load(sIdx)
+	data, found := em.Load(sIdx)
 	if !found {
 		return nil, false
 	}
 
-	res, found := data.(Entry[O]).Overlap(min, max)
+	res, found := data.Overlap(min, max)
 	if !found {
 		return nil, false
 	}

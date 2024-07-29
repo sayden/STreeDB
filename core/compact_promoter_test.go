@@ -15,8 +15,9 @@ func TestNewItemLimitPromoter(t *testing.T) {
 		FirstBlockItemCount: 512,
 		MaxItems:            1024 * 8 * 8 * 5,
 	}
-	promoter := newItemLimitPromoter[int64, *db.Kv](cfg)
-	concretePromoter := promoter.(*itemLimitPromoter[int64, *db.Kv])
+
+	promoter := newItemLimitPromoter[int64](cfg)
+	concretePromoter := promoter.(*itemLimitPromoter[int64])
 
 	require.Equal(t, int64(512), concretePromoter.blockSizes[0])
 	require.Equal(t, int64(512*8), concretePromoter.blockSizes[1])

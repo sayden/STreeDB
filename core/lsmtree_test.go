@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"os"
 	"testing"
@@ -27,32 +28,28 @@ func TestS3(t *testing.T) {
 	defaultCfg := db.NewDefaultConfig()
 	defaultCfg.Wal.MaxItems = 10
 
-	testCfgs := []*db.Config{
-		{
-			Wal:              defaultCfg.Wal,
-			Compaction:       defaultCfg.Compaction,
-			Filesystem:       db.FilesystemTypeMap[db.FILESYSTEM_TYPE_S3],
-			MaxLevels:        5,
-			DbPath:           "/tmp/db/s3/parquet",
-			LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
-			S3Config: db.S3Config{
-				Bucket: "parquet",
-				Region: "us-east-1",
-			},
+	cfg := &db.Config{
+		Wal:              defaultCfg.Wal,
+		Compaction:       defaultCfg.Compaction,
+		Filesystem:       db.FilesystemTypeMap[db.FILESYSTEM_TYPE_S3],
+		MaxLevels:        5,
+		DbPath:           "/tmp/db/s3/parquet",
+		LevelFilesystems: []string{"local", "s3", "s3", "s3", "s3"},
+		S3Config: db.S3Config{
+			Bucket: "parquet",
+			Region: "us-east-1",
 		},
 	}
 
-	for _, cfg := range testCfgs {
-		createBuckets(t)
+	createBuckets(t)
 
-		t.Run("Insert", func(t *testing.T) {
-			launchTestWithConfig(t, cfg, true)
-		})
+	t.Run("Insert", func(t *testing.T) {
+		launchTestWithConfig(t, cfg, true)
+	})
 
-		t.Run("Compact", func(t *testing.T) {
-			launchTestWithConfig(t, cfg, false)
-		})
-	}
+	t.Run("Compact", func(t *testing.T) {
+		launchTestWithConfig(t, cfg, false)
+	})
 }
 
 func TestDBLocal(t *testing.T) {
@@ -60,26 +57,101 @@ func TestDBLocal(t *testing.T) {
 	t.Cleanup(cleanAll)
 	defaultCfg := db.NewDefaultConfig()
 	defaultCfg.Wal.MaxItems = 5
+	defaultCfg.Compaction.Promoters.ItemLimit.MaxItems = 32
+	defaultCfg.Compaction.Promoters.ItemLimit.FirstBlockItemCount = 2
+	defaultCfg.Compaction.Promoters.ItemLimit.GrowthFactor = 2
 
-	testCfgs := []*db.Config{
-		{
-			Wal:        defaultCfg.Wal,
-			Filesystem: db.FilesystemTypeMap[db.FILESYSTEM_TYPE_LOCAL],
-			MaxLevels:  5,
-			DbPath:     "/tmp/db/parquet",
-			Compaction: defaultCfg.Compaction,
-		},
+	cfg := &db.Config{
+		Wal:        defaultCfg.Wal,
+		Filesystem: db.FilesystemTypeMap[db.FILESYSTEM_TYPE_LOCAL],
+		MaxLevels:  5,
+		DbPath:     "/tmp/db/parquet",
+		Compaction: defaultCfg.Compaction,
 	}
 
-	for _, cfg := range testCfgs {
-		t.Run("Insert", func(t *testing.T) {
-			launchTestWithConfig(t, cfg, true)
-		})
+	t.Run("Insert", func(t *testing.T) {
+		launchTestWithConfig(t, cfg, true)
+	})
 
-		t.Run("Compaction", func(t *testing.T) {
-			launchTestWithConfig(t, cfg, false)
-		})
+	t.Run("Compaction", func(t *testing.T) {
+		launchTestWithConfig(t, cfg, false)
+	})
+}
+
+type mockListener[O cmp.Ordered] struct {
+	t *testing.T
+}
+
+func (m *mockListener[O]) OnFileblockCreated(fileblock *db.Fileblock[O]) {
+	m.t.Logf("Fileblock created with %d on level %v", fileblock.ItemCount, fileblock.Level)
+}
+
+func (m *mockListener[O]) OnFileblockRemoved(fileblock *db.Fileblock[O]) {
+	m.t.Logf("Fileblock removed with %d on level %v", fileblock.ItemCount, fileblock.Level)
+}
+
+func TestDBMemory(t *testing.T) {
+	log.SetLevel(log.LevelInfo)
+	t.Cleanup(cleanAll)
+
+	cfg := db.NewDefaultConfig()
+	cfg.Filesystem = db.FilesystemTypeMap[db.FILESYSTEM_TYPE_MEMORY]
+	cfg.LevelFilesystems = nil
+	cfg.MaxLevels = 5
+	cfg.Wal.MaxItems = 5
+	cfg.DbPath = "/tmp/db/parquet"
+
+	cfg.Compaction.Promoters.ItemLimit.MaxItems = 24
+	cfg.Compaction.Promoters.ItemLimit.GrowthFactor = 2
+	cfg.Compaction.Promoters.ItemLimit.FirstBlockItemCount = 5
+
+	lsmtree, err := NewLsmTree[int64, *db.Kv](cfg, &mockListener[int64]{t})
+	require.NoError(t, err)
+	defer lsmtree.Close()
+
+	ts := make([]int64, 60)
+	vals := make([]int32, 60)
+	for i := 0; i < 60; i++ {
+		ts[i] = int64(i)
+		vals[i] = int32(i)
 	}
+
+	for i := 0; i < 60/5; i++ {
+		left := i * 5
+		right := left + 5
+
+		tss := ts[left:right]
+		values := vals[left:right]
+		err = lsmtree.Append(db.NewKv("instance1", "cpu", tss, values))
+		require.NoError(t, err)
+	}
+
+	err = lsmtree.Compact()
+	require.NoError(t, err)
+
+	err = lsmtree.Compact()
+	require.NoError(t, err)
+
+	err = lsmtree.Compact()
+	require.NoError(t, err)
+
+	// with the current config, inserting 60 items and compacting 3 times should result in
+	// 1 fileblock at level 4 with 40 items and 1 fileblock at level 3 with 20 items
+	lsmtree.levels.Index.Ascend(func(i *db.BtreeItem[int64]) bool {
+		i.Val.Each(func(k int, v *db.Fileblock[int64]) bool {
+			t.Logf("Fileblock (%d) %s has %d items. Level: %d", k, v.UUID(), v.ItemCount, v.Level)
+			switch v.Level {
+			case 3:
+				assert.Equal(t, 20, v.ItemCount)
+			case 4:
+				assert.Equal(t, 40, v.ItemCount)
+			default:
+				t.Fatalf("Unexpected level %d", v.Level)
+			}
+			return true
+		})
+		return true
+	})
 }
 
 func launchTestWithConfig(t *testing.T, cfg *db.Config, insertOrCompact bool) {
@@ -109,10 +181,16 @@ func launchTestWithConfig(t *testing.T, cfg *db.Config, insertOrCompact bool) {
 	}
 
 	if insertOrCompact {
-		err = lsmtree.Append(db.NewKv("instance1", "cpu", ts, keys))
-		require.NoError(t, err)
-		err = lsmtree.Append(db.NewKv("instance1", "mem", ts, keys))
-		require.NoError(t, err)
+		for i := 0; i < len(keys)/5; i++ {
+			left := i * 5
+			right := left + 5
+
+			values := keys[left:right]
+			err = lsmtree.Append(db.NewKv("instance1", "cpu", ts, values))
+			require.NoError(t, err)
+			err = lsmtree.Append(db.NewKv("instance1", "mem", ts, values))
+			require.NoError(t, err)
+		}
 	}
 
 	err = lsmtree.Close()

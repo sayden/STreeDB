@@ -61,7 +61,7 @@ func TestLevelBasic(t *testing.T) {
 	cfg := db.NewDefaultConfig()
 	fs := mockFilesystem[int64]{}
 
-	levels, err := NewLeveledFilesystem[int64, *db.Kv](cfg)
+	levels, err := NewLeveledFilesystem[int64, *db.Kv](cfg, nil)
 	assert.NoError(t, err)
 
 	level := NewBasicLevel(cfg, &fs, levels)

@@ -10,11 +10,11 @@ import (
 	fss3 "github.com/sayden/streedb/fs/s3"
 )
 
-func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter ...db.LevelPromoter[O]) (*MultiFsLevels[O], error) {
+func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, listeners []db.FileblockListener[O], promoter ...db.LevelPromoter[O]) (*MultiFsLevels[O], error) {
 	levels := &MultiFsLevels[O]{
 		cfg:                cfg,
 		promoters:          promoter,
-		fileblockListeners: make([]db.FileblockListener[O], 0, 10),
+		fileblockListeners: listeners,
 		Index:              db.NewBtreeIndex(2, db.LLFComp[O]),
 	}
 
@@ -48,16 +48,16 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, promoter
 			if fs, err = local.InitParquetLocal[O, E](cfg, levelIdx); err != nil {
 				return nil, err
 			}
-			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
+			result[levelIdx] = NewBasicLevel(cfg, fs, levels.fileblockListeners...)
 
 		case db.FILESYSTEM_TYPE_S3:
 			if fs, err = fss3.InitParquetS3[O, E](cfg, levelIdx); err != nil {
 				return nil, err
 			}
-			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
+			result[levelIdx] = NewBasicLevel(cfg, fs, levels.fileblockListeners...)
 		case db.FILESYSTEM_TYPE_MEMORY:
 			fs = memory.NewMemoryFs[O](cfg)
-			result[levelIdx] = NewBasicLevel(cfg, fs, levels)
+			result[levelIdx] = NewBasicLevel(cfg, fs, levels.fileblockListeners...)
 		default:
 			return nil, db.ErrUnknownFilesystemType
 		}
@@ -84,14 +84,15 @@ func (b *MultiFsLevels[O]) OnFileblockRemoved(block *db.Fileblock[O]) {
 }
 
 func (b *MultiFsLevels[O]) NewFileblock(es *db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
-	for _, secIdx := range es.SecondaryIndices() {
-		entry := es.Get(secIdx)
+	es.Range(func(key string, entry db.Entry[O]) bool {
 		if entry.Len() == 0 {
-			continue
+			return true
 		}
 		entry.Sort()
 		builder.WithEntry(entry)
-	}
+
+		return true
+	})
 
 	for _, promoter := range b.promoters {
 		if err := promoter.Promote(builder); err != nil {

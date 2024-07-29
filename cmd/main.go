@@ -49,6 +49,8 @@ func main() {
 
 			// Read the metrics
 			rmetrics.Read(samples)
+			// metricsDesc := rmetrics.All()
+			// metricsDesc[0].Name
 
 			// Process the results
 			for _, sample := range samples {

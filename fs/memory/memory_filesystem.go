@@ -33,8 +33,8 @@ func (m *memoryFs[O]) Create(cfg *db.Config, es *db.EntriesMap[O], builder *db.M
 	}
 
 	m.data.Store(meta.Uuid, es)
-	// m.data[meta.Uuid] = es
 	block := db.NewFileblock(m.cfg, meta, m)
+
 	for _, listener := range ls {
 		listener.OnFileblockCreated(block)
 	}

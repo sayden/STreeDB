@@ -8,11 +8,11 @@ import (
 	db "github.com/sayden/streedb"
 )
 
-func NewBasicLevel[O cmp.Ordered](cfg *db.Config, fs db.Filesystem[O], levels *MultiFsLevels[O]) *BasicLevel[O] {
+func NewBasicLevel[O cmp.Ordered](cfg *db.Config, fs db.Filesystem[O], listeners ...db.FileblockListener[O]) *BasicLevel[O] {
 	level := &BasicLevel[O]{
 		cfg:                cfg,
 		filesystem:         fs,
-		fileblockListeners: []db.FileblockListener[O]{levels},
+		fileblockListeners: listeners,
 	}
 
 	err := fs.OpenMetaFilesInLevel(level.fileblockListeners)

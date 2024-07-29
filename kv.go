@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/spaolacci/murmur3"
@@ -38,7 +39,15 @@ func (l *Kv) Sort() {
 		return
 	}
 
-	sort.Sort(l)
+	slices.SortFunc(l.Ts, func(i, j int64) int {
+		if i < j {
+			return -1
+		} else if i > j {
+			return 1
+		} else {
+			return 0
+		}
+	})
 }
 
 func (l *Kv) Len() int {

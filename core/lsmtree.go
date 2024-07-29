@@ -8,7 +8,7 @@ import (
 	"github.com/sayden/streedb/fs"
 )
 
-func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], error) {
+func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, listeners ...db.FileblockListener[O]) (*LsmTree[O, E], error) {
 	if cfg.LevelFilesystems == nil {
 		cfg.LevelFilesystems = make([]string, 0, cfg.MaxLevels)
 		for i := 0; i < cfg.MaxLevels; i++ {
@@ -16,10 +16,10 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config) (*LsmTree[O, E], e
 		}
 	}
 
-	timeLimitPromoter := newTimeLimitPromoter[O, E](cfg)
-	itemLimitPromoter := newItemLimitPromoter[O, E](cfg)
-	sizeLimitPromoter := newSizeLimitPromoter[O, E](cfg)
-	levels, err := fs.NewLeveledFilesystem[O, E](cfg, sizeLimitPromoter, itemLimitPromoter, timeLimitPromoter)
+	// timeLimitPromoter := newTimeLimitPromoter[O, E](cfg)
+	itemLimitPromoter := newItemLimitPromoter[O](cfg)
+	sizeLimitPromoter := newSizeLimitPromoter[O](cfg)
+	levels, err := fs.NewLeveledFilesystem[O, E](cfg, listeners, sizeLimitPromoter, itemLimitPromoter /* , timeLimitPromoter */)
 	if err != nil {
 		panic(err)
 	}
