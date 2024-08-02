@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCompactionMultiLevel(t *testing.T) {
+func TestCompactionAdvanced(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll("/tmp/db/compaction") })
 
 	defaultCfg := db.NewDefaultConfig()
@@ -123,45 +123,4 @@ func TestCompactionMultiLevel(t *testing.T) {
 	assert.Equal(t, 18, len(kv.Val))
 	kv = es.Get("mem").(*db.Kv)
 	assert.Equal(t, 9, len(kv.Val))
-}
-
-func countWalItems(wal *memoryWal[int64]) int {
-	count := 0
-	wal.entries.Range(func(key string, value *db.EntriesMap[int64]) bool {
-		count += value.LenAll()
-		return true
-	})
-	return count
-}
-
-func getFileblocksAtLevel(mlevel *LsmTree[int64, *db.Kv], level int) []*db.Fileblock[int64] {
-	blocks := make([]*db.Fileblock[int64], 0)
-
-	mlevel.levels.Index.Ascend(func(i *db.BtreeItem[int64, int64]) bool {
-		ll := i.Val
-		for next, found := ll.Head(); next != nil && found; next = next.Next {
-			if next.Val.Metadata().Level == level {
-				blocks = append(blocks, next.Val)
-			}
-		}
-		return true
-	})
-
-	return blocks
-}
-
-func countFileblocks(mlevel *LsmTree[int64, *db.Kv], level int) int {
-	count := 0
-
-	mlevel.levels.Index.Ascend(func(i *db.BtreeItem[int64, int64]) bool {
-		ll := i.Val
-		for next, found := ll.Head(); next != nil && found; next = next.Next {
-			if next.Val.Metadata().Level == level {
-				count++
-			}
-		}
-		return true
-	})
-
-	return count
 }

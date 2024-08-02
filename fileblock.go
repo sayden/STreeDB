@@ -90,33 +90,35 @@ func (l *Fileblock[O]) LessThan(other Comparable[O]) bool {
 	return *l.Min < *f.Min
 }
 
-func Merge[O cmp.Ordered](a, b *Fileblock[O]) (*MetadataBuilder[O], *EntriesMap[O], error) {
+func Merge[O cmp.Ordered](a *Fileblock[O], b ...*Fileblock[O]) (*MetadataBuilder[O], *EntriesMap[O], error) {
 	entries, err := a.Load()
 	if err != nil {
 		return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", a.Metadata().DataFilepath), err)
 	}
 
-	entries2, err := b.Load()
-	if err != nil {
-		return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", b.Metadata().DataFilepath), err)
-	}
+	builder := NewMetadataBuilder[O](a.cfg)
+	var res *EntriesMap[O]
+	for _, c := range b {
+		entries2, err := c.Load()
+		if err != nil {
+			return nil, nil, errors.Join(fmt.Errorf("failed to load block '%s'", c.Metadata().DataFilepath), err)
+		}
 
-	res, err := entries.Merge(entries2)
-	if err != nil {
-		return nil, nil, errors.Join(errors.New("failed to merge entries"), err)
-	}
+		res, err = entries.Merge(entries2)
+		if err != nil {
+			return nil, nil, errors.Join(errors.New("failed to merge entries"), err)
+		}
 
-	higherLevel := a.Metadata().Level
-	if b.Metadata().Level > higherLevel {
-		higherLevel = b.Metadata().Level
-	}
+		higherLevel := a.Metadata().Level
+		if c.Metadata().Level > higherLevel {
+			higherLevel = c.Metadata().Level
+		}
 
-	// Merge metadatas
-	builder := NewMetadataBuilder[O](a.cfg).
-		WithLevel(higherLevel).
-		WithPrimaryIndex(a.PrimaryIdx).
-		WithMin(*a.Min).WithMin(*b.Min).
-		WithMax(*a.Max).WithMax(*b.Max)
+		builder.WithLevel(higherLevel).
+			WithPrimaryIndex(a.PrimaryIdx).
+			WithMin(*a.Min).WithMin(*c.Min).
+			WithMax(*a.Max).WithMax(*c.Max)
+	}
 
 	return builder, res, nil
 }

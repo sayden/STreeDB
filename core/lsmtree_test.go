@@ -137,9 +137,9 @@ func TestDBMemory(t *testing.T) {
 
 	// with the current config, inserting 60 items and compacting 3 times should result in
 	// 1 fileblock at level 4 with 40 items and 1 fileblock at level 3 with 20 items
-	lsmtree.levels.Index.Ascend(func(i *db.BtreeItem[int64]) bool {
-		i.Val.Each(func(k int, v *db.Fileblock[int64]) bool {
-			t.Logf("Fileblock (%d) %s has %d items. Level: %d", k, v.UUID(), v.ItemCount, v.Level)
+	lsmtree.levels.Index.Ascend(func(i *db.BtreeItem[int64, int64]) bool {
+		i.Val.Each(func(v *db.Fileblock[int64]) bool {
+			t.Logf("Fileblock %s has %d items. Level: %d", v.UUID(), v.ItemCount, v.Level)
 			switch v.Level {
 			case 3:
 				assert.Equal(t, 20, v.ItemCount)

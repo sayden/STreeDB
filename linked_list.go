@@ -122,11 +122,10 @@ func (dll *LinkedList[O, T]) Remove(value T) {
 }
 
 // TraverseForward traverses the list from head to tail
-func (dll *LinkedList[O, T]) Each(f func(int, T) bool) {
-	i := 0
-	for current := dll.head; current != nil; current, i = current.Next, i+1 {
-		stop := f(i, current.Val)
-		if stop {
+func (dll *LinkedList[O, T]) Each(f func(T) bool) {
+	for current := dll.head; current != nil; current = current.Next {
+		cont := f(current.Val)
+		if !cont {
 			return
 		}
 	}

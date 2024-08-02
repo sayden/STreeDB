@@ -35,8 +35,11 @@ func NewLsmTree[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, listeners ...db.Fi
 		newSizeLimitWalFlushStrategy[O](cfg.Wal.MaxSizeBytes),
 	)
 
-	compactionStrategies := &samePrimaryIndexCompactionStrategy[O]{and: &overlappingCompactionStrategy[O]{}}
-	l.compactor, err = NewTieredMultiFsCompactor[O, E](cfg, levels, compactionStrategies)
+	compactionStrategies := &samePrimaryIndexCompactionStrategy[O]{
+		and: &overlappingCompactionStrategy[O]{},
+	}
+	l.compactor, err = NewOnePassCompactor[O, E](cfg, levels, compactionStrategies)
+	// l.compactor, err = NewTieredMultiFsCompactor[O, E](cfg, levels, compactionStrategies)
 	if err != nil {
 		panic(err)
 	}

@@ -15,7 +15,8 @@ func NewLeveledFilesystem[O cmp.Ordered, E db.Entry[O]](cfg *db.Config, listener
 		cfg:                cfg,
 		promoters:          promoter,
 		fileblockListeners: listeners,
-		Index:              db.NewBtreeIndex(2, db.LLFComp[O]),
+		Index:              db.NewBtreeIndex(5, db.LLFComp[O, O]),
+		PrimaryIndex:       db.NewBtreeIndex(5, db.LLFComp[O, string]),
 	}
 
 	// add self to the listeners
@@ -71,16 +72,19 @@ type MultiFsLevels[O cmp.Ordered] struct {
 	cfg                *db.Config
 	promoters          []db.LevelPromoter[O]
 	levels             map[int]*BasicLevel[O]
-	Index              *db.BtreeIndex[O]
+	Index              *db.BtreeIndex[O, O]
+	PrimaryIndex       *db.BtreeIndex[O, string]
 	fileblockListeners []db.FileblockListener[O]
 }
 
 func (b *MultiFsLevels[O]) OnFileblockCreated(block *db.Fileblock[O]) {
 	b.Index.Upsert(*block.Metadata().Min, block)
+	b.PrimaryIndex.Upsert(*&block.Metadata().PrimaryIdx, block)
 }
 
 func (b *MultiFsLevels[O]) OnFileblockRemoved(block *db.Fileblock[O]) {
 	b.Index.Remove(*block.Metadata().Min, block)
+	b.PrimaryIndex.Remove(*&block.Metadata().PrimaryIdx, block)
 }
 
 func (b *MultiFsLevels[O]) NewFileblock(es *db.EntriesMap[O], builder *db.MetadataBuilder[O]) error {
@@ -129,7 +133,7 @@ func (b *MultiFsLevels[O]) FindSingle(pIdx, sIdx string, min, max O) (db.EntryIt
 func (b *MultiFsLevels[O]) Fileblocks() []*db.Fileblock[O] {
 	var blocks []*db.Fileblock[O]
 
-	b.Index.Ascend(func(i *db.BtreeItem[O]) bool {
+	b.Index.Ascend(func(i *db.BtreeItem[O, O]) bool {
 		ll := i.Val
 		for next, found := ll.Head(); next != nil && found; next = next.Next {
 			blocks = append(blocks, next.Val)

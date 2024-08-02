@@ -89,8 +89,8 @@ func createMockFileblock(p, s string, min int64, max int64) *Fileblock[int64] {
 	return NewFileblock(nil, meta, &mockFilesystem[int64]{emap: emap})
 }
 
-func createMockIndex(t *testing.T) *BtreeIndex[int64] {
-	btree := NewBtreeIndex[int64](3, LLFComp)
+func createMockIndex(t *testing.T) *BtreeIndex[int64, int64] {
+	btree := NewBtreeIndex[int64, int64](3, LLFComp)
 
 	// Build a LLF index Ts=1 with a single kv value: instance1:cpu
 	ins_1_cpu_fileblock := createMockFileblock("instance1", "cpu", 1, 4)

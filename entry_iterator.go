@@ -29,7 +29,7 @@ func newIteratorWithFilters[O cmp.Ordered](data []*Fileblock[O], filters []Entry
 
 type btreeWrapperIterator[O cmp.Ordered] struct {
 	ch    chan Entry[O]
-	btree *BtreeIndex[O]
+	btree *BtreeIndex[O, O]
 }
 
 func (b *btreeWrapperIterator[O]) startFilters(data []*Fileblock[O], filters []EntryFilter) {

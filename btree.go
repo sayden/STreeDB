@@ -60,25 +60,25 @@ func (p *secondaryIndexFilter[O]) Kind() EntryFilterKind {
 	return SecondaryIndexFilterKind
 }
 
-func LLFComp[O cmp.Ordered](a, b *BtreeItem[O]) bool {
+func LLFComp[O cmp.Ordered, I cmp.Ordered](a, b *BtreeItem[O, I]) bool {
 	return a.Key < b.Key
 }
 
-func NewBtreeIndex[O cmp.Ordered](degree int, less btree.LessFunc[*BtreeItem[O]]) *BtreeIndex[O] {
-	return &BtreeIndex[O]{BTreeG: btree.NewG[*BtreeItem[O]](2, LLFComp)}
+func NewBtreeIndex[O cmp.Ordered, I cmp.Ordered](degree int, less btree.LessFunc[*BtreeItem[O, I]]) *BtreeIndex[O, I] {
+	return &BtreeIndex[O, I]{BTreeG: btree.NewG[*BtreeItem[O, I]](2, LLFComp)}
 }
 
-type BtreeItem[O cmp.Ordered] struct {
-	Key O
+type BtreeItem[O cmp.Ordered, I cmp.Ordered] struct {
+	Key I
 	Val *LinkedList[O, *Fileblock[O]]
 }
 
-type BtreeIndex[O cmp.Ordered] struct {
-	*btree.BTreeG[*BtreeItem[O]]
+type BtreeIndex[O cmp.Ordered, I cmp.Ordered] struct {
+	*btree.BTreeG[*BtreeItem[O, I]]
 }
 
-func (b *BtreeIndex[O]) Get(o O) (*LinkedList[O, *Fileblock[O]], bool) {
-	item, found := b.BTreeG.Get(&BtreeItem[O]{Key: o})
+func (b *BtreeIndex[O, I]) Get(i I) (*LinkedList[O, *Fileblock[O]], bool) {
+	item, found := b.BTreeG.Get(&BtreeItem[O, I]{Key: i})
 	if item == nil {
 		return nil, false
 	}
@@ -86,10 +86,10 @@ func (b *BtreeIndex[O]) Get(o O) (*LinkedList[O, *Fileblock[O]], bool) {
 	return item.Val, found
 }
 
-func (b *BtreeIndex[O]) Upsert(key O, value *Fileblock[O]) bool {
+func (b *BtreeIndex[O, I]) Upsert(key I, value *Fileblock[O]) bool {
 	ll := &LinkedList[O, *Fileblock[O]]{}
 	ll.SetMin(value)
-	old, found := b.ReplaceOrInsert(&BtreeItem[O]{Key: key, Val: ll})
+	old, found := b.ReplaceOrInsert(&BtreeItem[O, I]{Key: key, Val: ll})
 	if !found {
 		return found
 	}
@@ -100,7 +100,7 @@ func (b *BtreeIndex[O]) Upsert(key O, value *Fileblock[O]) bool {
 	return true
 }
 
-func (b *BtreeIndex[O]) AscendRangeWithFilters(min, max O, filters ...EntryFilter) (EntryIterator[O], bool, error) {
+func (b *BtreeIndex[O, I]) AscendRangeWithFilters(min, max I, filters ...EntryFilter) (EntryIterator[O], bool, error) {
 	pFilters := make([]EntryFilter, 0)
 	for _, filter := range filters {
 		if filter.Kind() == PrimaryIndexFilterKind {
@@ -121,13 +121,13 @@ func (b *BtreeIndex[O]) AscendRangeWithFilters(min, max O, filters ...EntryFilte
 	return newIteratorWithFilters(result, filters), found, nil
 }
 
-func (b *BtreeIndex[O]) ascendRangeWithFilters(min, max O, filters ...EntryFilter) ([]*Fileblock[O], bool, error) {
+func (b *BtreeIndex[O, I]) ascendRangeWithFilters(min, max I, filters ...EntryFilter) ([]*Fileblock[O], bool, error) {
 	result := make([]*Fileblock[O], 0)
 
 	b.AscendRange(
-		&BtreeItem[O]{Key: min},
-		&BtreeItem[O]{Key: max},
-		func(item *BtreeItem[O]) bool {
+		&BtreeItem[O, I]{Key: min},
+		&BtreeItem[O, I]{Key: max},
+		func(item *BtreeItem[O, I]) bool {
 			for next := item.Val.head; next != nil; next = next.Next {
 				fileblock := next.Val
 				for _, filter := range filters {
@@ -144,13 +144,13 @@ func (b *BtreeIndex[O]) ascendRangeWithFilters(min, max O, filters ...EntryFilte
 	return result, len(result) > 0, nil
 }
 
-func (b *BtreeIndex[O]) ascendRange(pIdx, sIdx string, min, max O) ([]*Fileblock[O], bool, error) {
+func (b *BtreeIndex[O, I]) ascendRange(pIdx, sIdx string, min, max I) ([]*Fileblock[O], bool, error) {
 	result := make([]*Fileblock[O], 0)
 
 	b.AscendRange(
-		&BtreeItem[O]{Key: min},
-		&BtreeItem[O]{Key: max},
-		func(item *BtreeItem[O]) bool {
+		&BtreeItem[O, I]{Key: min},
+		&BtreeItem[O, I]{Key: max},
+		func(item *BtreeItem[O, I]) bool {
 			for next := item.Val.head; next != nil; next = next.Next {
 				if pIdx == "" || next.Val.PrimaryIndex() == pIdx {
 					for _, c := range next.Val.Rows {
@@ -168,8 +168,8 @@ func (b *BtreeIndex[O]) ascendRange(pIdx, sIdx string, min, max O) ([]*Fileblock
 	return result, len(result) > 0, nil
 }
 
-func (b *BtreeIndex[O]) Remove(key O, value *Fileblock[O]) bool {
-	btItem, found := b.BTreeG.Get(&BtreeItem[O]{Key: key})
+func (b *BtreeIndex[O, I]) Remove(key I, value *Fileblock[O]) bool {
+	btItem, found := b.BTreeG.Get(&BtreeItem[O, I]{Key: key})
 	if !found {
 		return false
 	}
